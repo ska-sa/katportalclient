@@ -1,6 +1,6 @@
 """
 Websocket client module providing wrapper functions as available on
-katportal webservers support websockets and the PubSub capability.
+katportal webservers that supports websockets and the PubSub capability.
 """
 
 import logging
@@ -18,7 +18,7 @@ module_logger = logging.getLogger('kat.katportalclient')
 
 class KATPortalClient(object):
     """
-    Katportal client class serving as a websocket client and wrappingx
+    Katportal client class serving as a websocket client and wrapping
     functions as available on katportal webservers for the PubSub capability.
     """
 
