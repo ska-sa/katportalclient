@@ -240,7 +240,7 @@ class KATPortalClient(object):
 
     @tornado.gen.coroutine
     def set_sampling_strategy(self, namespace, sensor_name,
-                              strategy_and_params):
+                              strategy_and_params, persist_to_redis=False):
         """Set up a specified sensor strategy for a specific single sensor.
 
         Parameters
@@ -261,20 +261,27 @@ class KATPortalClient(object):
                 'event'
                 'period 0.5'
                 'event-rate 1.0 5.0'
+        persist_to_redis: bool
+            Whether to persist the sensor updates to redis or not, if persisted
+            to redis, the last updated values can be  retrieved from redis
+            without having to wait for the next KATCP sensor update.
+            (default=False)
 
         Returns
         -------
         result: dict
             Dictionary with sensor name as key and result as value
         """
-        req = JSONRPCRequest('set_sampling_strategy',
-                             [namespace, sensor_name, strategy_and_params])
+        req = JSONRPCRequest(
+            'set_sampling_strategy',
+            [namespace, sensor_name, strategy_and_params, persist_to_redis]
+        )
         result = yield self._send(req)
         raise tornado.gen.Return(result)
 
     @tornado.gen.coroutine
     def set_sampling_strategies(self, namespace, filters,
-                                strategy_and_params):
+                                strategy_and_params, persist_to_redis=False):
         """
         Set up a specified sensor strategy for all sensors maching a specified
         set of filters.
@@ -300,6 +307,11 @@ class KATPortalClient(object):
                 'event'
                 'period 0.5'
                 'event-rate 1.0 5.0'
+        persist_to_redis: bool
+            Whether to persist the sensor updates to redis or not, if persisted
+            to redis, the last updated values can be  retrieved from redis
+            without having to wait for the next KATCP sensor update.
+            (default=False)
 
         Returns
         -------
@@ -322,7 +334,9 @@ class KATPortalClient(object):
                     Normalised sensor strategy and parameters as string if
                     success == True else, string with the error that occured.
         """
-        req = JSONRPCRequest('set_sampling_strategies',
-                             [namespace, filters, strategy_and_params])
+        req = JSONRPCRequest(
+            'set_sampling_strategies',
+            [namespace, filters, strategy_and_params, persist_to_redis]
+        )
         result = yield self._send(req)
         raise tornado.gen.Return(result)
