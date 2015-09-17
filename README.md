@@ -37,13 +37,12 @@ def on_update_callback(msg):
 
 @tornado.gen.coroutine
 def connect(logger):
-    ws_client = KATPortalClient('ws://localhost:8830/client/websocket',
+    ws_client = KATPortalClient('ws://<server>:<port>/<ws_endpoint>',
                                 on_update_callback, logger=logger)
     yield ws_client.connect()
-    result = yield ws_client.subscribe('testing')
+    result = yield ws_client.subscribe('my_namespace')
     result = yield ws_client.set_sampling_strategies(
-        'testing', ['mode', 'actual'], 'period 1.0')
-    tornado.gen.sleep(10)
+        'my_namespace', ['mode', 'azim', 'elev'], 'period 1.0')
 
 
 if __name__ == '__main__':
