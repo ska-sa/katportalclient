@@ -82,10 +82,11 @@ class KATPortalClient(object):
             msg = yield self._ws.read_message()
             msg = json.loads(msg)
             self._logger.debug("Message received: '{}'".format(msg))
-            if msg['id'].startswith('redis-pubsub'):
+            msg_id = str(msg['id'])
+            if msg_id.startswith('redis-pubsub'):
                 self._io_loop.add_callback(self._on_update, msg['result'])
             else:
-                future = self._pending_requests.get(msg['id'], None)
+                future = self._pending_requests.get(msg_id, None)
                 if future:
                     error = msg.get('error', None)
                     result = msg.get('result', None)
@@ -103,7 +104,8 @@ class KATPortalClient(object):
     def _send(self, req):
         future = tornado.gen.Future()
         if self.is_connected:
-            self._pending_requests[req.id] = future
+            req_id = str(req.id)
+            self._pending_requests[req_id] = future
             self._ws.write_message(req())
             return future
         else:
