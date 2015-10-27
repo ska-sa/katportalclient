@@ -67,6 +67,7 @@ class KATPortalClient(object):
         if self.is_connected:
             self._ws.close()
             self._ws = None
+            self._logger.debug("Disconnected client websocket.")
 
     @tornado.gen.coroutine
     def _run(self):
@@ -80,24 +81,34 @@ class KATPortalClient(object):
                           "received from websocket server.")
         while self.is_connected:
             msg = yield self._ws.read_message()
-            msg = json.loads(msg)
-            self._logger.debug("Message received: '{}'".format(msg))
-            msg_id = str(msg['id'])
-            if msg_id.startswith('redis-pubsub'):
-                self._io_loop.add_callback(self._on_update, msg['result'])
-            else:
-                future = self._pending_requests.get(msg_id, None)
-                if future:
-                    error = msg.get('error', None)
-                    result = msg.get('result', None)
-                    if error:
-                        future.set_result(error)
-                    else:
-                        future.set_result(result)
+            if msg is None:
+                self._logger.info("Websocket server disconnected!")
+                break
+            try:
+                self._io_loop.add_callback(self._on_update, msg)
+                msg = json.loads(msg)
+                self._logger.debug("Message received: '{}'".format(msg))
+                msg_id = str(msg['id'])
+                if msg_id.startswith('redis-pubsub'):
+                    self._io_loop.add_callback(self._on_update, msg['result'])
                 else:
-                    self._logger.error(
-                        "Message received without a matching pending "
-                        "request! '{}'".format(msg))
+                    future = self._pending_requests.get(msg_id, None)
+                    if future:
+                        error = msg.get('error', None)
+                        result = msg.get('result', None)
+                        if error:
+                            future.set_result(error)
+                        else:
+                            future.set_result(result)
+                    else:
+                        self._logger.error(
+                            "Message received without a matching pending "
+                            "request! '{}'".format(msg))
+            except:
+                self._logger.warn(
+                    "Message received that is not JSON formatted! {}"
+                    .format(msg))
+                self._io_loop.add_callback(self._on_update, msg)
         self._logger.info("Disconnected! Stop listening for messages "
                           "received from websocket server.")
 
