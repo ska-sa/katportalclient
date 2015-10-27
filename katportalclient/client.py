@@ -85,7 +85,6 @@ class KATPortalClient(object):
                 self._logger.info("Websocket server disconnected!")
                 break
             try:
-                self._io_loop.add_callback(self._on_update, msg)
                 msg = json.loads(msg)
                 self._logger.debug("Message received: '{}'".format(msg))
                 msg_id = str(msg['id'])
