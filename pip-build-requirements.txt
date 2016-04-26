@@ -1,5 +1,5 @@
 # List of pip dependencies that are in development
--e git+https://katpull:katpull4git@github.com/ska-sa/katversion.git#egg=katversion
+git+https://katpull:katpull4git@github.com/ska-sa/katversion.git#egg=katversion
 
 # Install self
--e .
+.
