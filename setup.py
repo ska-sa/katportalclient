@@ -28,9 +28,9 @@ setup(
         "ujson>=1.33, <2.0",
     ],
     tests_require=[
-        "unittest2>=0.5.1",
-        "nose>=1.3, <2.0",
-        "mock>=1.0, <2.0",
+        "unittest2",
+        "nose",
+        "mock",
     ],
     # install extras by running pip install .[doc,<another_extra>]
     extras_require={
