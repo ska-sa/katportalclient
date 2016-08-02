@@ -1,4 +1,4 @@
-node {
+node('docker') {
     stage 'Build and Test'
     docker.image('camslave').inside {
         checkout scm
