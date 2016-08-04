@@ -6,7 +6,7 @@ node('docker') {
 
             stage 'Install & Unit Tests'
             timeout(time: 30, unit: 'MINUTES') {
-                sh 'pip install . -U --pre'
+                sh 'pip install . -U --pre --user'
                 sh 'python setup.py nosetests -v --with-xunit'
                 step([$class: 'JUnitResultArchiver', testResults: 'nosetests.xml'])
             }
