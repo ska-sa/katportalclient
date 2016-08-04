@@ -13,8 +13,8 @@ node('docker') {
 
             stage 'Build .whl & .deb'
             sh 'fpm -s python -t deb .'
-            sh 'mv *.deb dist/'
             sh 'python setup.py bdist_wheel'
+            sh 'mv *.deb dist/'
 
             stage 'Upload .whl & .deb'
             sshagent(['88805e11-10f8-4cc2-b6b8-cba2268ceb2c']) {
