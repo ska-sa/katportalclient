@@ -1,5 +1,5 @@
 node('docker') {
-    docker.image('camslave:latest').inside {
+    docker.image('camslave:latest').inside('-u root') {
 
         stage 'Checkout SCM'
         checkout scm
