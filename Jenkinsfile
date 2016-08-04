@@ -1,6 +1,7 @@
 node('docker') {
     docker.image('cambuilder:latest').inside {
         try {
+            sh 'whoami'
             stage 'Checkout SCM'
             checkout scm
 
