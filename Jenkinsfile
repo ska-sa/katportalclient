@@ -13,11 +13,12 @@ node('docker') {
 
         stage 'Build .whl & .deb'
         sh 'fpm -s python -t deb .'
+        sh 'mv *.deb dist/'
         sh 'python setup.py bdist_wheel'
 
         stage 'Upload .whl & .deb'
         sshagent(['88805e11-10f8-4cc2-b6b8-cba2268ceb2c']) {
-            sh "scp -o StrictHostKeyChecking=no *.deb kat@apt.camlab.kat.ac.za:/var/www/apt/ubuntu/dists/trusty/main/binary-amd64/katportalclient/"
+            sh "scp -o StrictHostKeyChecking=no dist/*.deb kat@apt.camlab.kat.ac.za:/var/www/apt/ubuntu/dists/trusty/main/binary-amd64/katportalclient/"
             sh "ssh -o StrictHostKeyChecking=no kat@apt.camlab.kat.ac.za '/var/www/apt/ubuntu/scripts/update_repo.sh'"
         }
 
@@ -25,9 +26,11 @@ node('docker') {
         sh 'devpi login pypi --password='
         sh 'devpi upload dist/*.whl'
 
-        archive 'dist/*.whl,*.deb'
+        archive 'dist/*.*'
         
         //clean workspace for subsequent builds
-        deleteDir()
+        dir('dist/') {
+            deleteDir()
+        }
     }
 }
