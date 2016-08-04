@@ -2,8 +2,7 @@ node('docker') {
     docker.image('cambuilder:latest').inside('-u root') {
 
         stage 'Cleanup workspace'
-        def workspace = pwd()
-        dir('${workspace}/dist') {
+        dir('dist') {
             deleteDir()
         }
 
