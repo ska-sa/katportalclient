@@ -27,8 +27,8 @@ node('docker') {
             sh 'devpi upload dist/*.whl'
         } finally {
             stage 'Cleanup workspace'
-            def user = sh 'whoami'
-            sh 'chown -R ${user} .'
+            sh 'ls -la .'
+            sh 'chown -R root .'
             deleteDir()
         }
     }
