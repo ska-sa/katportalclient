@@ -16,7 +16,7 @@ node('docker') {
         sh 'python setup.py bdist_wheel'
 
         stage 'Upload .whl & .deb'
-        sshagent(['a20822c6-20f2-4988-a063-576d62f9950a']) {
+        sshagent(['88805e11-10f8-4cc2-b6b8-cba2268ceb2c']) {
             sh "scp -o StrictHostKeyChecking=no *.deb kat@apt.camlab.kat.ac.za:/var/www/apt/ubuntu/dists/trusty/main/binary-amd64/katportalclient/"
             sh "ssh -o StrictHostKeyChecking=no kat@apt.camlab.kat.ac.za '/var/www/apt/ubuntu/scripts/update_repo.sh'"
         }
