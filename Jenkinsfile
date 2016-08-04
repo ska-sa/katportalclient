@@ -26,5 +26,8 @@ node('docker') {
         sh 'devpi upload dist/*.whl'
 
         archive 'dist/*.whl,*.deb'
+        
+        //clean workspace for subsequent builds
+        deleteDir()
     }
 }
