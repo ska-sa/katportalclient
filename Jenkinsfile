@@ -8,9 +8,7 @@ node('docker') {
         timeout(time: 180, unit: 'MINUTES') {
             sh 'pip install . -U --pre --user'
             sh 'python setup.py nosetests -v --with-xunit --with-xcoverage --xcoverage-file=coverage.xml --cover-package=katportalclient --cover-inclusive'
-            archiveArtifacts artifacts: '*.xml', fingerprint: true
-            junit 'nosetests.xml'
-            coverage 'coverage.xml'
+            step([$class: 'JUnitResultArchiver', testResults: 'nosetests.xml'])
         }
 
         stage 'Build & Upload'
