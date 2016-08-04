@@ -1,5 +1,5 @@
 node('docker') {
-    docker.image('cambuilder:latest').inside('-u root') {
+    docker.image('cambuilder:latest').inside {
         try {
             stage 'Checkout SCM'
             checkout scm
@@ -27,8 +27,6 @@ node('docker') {
             sh 'devpi upload dist/*.whl'
         } finally {
             stage 'Cleanup workspace'
-            sh 'ls -la .'
-            sh 'chown -R root .'
             deleteDir()
         }
     }
