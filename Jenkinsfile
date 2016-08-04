@@ -6,19 +6,25 @@ node('docker') {
 
         stage 'Install & Unit Tests'
         timeout(time: 180, unit: 'MINUTES') {
-            sh 'pip install . -U --pre --user'
-            sh 'python setup.py nosetests -v --with-xunit --with-xcoverage --xcoverage-file=coverage.xml --cover-package=katportalclient --cover-inclusive'
+            sh 'pip install . -U --pre'
+            sh 'python setup.py nosetests -v --with-xunit'
             step([$class: 'JUnitResultArchiver', testResults: 'nosetests.xml'])
         }
 
-        stage 'Build & Upload'
-        sh 'fpm -s python -t deb . # --python-bin="/usr/bin/python2.7" .'
-        echo '!!!!!!TODO: UPLOAD .DEB!!!!!!!'
+        stage 'Build .whl & .deb'
+        sh 'fpm -s python -t deb .'
         sh 'python setup.py bdist_wheel'
+
+        stage 'Upload .whl & .deb'
+        sshagent(['a20822c6-20f2-4988-a063-576d62f9950a']) {
+            sh 'scp *.deb kat@apt.camlab.kat.ac.za:/var/www/apt/ubuntu/dists/trusty/main/binary-amd64/katportalclient/'
+            sh "ssh kat@apt.camlab.kat.ac.za '/var/www/apt/ubuntu/scripts/update_repo.sh'"
+        }
+
         sh 'devpi use http://pypi.camlab.kat.ac.za/pypi/trusty'
         sh 'devpi login pypi --password='
         sh 'devpi upload dist/*.whl'
 
-        archive '*.whl,*.deb'
+        archive 'dist/*.whl,*.deb'
     }
 }
