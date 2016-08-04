@@ -1,14 +1,26 @@
 node('docker') {
-    docker.image('camslave:latest').inside('-u root') {
+    docker.image('cambuilder:latest').inside('-u root') {
 
         stage 'Checkout SCM'
         checkout scm
 
-        stage 'Unit Tests'
-        sh 'pip install . -U --pre --user'
-        sh 'python setup.py nosetests -v --with-xunit --with-xcoverage --xcoverage-file=coverage.xml --cover-package=katportalclient --cover-inclusive'
+        stage 'Install & Unit Tests'
+        timeout(time: 180, unit: 'MINUTES') {
+            sh 'pip install . -U --pre --user'
+            sh 'python setup.py nosetests -v --with-xunit --with-xcoverage --xcoverage-file=coverage.xml --cover-package=katportalclient --cover-inclusive'
+            archiveArtifacts artifacts: '*.xml', fingerprint: true
+            junit 'nosetests.xml'
+            coverage 'coverage.xml'
+        }
 
-        stage 'Build and Upload'
-        sh 'echo "fpm and wheels build here please!!"'
+        stage 'Build & Upload'
+        sh 'fpm -s python -t deb . # --python-bin="/usr/bin/python2.7" .'
+        echo '!!!!!!TODO: UPLOAD .DEB!!!!!!!'
+        sh 'python setup.py bdist_wheel'
+        sh 'devpi use http://pypi.camlab.kat.ac.za/pypi/trusty'
+        sh 'devpi login pypi --password='
+        sh 'devpi upload dist/*.whl'
+
+        archive '*.whl,*.deb'
     }
 }
