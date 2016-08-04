@@ -3,7 +3,7 @@ node('docker') {
 
         stage 'Cleanup workspace'
         dir('dist') {
-            deleteDir()
+            sh 'rm -rf *'
         }
 
         stage 'Checkout SCM'
