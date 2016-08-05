@@ -4,7 +4,7 @@ node('docker') {
         deleteDir()
     }
 
-    docker.image('cambuilder:latest').inside('-u root') {
+    docker.image('cambuilder:latest').inside('-u kat') {
         sh 'whoami'
         stage 'Checkout SCM'
         checkout scm
