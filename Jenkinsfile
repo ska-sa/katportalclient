@@ -7,7 +7,8 @@ node('docker') {
     docker.image('cambuilder:latest').inside('-u root') {
         stage 'Checkout SCM'
         checkout scm
-        sh 'git checkout ${env.BRANCH_NAME}'
+        sh "echo ${env}"
+        sh "git checkout ${env.BRANCH_NAME}"
 
         stage 'Install & Unit Tests'
         timeout(time: 30, unit: 'MINUTES') {
