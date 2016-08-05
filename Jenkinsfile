@@ -1,6 +1,8 @@
 node('docker') {
-    // stage 'Cleanup workspace'
-    // deleteDir()
+    stage 'Cleanup workspace'
+    dir('dist') {
+        deleteDir()
+    }
 
     docker.image('cambuilder:latest').inside('-u root') {
         sh 'whoami'
@@ -28,6 +30,5 @@ node('docker') {
         sh 'devpi use http://pypi.camlab.kat.ac.za/pypi/trusty'
         sh 'devpi login pypi --password='
         sh 'devpi upload dist/*.whl'
-        sh 'sleep 360'
     }
 }
