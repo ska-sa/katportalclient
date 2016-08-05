@@ -4,8 +4,7 @@ node('docker') {
         deleteDir()
     }
 
-    docker.image('cambuilder:latest').inside('-u kat') {
-        sh 'whoami'
+    docker.image('cambuilder:latest').inside('-u root') {
         stage 'Checkout SCM'
         checkout scm
 
@@ -20,6 +19,7 @@ node('docker') {
         sh 'fpm -s python -t deb .'
         sh 'python setup.py bdist_wheel'
         sh 'mv *.deb dist/'
+        sh 'chmod a+x -R dist/'
 
         stage 'Upload .whl & .deb'
         sshagent(['88805e11-10f8-4cc2-b6b8-cba2268ceb2c']) {
