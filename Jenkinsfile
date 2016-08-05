@@ -1,6 +1,6 @@
 node('docker') {
-    stage 'Cleanup workspace'
-    deleteDir()
+    // stage 'Cleanup workspace'
+    // deleteDir()
 
     docker.image('cambuilder:latest').inside('-u root') {
         sh 'whoami'
