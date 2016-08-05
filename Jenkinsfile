@@ -19,7 +19,10 @@ node('docker') {
         sh 'fpm -s python -t deb .'
         sh 'python setup.py bdist_wheel'
         sh 'mv *.deb dist/'
-        sh 'chmod a+x -R dist/'
+        sh 'whoami'
+        sh 'ls -la dist/'
+        sh 'chmod 777 -R dist/'
+        sh 'ls -la dist/'
 
         stage 'Upload .whl & .deb'
         sshagent(['88805e11-10f8-4cc2-b6b8-cba2268ceb2c']) {
