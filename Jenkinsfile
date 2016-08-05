@@ -7,7 +7,6 @@ node('docker') {
     docker.image('cambuilder:latest').inside('-u root') {
         stage 'Checkout SCM'
         checkout scm
-        sh "echo ${env}"
         sh "git checkout ${env.BRANCH_NAME}"
 
         stage 'Install & Unit Tests'
