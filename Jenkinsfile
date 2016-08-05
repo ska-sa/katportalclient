@@ -28,5 +28,6 @@ node('docker') {
         sh 'devpi use http://pypi.camlab.kat.ac.za/pypi/trusty'
         sh 'devpi login pypi --password='
         sh 'devpi upload dist/*.whl'
+        sh 'sleep 360'
     }
 }
