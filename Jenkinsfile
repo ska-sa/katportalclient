@@ -19,9 +19,11 @@ node('docker') {
         stage 'Build .whl & .deb'
             sh 'fpm -s python -t deb .'
             sh 'python setup.py bdist_wheel'
+            sh 'mv *.deb dist/'
+            sh 'chmod 777 -R dist'
 
         stage 'Archive build artifact: .whl & .deb'
-            archive 'dist/*.whl,*.deb'
+            archive 'dist/*.whl,dist/*.deb'
 
         build job: 'publish-local-whl', parameters: [
             [$class: 'StringParameterValue', name: 'artifact_source', value: '$JENKINS_HOME/jobs/$JOB_NAME/builds/$BUILD_ID/archive/'],
