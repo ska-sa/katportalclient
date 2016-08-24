@@ -22,5 +22,9 @@ node('docker') {
 
         stage 'Archive build artifact: .whl & .deb'
             archive 'dist/*.whl,*.deb'
+
+        build job: 'publish-local-whl', parameters: [
+            [$class: 'StringParameterValue', name: 'artifact_source', value: '$JENKINS_HOME/jobs/$JOB_NAME/builds/$BUILD_ID/archive/'],
+            [$class: 'StringParameterValue', name: 'source_branch', value: $env.BRANCH_NAME}]]
     }
 }
