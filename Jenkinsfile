@@ -19,10 +19,8 @@ node('docker') {
         stage 'Build .whl & .deb'
             sh 'fpm -s python -t deb .'
             sh 'python setup.py bdist_wheel'
-            sh 'mv *.deb dist/'
 
         stage 'Archive build artifact: .whl & .deb'
-            sh "ls -la dist/"
-            archive 'dist/*.whl,dist/*.deb'
+            archive 'dist/*.whl,*.deb'
     }
 }
