@@ -27,6 +27,6 @@ node('docker') {
 
         stage 'Trigger downstream publish'
             ARTIFACT_SOURCE = "${currentBuild.absoluteUrl}/artifact/dist/*zip*/dist.zip"
-            build job: 'publish-local', parameters: [string(name: 'artifact_source', value: ARTIFACT_SOURCE), string(name: 'source_branch', value: '${env.BRANCH_NAME}')]
+            build job: 'publish-local', parameters: [string(name: 'artifact_source', value: ARTIFACT_SOURCE), string(name: 'source_branch', value: ${env.BRANCH_NAME})]
     }
 }
