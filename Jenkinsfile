@@ -14,15 +14,15 @@ node('docker') {
             sh 'pip install . -U --pre --user'
             sh 'python setup.py nosetests -v --with-xunit'
             step([$class: 'JUnitResultArchiver', testResults: 'nosetests.xml'])
-        }
+            }
 
         stage 'Build .whl & .deb'
             sh 'fpm -s python -t deb .'
             sh 'python setup.py bdist_wheel'
             sh 'mv *.deb dist/'
-            sh 'chmod 777 -R dist/'
 
         stage 'Archive build artifact: .whl & .deb'
-            step([$class: 'ArtifactArchiver', artifacts: '*.whl,*.deb', fingerprint: true])
+            sh "ls -la dist/"
+            archive 'dist/*.whl,dist/*.deb'
     }
 }
