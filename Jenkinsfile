@@ -13,7 +13,6 @@ node('docker') {
             timeout(time: 30, unit: 'MINUTES') {
             sh 'pip install . -U --pre --user'
             sh 'python setup.py nosetests -v --with-xunit'
-            sh 'pip freeze'
             step([$class: 'JUnitResultArchiver', testResults: 'nosetests.xml'])
             }
 
