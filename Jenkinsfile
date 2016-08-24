@@ -25,8 +25,9 @@ node('docker') {
         stage 'Archive build artifact: .whl & .deb'
             archive 'dist/*.whl,dist/*.deb'
 
-        ARTIFACT_SOURCE = "${env.JENKINS_HOME}/jobs/${env.JOB_NAME}/builds/${env.BUILD_ID}/archive/"
-        echo ARTIFACT_SOURCE
-        build job: 'publish-local-whl', parameters: [[$class: 'StringParameterValue', name: 'artifact_source', value: ARTIFACT_SOURCE.toString()],[$class: 'StringParameterValue', name: 'source_branch', value: {$env.BRANCH_NAME}]]
+        stage 'Trigger downstream publish'
+            ARTIFACT_SOURCE = "${env.JENKINS_HOME}/jobs/${env.JOB_NAME}/branches/${env.BRANCH_NAME}/builds/${env.BUILD_ID}/archive/dist"
+            echo ARTIFACT_SOURCE
+            build job: 'publish-local-whl', parameters: [[$class: 'StringParameterValue', name: 'artifact_source', value: ARTIFACT_SOURCE.toString()],[$class: 'StringParameterValue', name: 'source_branch', value: {$env.BRANCH_NAME}]], wait: false
     }
 }
