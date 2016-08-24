@@ -1,8 +1,4 @@
 node('docker') {
-    stage 'Cleanup workspace'
-    dir('dist') {
-        deleteDir()
-    }
 
     docker.image('cambuilder:latest').inside('-u root') {
         stage 'Checkout SCM'
