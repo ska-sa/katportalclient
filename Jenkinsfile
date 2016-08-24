@@ -22,14 +22,7 @@ node('docker') {
         sh 'mv *.deb dist/'
         sh 'chmod 777 -R dist/'
 
-        stage 'Upload .whl & .deb'
-        sshagent(['88805e11-10f8-4cc2-b6b8-cba2268ceb2c']) {
-            sh "scp -o StrictHostKeyChecking=no dist/*.deb kat@apt.camlab.kat.ac.za:/var/www/apt/ubuntu/dists/trusty/main/binary-amd64/katportalclient/"
-            sh "ssh -o StrictHostKeyChecking=no kat@apt.camlab.kat.ac.za '/var/www/apt/ubuntu/scripts/update_repo.sh'"
-        }
-
-        sh 'devpi use http://pypi.camlab.kat.ac.za/pypi/trusty'
-        sh 'devpi login pypi --password='
-        sh 'devpi upload dist/*.whl'
+        stage 'Archive build artifact: .whl & .deb'
+        archive '*.whl,*.deb'
     }
 }
