@@ -6,30 +6,29 @@ node('docker') {
 
     docker.image('cambuilder:latest').inside('-u root') {
         stage 'Checkout SCM'
-        checkout scm
-        sh "git checkout ${env.BRANCH_NAME}"
+            checkout scm
+            sh "git checkout ${env.BRANCH_NAME}"
 
         stage 'Install & Unit Tests'
-        timeout(time: 30, unit: 'MINUTES') {
+            timeout(time: 30, unit: 'MINUTES') {
             sh 'pip install . -U --pre --user'
             sh 'python setup.py nosetests -v --with-xunit'
             step([$class: 'JUnitResultArchiver', testResults: 'nosetests.xml'])
-        }
+            }
 
         stage 'Build .whl & .deb'
-        sh 'fpm -s python -t deb .'
-        sh 'python setup.py bdist_wheel'
-        sh 'mv *.deb dist/'
-        sh 'chmod 777 -R dist/'
+            sh 'fpm -s python -t deb .'
+            sh 'python setup.py bdist_wheel'
+            sh 'mv *.deb dist/'
+            // chmod for cleanup stage
+            sh 'chmod 777 -R dist'
 
-        stage 'Upload .whl & .deb'
-        sshagent(['88805e11-10f8-4cc2-b6b8-cba2268ceb2c']) {
-            sh "scp -o StrictHostKeyChecking=no dist/*.deb kat@apt.camlab.kat.ac.za:/var/www/apt/ubuntu/dists/trusty/main/binary-amd64/katportalclient/"
-            sh "ssh -o StrictHostKeyChecking=no kat@apt.camlab.kat.ac.za '/var/www/apt/ubuntu/scripts/update_repo.sh'"
-        }
+        stage 'Archive build artifact: .whl & .deb'
+            archive 'dist/*.whl,dist/*.deb'
 
-        sh 'devpi use http://pypi.camlab.kat.ac.za/pypi/trusty'
-        sh 'devpi login pypi --password='
-        sh 'devpi upload dist/*.whl'
+        stage 'Trigger downstream publish'
+            build job: 'publish-local', parameters: [
+                string(name: 'artifact_source', value: "${currentBuild.absoluteUrl}/artifact/dist/*zip*/dist.zip"),
+                string(name: 'source_branch', value: "${env.BRANCH_NAME}")]
     }
 }
