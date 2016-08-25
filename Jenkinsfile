@@ -4,7 +4,7 @@ node('docker') {
         deleteDir()
     }
 
-    docker.image('cambuilder:latest').inside('-u root') {
+    docker.image('cambuilder:latest') {
         stage 'Checkout SCM'
             checkout scm
             sh "git checkout ${env.BRANCH_NAME}"
@@ -20,13 +20,15 @@ node('docker') {
             sh 'fpm -s python -t deb .'
             sh 'python setup.py bdist_wheel'
             sh 'mv *.deb dist/'
+            // chmod for cleanup stage
             sh 'chmod 777 -R dist'
 
         stage 'Archive build artifact: .whl & .deb'
             archive 'dist/*.whl,dist/*.deb'
 
         stage 'Trigger downstream publish'
-            ARTIFACT_SOURCE = "${currentBuild.absoluteUrl}/artifact/dist/*zip*/dist.zip"
-            build job: 'publish-local', parameters: [string(name: 'artifact_source', value: ARTIFACT_SOURCE), string(name: 'source_branch', value: "${env.BRANCH_NAME}")]
+            build job: 'publish-local', parameters: [
+                string(name: 'artifact_source', value: "${currentBuild.absoluteUrl}/artifact/dist/*zip*/dist.zip"),
+                string(name: 'source_branch', value: "${env.BRANCH_NAME}")]
     }
 }
