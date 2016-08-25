@@ -4,7 +4,7 @@ node('docker') {
         deleteDir()
     }
 
-    docker.image('cambuilder:latest') {
+    docker.image('cambuilder:latest').inside('-u kat') {
         stage 'Checkout SCM'
             checkout scm
             sh "git checkout ${env.BRANCH_NAME}"
