@@ -86,7 +86,7 @@ class KATPortalClient(object):
                 break
             try:
                 msg = json.loads(msg)
-                self._logger.debug("Message received: '{}'".format(msg))
+                self._logger.debug("Message received: %s", msg)
                 msg_id = str(msg['id'])
                 if msg_id.startswith('redis-pubsub'):
                     self._io_loop.add_callback(self._on_update, msg['result'])
