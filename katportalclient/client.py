@@ -1,6 +1,16 @@
+###############################################################################
+# SKA South Africa (http://ska.ac.za/)                                        #
+# Author: cam@ska.ac.za                                                       #
+# Copyright @ 2013 SKA SA. All rights reserved.                               #
+#                                                                             #
+# THIS SOFTWARE MAY NOT BE COPIED OR DISTRIBUTED IN ANY FORM WITHOUT THE      #
+# WRITTEN PERMISSION OF SKA SA.                                               #
+###############################################################################
 """
-Websocket client module providing wrapper functions as available on
-katportal webservers that supports websockets and the PubSub capability.
+Websocket client module for access to katportal webservers.
+
+This module provides wrapper functions accessing the katportal webservers via
+websockets and the PubSub capability.
 """
 
 import logging
@@ -18,8 +28,9 @@ module_logger = logging.getLogger('kat.katportalclient')
 
 class KATPortalClient(object):
     """
-    Katportal client class serving as a websocket client and wrapping
-    functions as available on katportal webservers for the PubSub capability.
+    katportal client class serving as a websocket client.
+
+    Wraps functions available on katportal webservers for the PubSub capability.
     """
 
     def __init__(self, ws_url, on_update_callback,
@@ -48,6 +59,7 @@ class KATPortalClient(object):
 
     @property
     def is_connected(self):
+        """Return True if websocket is connected."""
         return self._ws is not None
 
     @tornado.gen.coroutine
@@ -72,8 +84,10 @@ class KATPortalClient(object):
     @tornado.gen.coroutine
     def _run(self):
         """
-        Start a loop that listens for all messages received from the websocket
-        server and handle them appropriately.
+        Start the main message loop.
+
+        This loop listens for all messages received from the websocket
+        server and handles them appropriately.
         """
         # TODO(TA):
         # - Add timeouts
@@ -133,7 +147,7 @@ class KATPortalClient(object):
 
     @tornado.gen.coroutine
     def subscribe(self, namespace, sub_strings=None):
-        """Subscribe to the specified string identifiers in a namespace.
+        r"""Subscribe to the specified string identifiers in a namespace.
 
         A namespace provides grouping and consist of channels that can be
         subscribed to, e.g.
@@ -295,8 +309,7 @@ class KATPortalClient(object):
     def set_sampling_strategies(self, namespace, filters,
                                 strategy_and_params, persist_to_redis=False):
         """
-        Set up a specified sensor strategy for all sensors maching a specified
-        set of filters.
+        Set up a specified sensor strategy for a filtered list of sensors.
 
         Parameters
         ----------
