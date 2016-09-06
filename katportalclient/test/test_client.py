@@ -1,4 +1,13 @@
+###############################################################################
+# SKA South Africa (http://ska.ac.za/)                                        #
+# Author: cam@ska.ac.za                                                       #
+# Copyright @ 2013 SKA SA. All rights reserved.                               #
+#                                                                             #
+# THIS SOFTWARE MAY NOT BE COPIED OR DISTRIBUTED IN ANY FORM WITHOUT THE      #
+# WRITTEN PERMISSION OF SKA SA.                                               #
+###############################################################################
 """Tests for katwebsocket of katportal."""
+
 
 import logging
 from functools import partial
@@ -6,8 +15,7 @@ from functools import partial
 import omnijson as json
 from tornado import gen
 from tornado.web import Application
-from tornado.websocket import WebSocketHandler
-from tornado.testing import AsyncHTTPTestCase, gen_test
+from tornado.testing import gen_test
 from tornado.test.websocket_test import (
     WebSocketBaseTestCase, TestWebSocketHandler)
 
@@ -18,20 +26,23 @@ LOGGER_NAME = 'test_portalclient'
 
 
 class TestWebSocket(TestWebSocketHandler):
+    """Web socket test server."""
+
     def open(self):
         print("WebSocket opened")
 
     def on_message(self, message):
-        # Fake the typical replies depending on the type of method called
+        """Fake the typical replies depending on the type of method called."""
+
         reply = {}
         message = json.loads(message)
-        reply['id'] =  message['id']
+        reply['id'] = message['id']
         if message['method'] == 'pubsub-test':
-            reply['id'] =  'redis-pubsub'
-            reply['result'] =  {'value': 'blahdieblah'}
+            reply['id'] = 'redis-pubsub'
+            reply['result'] = {'value': 'blahdieblah'}
         elif message['method'] == 'add':
             x, y = message['params']
-            reply['result'] =  x + y
+            reply['result'] = x + y
         elif message['method'] in ('subscribe', 'unsubscribe'):
             reply['result'] = len(message['params'][1])
         elif message['method'] in ('set_sampling_strategy',
@@ -42,11 +53,11 @@ class TestWebSocket(TestWebSocketHandler):
             if not isinstance(filters, list):
                 filters = [filters]
             reply['result'][filters[0]] = {
-                'success':True,
+                'success': True,
                 'info': message['params'][2]
             }
         else:
-            reply['result'] =  'unknown'
+            reply['result'] = 'unknown'
         self.write_message(json.dumps(reply))
 
     def on_close(self):
@@ -57,18 +68,20 @@ class TestKATPortalClient(WebSocketBaseTestCase):
 
     def setUp(self):
         super(TestKATPortalClient, self).setUp()
+
         def on_update_callback(msg, self):
             self.logger.info("Client got update message: '{}'".format(msg))
             self.on_update_callback_call_count += 1
+
         self.on_update_callback_call_count = 0
         on_msg_callback = partial(on_update_callback, self=self)
         self._ws_client = KATPortalClient(
             'ws://localhost:%d/test' % self.get_http_port(),
-             on_msg_callback,
-             io_loop=self.io_loop)
+            on_msg_callback,
+            io_loop=self.io_loop)
 
     def tearDown(self):
-        yield self.close(self_ws_client)
+        yield self.close(self._ws_client)
         super(TestKATPortalClient, self).tearDown()
 
     def get_app(self):
@@ -77,7 +90,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         self.logger.setLevel(logging.INFO)
         self.close_future = gen.Future()
         self.application = Application([
-            ('/test', TestWebSocket , dict(close_future=self.close_future)),
+            ('/test', TestWebSocket, dict(close_future=self.close_future)),
         ])
         self.application.logger = self.logger
         return self.application
@@ -104,8 +117,8 @@ class TestKATPortalClient(WebSocketBaseTestCase):
 
     @gen_test
     def test_add_when_not_connected(self):
-        with self.assertRaises(Exception) as err:
-            result = yield self._ws_client.add(8, 67)
+        with self.assertRaises(Exception):
+            yield self._ws_client.add(8, 67)
 
     @gen_test
     def test_subscribe(self):
