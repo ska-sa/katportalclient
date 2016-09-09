@@ -6,15 +6,18 @@
 # THIS SOFTWARE MAY NOT BE COPIED OR DISTRIBUTED IN ANY FORM WITHOUT THE      #
 # WRITTEN PERMISSION OF SKA SA.                                               #
 ###############################################################################
-"""Tests for katwebsocket of katportal."""
+"""Tests for katportalclient."""
 
 
 import logging
+import StringIO
 from functools import partial
 
+import mock
 import omnijson as json
 from tornado import gen
 from tornado.web import Application
+from tornado.httpclient import HTTPResponse, HTTPRequest
 from tornado.testing import gen_test
 from tornado.test.websocket_test import (
     WebSocketBaseTestCase, TestWebSocketHandler)
@@ -69,6 +72,26 @@ class TestKATPortalClient(WebSocketBaseTestCase):
     def setUp(self):
         super(TestKATPortalClient, self).setUp()
 
+        self.websocket_url = 'ws://localhost:%d/test' % self.get_http_port()
+
+        # Mock the HTTP client, with our sitemap
+        http_client_patcher = mock.patch('tornado.httpclient.HTTPClient')
+        self.addCleanup(http_client_patcher.stop)
+        self.mock_http_client = http_client_patcher.start()
+
+        def mock_fetch(url):
+            sitemap = {'client':
+                       {'websocket': self.websocket_url,
+                        'historic_sensor_values': r"http://0.0.0.0/history",
+                        'schedule_blocks': r"http://0.0.0.0/sb",
+                        'sub_nr': '3',
+                        }
+                       }
+            body_buffer = StringIO.StringIO(json.dumps(sitemap))
+            return HTTPResponse(HTTPRequest(url), 200, buffer=body_buffer)
+
+        self.mock_http_client().fetch.side_effect = mock_fetch
+
         def on_update_callback(msg, self):
             self.logger.info("Client got update message: '{}'".format(msg))
             self.on_update_callback_call_count += 1
@@ -76,7 +99,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         self.on_update_callback_call_count = 0
         on_msg_callback = partial(on_update_callback, self=self)
         self._ws_client = KATPortalClient(
-            'ws://localhost:%d/test' % self.get_http_port(),
+            'http://dummy.for.sitemap/api/client/3',
             on_msg_callback,
             io_loop=self.io_loop)
 
@@ -157,3 +180,18 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         self._ws_client._ws.write_message(req())
         yield gen.sleep(0.2)  # Give pubsub message chance to be received
         self.assertEqual(self.on_update_callback_call_count, 1)
+
+    @gen_test
+    def test_init_with_websocket_url(self):
+        """Test backwards compatibility initialising directly with a websocket URL."""
+        test_client = KATPortalClient(self.websocket_url, None)
+        yield test_client.connect()
+        self.assertTrue(test_client.is_connected)
+
+    @gen_test
+    def test_sitemap_includes_expected_endpoints(self):
+        sitemap = self._ws_client._sitemap
+        self.assertTrue(sitemap['websocket'].startswith('ws://'))
+        self.assertTrue(sitemap['historic_sensor_values'].startswith('http://'))
+        self.assertTrue(sitemap['schedule_blocks'].startswith('http://'))
+        self.assertTrue(sitemap['sub_nr'] == '3')

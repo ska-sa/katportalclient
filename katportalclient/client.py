@@ -7,16 +7,17 @@
 # WRITTEN PERMISSION OF SKA SA.                                               #
 ###############################################################################
 """
-Websocket client module for access to katportal webservers.
+Websocket client and HTTP module for access to katportal webservers.
 
 This module provides wrapper functions accessing the katportal webservers via
-websockets and the PubSub capability.
+websockets (for Pub/Sub capability), and via HTTP requests.
 """
 
 import logging
 
 import tornado.gen
 import tornado.ioloop
+import tornado.httpclient
 import omnijson as json
 from tornado.websocket import websocket_connect
 
@@ -28,21 +29,23 @@ module_logger = logging.getLogger('kat.katportalclient')
 
 class KATPortalClient(object):
     """
-    katportal client class serving as a websocket client.
+    Client providing simple access to katportal.
 
-    Wraps functions available on katportal webservers for the PubSub capability.
+    Wraps functions available on katportal webservers via the Pub/Sub capability,
+    and HTTP requests.
     """
 
-    def __init__(self, ws_url, on_update_callback,
+    def __init__(self, url, on_update_callback,
                  io_loop=None, logger=None):
         """Initialise method.
 
         Parameters
         ----------
-        ws_url: str
-            Websocket server url to connect to.
+        url: str
+            Client sitemap URL, e.g. for subarray 2:  http://<portal>/api/client/2
+            or websocket server URL for internal usage, e.g. ws://...
         on_update_callback: function
-            Callback that should be invoked every time a PubSub update message
+            Callback that should be invoked every time a Pub/Sub update message
             is received. Signature has to include a single argument for the
             message, e.g. `def on_update(message)`.
         io_loop: tornado.ioloop.IOLoop
@@ -52,10 +55,75 @@ class KATPortalClient(object):
         """
         self._logger = logger or module_logger
         self._ws = None
-        self._ws_url = ws_url
         self._io_loop = io_loop or tornado.ioloop.IOLoop.current()
         self._on_update = on_update_callback
         self._pending_requests = {}
+        self._sitemap = self._get_sitemap(url)
+        self._logger.debug("Sitemap: {}.".format(self._sitemap))
+
+    def _get_sitemap(self, url):
+        """
+        Returns the sitemap using the specified URL.
+
+        The portal webserver provides a sitemap with a number of URLs.  The
+        endpoints could change over time, but the keys to access them will not.
+
+        Parameters
+        ----------
+        url: str
+            URL to query for the sitemap, if it is an HTTP address.  Otherwise
+            it is assumed to be a websocket URL (this is for backwards
+            compatibility).  In the latter case, the other endpoints will not be
+            valid in the return value.
+
+        Returns
+        -------
+        result: dict
+            Sitemap endpoints, will include at least the following::
+
+                { 'websocket': str,
+                  'historic_sensor_values': str,
+                  'schedule_blocks': str,
+                  'sub_nr': str,
+                  ... }
+
+                websocket: str
+                    Websocket URL for Pub/Sub access.
+                historic_sensor_values: str
+                    URL for requesting sensor value history.
+                schedule_blocks: str
+                    URL for requesting observation schedule block information.
+                sub_nr: str
+                    Subarray number to access (e.g. '1', '2', '3', or '4').
+
+        """
+        result = {
+            'websocket': '',
+            'historic_sensor_values': '',
+            'schedule_blocks': '',
+            'sub_nr': '',
+        }
+        if url.lower().startswith('http://'):
+            http_client = tornado.httpclient.HTTPClient()
+            try:
+                try:
+                    response = http_client.fetch(url)
+                    response = json.loads(response.body)
+                    result = response['client']
+                except tornado.httpclient.HTTPError as e:
+                    self._logger.error("Failed to get sitemap!  HTTP error: {}"
+                                       .format(str(e)))
+                except json.JSONError as e:
+                    self._logger.error("Failed to parse sitemap!  JSON error: {}"
+                                       .format(str(e)))
+                except KeyError as e:
+                    self._logger.error("Failed to parse sitemap!  Key error: {}"
+                                       .format(str(e)))
+            finally:
+                http_client.close()
+        else:
+            result['websocket'] = url
+        return result
 
     @property
     def is_connected(self):
@@ -67,8 +135,10 @@ class KATPortalClient(object):
         """Connect to the websocket server specified during instantiation."""
         if not self.is_connected:
             # TODO(TA): check the connect_timeout option
+            self._logger.debug("Connecting to websocket {}"
+                               .format(self._sitemap['websocket']))
             self._ws = yield websocket_connect(
-                self._ws_url, io_loop=self._io_loop)
+                self._sitemap['websocket'], io_loop=self._io_loop)
             if self.is_connected:
                 self._io_loop.add_callback(self._run)
             else:
