@@ -59,7 +59,7 @@ class KATPortalClient(object):
         self._on_update = on_update_callback
         self._pending_requests = {}
         self._sitemap = self._get_sitemap(url)
-        self._logger.debug("Sitemap: {}.".format(self._sitemap))
+        self._logger.debug("Sitemap: %s.", self._sitemap)
 
     def _get_sitemap(self, url):
         """
@@ -103,22 +103,20 @@ class KATPortalClient(object):
             'schedule_blocks': '',
             'sub_nr': '',
         }
-        if url.lower().startswith('http://'):
+        if (url.lower().startswith('http://')
+                or url.lower().startswith('https://')):
             http_client = tornado.httpclient.HTTPClient()
             try:
                 try:
                     response = http_client.fetch(url)
                     response = json.loads(response.body)
-                    result = response['client']
-                except tornado.httpclient.HTTPError as e:
-                    self._logger.error("Failed to get sitemap!  HTTP error: {}"
-                                       .format(str(e)))
-                except json.JSONError as e:
-                    self._logger.error("Failed to parse sitemap!  JSON error: {}"
-                                       .format(str(e)))
-                except KeyError as e:
-                    self._logger.error("Failed to parse sitemap!  Key error: {}"
-                                       .format(str(e)))
+                    result.update(response['client'])
+                except tornado.httpclient.HTTPError:
+                    self._logger.exception("Failed to get sitemap!")
+                except json.JSONError:
+                    self._logger.exception("Failed to parse sitemap!")
+                except KeyError:
+                    self._logger.exception("Failed to parse sitemap!")
             finally:
                 http_client.close()
         else:
@@ -135,8 +133,7 @@ class KATPortalClient(object):
         """Connect to the websocket server specified during instantiation."""
         if not self.is_connected:
             # TODO(TA): check the connect_timeout option
-            self._logger.debug("Connecting to websocket {}"
-                               .format(self._sitemap['websocket']))
+            self._logger.debug("Connecting to websocket %s", self._sitemap['websocket'])
             self._ws = yield websocket_connect(
                 self._sitemap['websocket'], io_loop=self._io_loop)
             if self.is_connected:
