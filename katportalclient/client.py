@@ -529,9 +529,20 @@ class KATPortalClient(object):
                                    the system.
                 sub_nr: int
                     The number of the subarray the observation is scheduled on.
+
+        Raises
+        -------
+        ScheduleBlockNotFoundError:
+            If no information was available for the requested schedule block.
         """
         url = self._sitemap['schedule_blocks'] + '/' + id_code
         response = yield self._http_client.fetch(url)
         response = json.loads(response.body)
         schedule_block = response['result']
+        if not schedule_block:
+            raise ScheduleBlockNotFoundError("Invalid schedule block ID: " + id_code)
         raise tornado.gen.Return(schedule_block)
+
+
+class ScheduleBlockNotFoundError(Exception):
+    """Raise if requested schedule block is not found."""
