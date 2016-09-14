@@ -10,7 +10,7 @@ Dependencies
 Details can be found in `setup.py` but basically it is only:
 
 - katversion
-- `tornado <http://www.tornadoweb.org>`_ is used as the web framework and for its asynchronous functionality.
+- [tornado](http://www.tornadoweb.org) is used as the web framework and for its asynchronous functionality.
 
 **Note:** `setup.py` depends on katversion, so make sure that is installed before
 installing the package.
