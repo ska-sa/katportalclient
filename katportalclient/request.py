@@ -14,22 +14,22 @@ import omnijson as json
 
 
 class JSONRPCRequest(object):
-    """Class with structure following the JSONRPC standard."""
+    """
+    Class with structure following the JSON-RPC standard.
+
+        Parameters
+        ----------
+        method: str
+            Name of the remote procedure to call.
+        params: list
+            List of parameters to be used for the remote procedure call.
+    """
 
     id = ''
     method = ''
     params = None
 
     def __init__(self, method, params):
-        """Initialise method.
-
-        Parameters
-        ----------
-        method: str
-            Name of the remote procedure to call.
-        params: function
-            List of parameters to be used for the remote procedure call.
-        """
         self.jsonrpc = '2.0'
         self.id = str(uuid.uuid4().get_hex()[:10])
         self.method = method
