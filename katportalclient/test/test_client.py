@@ -197,7 +197,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
 
     @gen_test
     def test_sitemap_includes_expected_endpoints(self):
-        sitemap = self._portal_client._sitemap
+        sitemap = self._portal_client.sitemap
         self.assertTrue(sitemap['websocket'].startswith('ws://'))
         self.assertTrue(sitemap['historic_sensor_values'].startswith('http://'))
         self.assertTrue(sitemap['schedule_blocks'].startswith('http://'))
@@ -206,63 +206,76 @@ class TestKATPortalClient(WebSocketBaseTestCase):
     @gen_test
     def test_schedule_blocks_assigned_list_valid(self):
         """Test schedule block IDs are correctly extracted from JSON text."""
-        def mock_fetch(url):
-            body_buffer = StringIO.StringIO(
-                r"""{"result":
-                        "[{\"id_code\":\"20160908-0004\",\"owner\":\"CAM\",\"type\":\"OBSERVATION\",\"sub_nr\":1},
-                          {\"id_code\":\"20160908-0005\",\"owner\":\"CAM\",\"type\":\"OBSERVATION\",\"sub_nr\":3},
-                          {\"id_code\":\"20160908-0006\",\"owner\":\"CAM\",\"type\":\"OBSERVATION\",\"sub_nr\":2},
-                          {\"id_code\":\"20160908-0007\",\"owner\":\"CAM\",\"type\":\"OBSERVATION\",\"sub_nr\":4},
-                          {\"id_code\":\"20160908-0008\",\"owner\":\"CAM\",\"type\":\"OBSERVATION\",\"sub_nr\":3}
-                         ]"
-                    }""")
-            result = HTTPResponse(HTTPRequest(url), 200, buffer=body_buffer)
-            future = concurrent.Future()
-            future.set_result(result)
-            return future
+        schedule_block_base_url = self._portal_client.sitemap['schedule_blocks']
 
-        self.mock_http_async_client().fetch.side_effect = mock_fetch
+        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+            valid_response=r"""
+                {"result":
+                    "[{\"id_code\":\"20160908-0004\",\"owner\":\"CAM\",\"type\":\"OBSERVATION\",\"sub_nr\":1},
+                      {\"id_code\":\"20160908-0005\",\"owner\":\"CAM\",\"type\":\"OBSERVATION\",\"sub_nr\":3},
+                      {\"id_code\":\"20160908-0006\",\"owner\":\"CAM\",\"type\":\"OBSERVATION\",\"sub_nr\":2},
+                      {\"id_code\":\"20160908-0007\",\"owner\":\"CAM\",\"type\":\"OBSERVATION\",\"sub_nr\":4},
+                      {\"id_code\":\"20160908-0008\",\"owner\":\"CAM\",\"type\":\"OBSERVATION\",\"sub_nr\":3}
+                     ]"
+                }""",
+            invalid_response="""{"result":null}""",
+            starts_with=schedule_block_base_url)
 
         sb_ids = yield self._portal_client.schedule_blocks_assigned()
 
-        # Verify that only the 2 schedule blocks for sub array 3 are returned
+        # Verify that only the 2 schedule blocks for subarray 3 are returned
         self.assertTrue(len(sb_ids) == 2, "Expect exactly 2 schedule block IDs")
         self.assertIn('20160908-0005', sb_ids)
         self.assertIn('20160908-0008', sb_ids)
 
     @gen_test
+    def test_schedule_blocks_assigned_list_empty(self):
+        """Test with no schedule block IDs on a subarray."""
+        schedule_block_base_url = self._portal_client.sitemap['schedule_blocks']
+
+        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+            valid_response=r"""
+                {"result":
+                    "[{\"id_code\":\"20160908-0004\",\"owner\":\"CAM\",\"type\":\"OBSERVATION\",\"sub_nr\":1},
+                      {\"id_code\":\"20160908-0005\",\"owner\":\"CAM\",\"type\":\"OBSERVATION\",\"sub_nr\":2}
+                     ]"
+                }""",
+            invalid_response="""{"result":null}""",
+            starts_with=schedule_block_base_url)
+
+        sb_ids = yield self._portal_client.schedule_blocks_assigned()
+
+        # Verify that there are no schedule blocks (since tests work on subarray 3)
+        self.assertTrue(len(sb_ids) == 0, "Expect no schedule block IDs")
+
+    @gen_test
     def test_schedule_block_detail(self):
         """Test schedule block detail is correctly extracted from JSON text."""
-        def mock_fetch(url):
-            if url.endswith("20160908-0005"):
-                body_buffer = StringIO.StringIO(
-                    r"""{"result":
-                            {"id_code":"20160908-0005",
-                             "owner":"CAM",
-                             "actual_end_time":null,
-                             "id":5,
-                             "scheduled_time":"2016-09-08 09:18:53.000Z",
-                             "priority":"LOW",
-                             "state":"SCHEDULED",
-                             "config_label":"",
-                             "type":"OBSERVATION",
-                             "expected_duration_seconds":89,
-                             "description":"a test schedule block",
-                             "sub_nr":3,
-                             "desired_start_time":null,
-                             "actual_start_time":null,
-                             "resource_alloc":null
-                            }
-                        }""")
-            else:
-                body_buffer = StringIO.StringIO("""{"result":null}""")
+        schedule_block_base_url = self._portal_client.sitemap['schedule_blocks']
 
-            result = HTTPResponse(HTTPRequest(url), 200, buffer=body_buffer)
-            future = concurrent.Future()
-            future.set_result(result)
-            return future
-
-        self.mock_http_async_client().fetch.side_effect = mock_fetch
+        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+            valid_response=r"""
+                {"result":
+                    {"id_code":"20160908-0005",
+                     "owner":"CAM",
+                     "actual_end_time":null,
+                     "id":5,
+                     "scheduled_time":"2016-09-08 09:18:53.000Z",
+                     "priority":"LOW",
+                     "state":"SCHEDULED",
+                     "config_label":"",
+                     "type":"OBSERVATION",
+                     "expected_duration_seconds":89,
+                     "description":"a test schedule block",
+                     "sub_nr":3,
+                     "desired_start_time":null,
+                     "actual_start_time":null,
+                     "resource_alloc":null
+                    }
+                }""",
+            invalid_response="""{"result":null}""",
+            starts_with=schedule_block_base_url,
+            contains="20160908-0005")
 
         with self.assertRaises(ScheduleBlockNotFoundError):
             yield self._portal_client.schedule_block_detail("20160908-bad")
@@ -277,3 +290,25 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         self.assertIn('actual_end_time', sb_valid)
         self.assertIn('expected_duration_seconds', sb_valid)
         self.assertIn('state', sb_valid)
+
+
+def mock_async_fetcher(valid_response, invalid_response, starts_with=None,
+                       ends_with=None, contains=None):
+    """Returns a mock HTTP async fetch function, depending on the conditions."""
+
+    def mock_fetch(url):
+        start_ok = starts_with is None or url.startswith(starts_with)
+        end_ok = ends_with is None or url.endswith(ends_with)
+        contains_ok = contains is None or contains in url
+
+        if start_ok and end_ok and contains_ok:
+            body_buffer = StringIO.StringIO(valid_response)
+        else:
+            body_buffer = StringIO.StringIO(invalid_response)
+
+        result = HTTPResponse(HTTPRequest(url), 200, buffer=body_buffer)
+        future = concurrent.Future()
+        future.set_result(result)
+        return future
+
+    return mock_fetch

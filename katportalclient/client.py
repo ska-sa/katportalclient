@@ -50,25 +50,24 @@ class KATPortalClient(object):
     def __init__(self, url, on_update_callback,
                  io_loop=None, logger=None):
         self._logger = logger or module_logger
+        self._url = url
         self._ws = None
         self._io_loop = io_loop or tornado.ioloop.IOLoop.current()
         self._on_update = on_update_callback
         self._pending_requests = {}
         self._http_client = tornado.httpclient.AsyncHTTPClient()
-        self._sitemap = self._get_sitemap(url)
-        self._logger.debug("Sitemap: %s.", self._sitemap)
+        self._sitemap = None
 
     def _get_sitemap(self, url):
         """
-        Returns the sitemap using the specified URL.
+        Fetches the sitemap from the specified URL.
 
-        The portal webserver provides a sitemap with a number of URLs.  The
-        endpoints could change over time, but the keys to access them will not.
+        See :meth:`.sitemap` for details, including the return value.
 
         Parameters
         ----------
         url: str
-            URL to query for the sitemap, if it is an HTTP address.  Otherwise
+            URL to query for the sitemap, if it is an HTTP(S) address.  Otherwise
             it is assumed to be a websocket URL (this is for backwards
             compatibility).  In the latter case, the other endpoints will not be
             valid in the return value.
@@ -76,23 +75,7 @@ class KATPortalClient(object):
         Returns
         -------
         dict:
-            Sitemap endpoints, will include at least the following::
-
-                { 'websocket': str,
-                  'historic_sensor_values': str,
-                  'schedule_blocks': str,
-                  'sub_nr': str,
-                  ... }
-
-                websocket: str
-                    Websocket URL for Pub/Sub access.
-                historic_sensor_values: str
-                    URL for requesting sensor value history.
-                schedule_blocks: str
-                    URL for requesting observation schedule block information.
-                sub_nr: str
-                    Subarray number to access (e.g. '1', '2', '3', or '4').
-
+            Sitemap endpoints - see :meth:`.sitemap`.
         """
         result = {
             'websocket': '',
@@ -121,6 +104,43 @@ class KATPortalClient(object):
         return result
 
     @property
+    def sitemap(self):
+        """
+        Returns the sitemap using the URL specified during instantiation.
+
+        The portal webserver provides a sitemap with a number of URLs.  The
+        endpoints could change over time, but the keys to access them will not.
+        The websever is only queried once, the first time the property is
+        accessed.  Typically users will not need to access the sitemap
+        directly - the class's methods make use of it.
+
+        Returns
+        -------
+        dict:
+            Sitemap endpoints, will include at least the following::
+
+                { 'websocket': str,
+                  'historic_sensor_values': str,
+                  'schedule_blocks': str,
+                  'sub_nr': str,
+                  ... }
+
+                websocket: str
+                    Websocket URL for Pub/Sub access.
+                historic_sensor_values: str
+                    URL for requesting sensor value history.
+                schedule_blocks: str
+                    URL for requesting observation schedule block information.
+                sub_nr: str
+                    Subarray number to access (e.g. '1', '2', '3', or '4').
+
+        """
+        if not self._sitemap:
+            self._sitemap = self._get_sitemap(self._url)
+            self._logger.debug("Sitemap: %s.", self._sitemap)
+        return self._sitemap
+
+    @property
     def is_connected(self):
         """Return True if websocket is connected."""
         return self._ws is not None
@@ -130,9 +150,9 @@ class KATPortalClient(object):
         """Connect to the websocket server specified during instantiation."""
         if not self.is_connected:
             # TODO(TA): check the connect_timeout option
-            self._logger.debug("Connecting to websocket %s", self._sitemap['websocket'])
+            self._logger.debug("Connecting to websocket %s", self.sitemap['websocket'])
             self._ws = yield websocket_connect(
-                self._sitemap['websocket'], io_loop=self._io_loop)
+                self.sitemap['websocket'], io_loop=self._io_loop)
             if self.is_connected:
                 self._io_loop.add_callback(self._run)
             else:
@@ -433,12 +453,13 @@ class KATPortalClient(object):
     def _extract_schedule_blocks(self, json_text, subarray_number):
         """Extract and return list of schedule block IDs from a JSON response."""
         data = json.loads(json_text)
-        schedule_blocks = json.loads(data['result'])
         results = []
-        for schedule_block in schedule_blocks:
-            if (schedule_block['sub_nr'] == subarray_number
-                    and schedule_block['type'] == 'OBSERVATION'):
-                results.append(schedule_block['id_code'])
+        if data['result']:
+            schedule_blocks = json.loads(data['result'])
+            for schedule_block in schedule_blocks:
+                if (schedule_block['sub_nr'] == subarray_number
+                        and schedule_block['type'] == 'OBSERVATION'):
+                    results.append(schedule_block['id_code'])
         return results
 
     @tornado.gen.coroutine
@@ -465,10 +486,10 @@ class KATPortalClient(object):
             priority of the schedule blocks (first has hightest priority).
 
         """
-        url = self._sitemap['schedule_blocks'] + '/scheduled'
+        url = self.sitemap['schedule_blocks'] + '/scheduled'
         response = yield self._http_client.fetch(url)
         results = self._extract_schedule_blocks(response.body,
-                                                int(self._sitemap['sub_nr']))
+                                                int(self.sitemap['sub_nr']))
         raise tornado.gen.Return(results)
 
     @tornado.gen.coroutine
@@ -535,7 +556,7 @@ class KATPortalClient(object):
         ScheduleBlockNotFoundError:
             If no information was available for the requested schedule block.
         """
-        url = self._sitemap['schedule_blocks'] + '/' + id_code
+        url = self.sitemap['schedule_blocks'] + '/' + id_code
         response = yield self._http_client.fetch(url)
         response = json.loads(response.body)
         schedule_block = response['result']
