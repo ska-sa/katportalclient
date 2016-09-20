@@ -8,7 +8,8 @@
 ###############################################################################
 """Root of katportalclient package."""
 
-from client import KATPortalClient
+from client import (
+    KATPortalClient, ScheduleBlockNotFoundError)
 from request import JSONRPCRequest
 
 # BEGIN VERSION CHECK

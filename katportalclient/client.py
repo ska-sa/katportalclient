@@ -8,9 +8,6 @@
 ###############################################################################
 """
 Websocket client and HTTP module for access to katportal webservers.
-
-This module provides wrapper functions accessing the katportal webservers via
-websockets (for Pub/Sub capability), and via HTTP requests.
 """
 
 import logging
@@ -33,69 +30,52 @@ class KATPortalClient(object):
 
     Wraps functions available on katportal webservers via the Pub/Sub capability,
     and HTTP requests.
+
+    Parameters
+    ----------
+    url: str
+        |  Client sitemap URL: ``http://<portal server>/api/client/<subarray #>``.
+        |  E.g. for subarray 2:  ``http://1.2.3.4/api/client/2``
+        |  (**Deprecated**:  use a websocket URL, e.g. ``ws://...``)
+    on_update_callback: function
+        Callback that should be invoked every time a Pub/Sub update message
+        is received. Signature has to include a single argument for the
+        message, e.g. `def on_update(message)`.
+    io_loop: tornado.ioloop.IOLoop
+        Optional IOLoop instance (default=None).
+    logger: logging.Logger
+        Optional logger instance (default=None).
     """
 
     def __init__(self, url, on_update_callback,
                  io_loop=None, logger=None):
-        """Initialise method.
-
-        Parameters
-        ----------
-        url: str
-            Client sitemap URL, e.g. for subarray 2:  http://<portal>/api/client/2
-            or websocket server URL for internal usage, e.g. ws://...
-        on_update_callback: function
-            Callback that should be invoked every time a Pub/Sub update message
-            is received. Signature has to include a single argument for the
-            message, e.g. `def on_update(message)`.
-        io_loop: tornado.ioloop.IOLoop
-            Optional IOLoop instance (default=None).
-        logger: logging.Logger
-            Optional logger instance (default=None).
-        """
         self._logger = logger or module_logger
+        self._url = url
         self._ws = None
         self._io_loop = io_loop or tornado.ioloop.IOLoop.current()
         self._on_update = on_update_callback
         self._pending_requests = {}
-        self._sitemap = self._get_sitemap(url)
-        self._logger.debug("Sitemap: %s.", self._sitemap)
+        self._http_client = tornado.httpclient.AsyncHTTPClient()
+        self._sitemap = None
 
     def _get_sitemap(self, url):
         """
-        Returns the sitemap using the specified URL.
+        Fetches the sitemap from the specified URL.
 
-        The portal webserver provides a sitemap with a number of URLs.  The
-        endpoints could change over time, but the keys to access them will not.
+        See :meth:`.sitemap` for details, including the return value.
 
         Parameters
         ----------
         url: str
-            URL to query for the sitemap, if it is an HTTP address.  Otherwise
+            URL to query for the sitemap, if it is an HTTP(S) address.  Otherwise
             it is assumed to be a websocket URL (this is for backwards
             compatibility).  In the latter case, the other endpoints will not be
             valid in the return value.
 
         Returns
         -------
-        result: dict
-            Sitemap endpoints, will include at least the following::
-
-                { 'websocket': str,
-                  'historic_sensor_values': str,
-                  'schedule_blocks': str,
-                  'sub_nr': str,
-                  ... }
-
-                websocket: str
-                    Websocket URL for Pub/Sub access.
-                historic_sensor_values: str
-                    URL for requesting sensor value history.
-                schedule_blocks: str
-                    URL for requesting observation schedule block information.
-                sub_nr: str
-                    Subarray number to access (e.g. '1', '2', '3', or '4').
-
+        dict:
+            Sitemap endpoints - see :meth:`.sitemap`.
         """
         result = {
             'websocket': '',
@@ -124,6 +104,43 @@ class KATPortalClient(object):
         return result
 
     @property
+    def sitemap(self):
+        """
+        Returns the sitemap using the URL specified during instantiation.
+
+        The portal webserver provides a sitemap with a number of URLs.  The
+        endpoints could change over time, but the keys to access them will not.
+        The websever is only queried once, the first time the property is
+        accessed.  Typically users will not need to access the sitemap
+        directly - the class's methods make use of it.
+
+        Returns
+        -------
+        dict:
+            Sitemap endpoints, will include at least the following::
+
+                { 'websocket': str,
+                  'historic_sensor_values': str,
+                  'schedule_blocks': str,
+                  'sub_nr': str,
+                  ... }
+
+                websocket: str
+                    Websocket URL for Pub/Sub access.
+                historic_sensor_values: str
+                    URL for requesting sensor value history.
+                schedule_blocks: str
+                    URL for requesting observation schedule block information.
+                sub_nr: str
+                    Subarray number to access (e.g. '1', '2', '3', or '4').
+
+        """
+        if not self._sitemap:
+            self._sitemap = self._get_sitemap(self._url)
+            self._logger.debug("Sitemap: %s.", self._sitemap)
+        return self._sitemap
+
+    @property
     def is_connected(self):
         """Return True if websocket is connected."""
         return self._ws is not None
@@ -133,9 +150,9 @@ class KATPortalClient(object):
         """Connect to the websocket server specified during instantiation."""
         if not self.is_connected:
             # TODO(TA): check the connect_timeout option
-            self._logger.debug("Connecting to websocket %s", self._sitemap['websocket'])
+            self._logger.debug("Connecting to websocket %s", self.sitemap['websocket'])
             self._ws = yield websocket_connect(
-                self._sitemap['websocket'], io_loop=self._io_loop)
+                self.sitemap['websocket'], io_loop=self._io_loop)
             if self.is_connected:
                 self._io_loop.add_callback(self._run)
             else:
@@ -346,7 +363,7 @@ class KATPortalClient(object):
             Sensor name has to be the fully normalised sensor name (i.e. python
             identifier of sensor with all underscores) including the resource
             the sensor belongs to e.g. 'm063_ap_connected'
-        strategy_and_params : str
+        strategy_and_params: str
             A string with the strategy and its optional parameters specified in
             space-separated form according the KATCP specification e.g.
             '<strat_name> <strat_parm1> <strat_parm2>'
@@ -362,7 +379,7 @@ class KATPortalClient(object):
 
         Returns
         -------
-        result: dict
+        dict
             Dictionary with sensor name as key and result as value
         """
         req = JSONRPCRequest(
@@ -407,9 +424,9 @@ class KATPortalClient(object):
 
         Returns
         -------
-        result: dict
+        dict
             Dictionary with matching sensor names as keys and the
-            set_sampling_strategy result as value::
+            :meth:`.set_sampling_strategy` result as value::
 
                 { <matching_sensor1_name>:
                     { success: bool,
@@ -432,3 +449,121 @@ class KATPortalClient(object):
         )
         result = yield self._send(req)
         raise tornado.gen.Return(result)
+
+    def _extract_schedule_blocks(self, json_text, subarray_number):
+        """Extract and return list of schedule block IDs from a JSON response."""
+        data = json.loads(json_text)
+        results = []
+        if data['result']:
+            schedule_blocks = json.loads(data['result'])
+            for schedule_block in schedule_blocks:
+                if (schedule_block['sub_nr'] == subarray_number
+                        and schedule_block['type'] == 'OBSERVATION'):
+                    results.append(schedule_block['id_code'])
+        return results
+
+    @tornado.gen.coroutine
+    def schedule_blocks_assigned(self):
+        """Return list of assigned observation schedule blocks.
+
+        The schedule blocks have already been verified and assigned to
+        a single subarray.  The subarray queried is determined by
+        the URL used during instantiation.  For detail about
+        a schedule block, use :meth:`.schedule_block_detail`.
+
+        Alternatively, subscribe to a sensor like ``sched_observation_schedule_3``
+        for updates on the list assigned to subarray number 3 - see :meth:`.subscribe`.
+
+        .. note::
+
+            The websocket is not used for this request - it does not need
+            to be connected.
+
+        Returns
+        -------
+        list:
+            List of scheduled block ID strings.  Ordered according to
+            priority of the schedule blocks (first has hightest priority).
+
+        """
+        url = self.sitemap['schedule_blocks'] + '/scheduled'
+        response = yield self._http_client.fetch(url)
+        results = self._extract_schedule_blocks(response.body,
+                                                int(self.sitemap['sub_nr']))
+        raise tornado.gen.Return(results)
+
+    @tornado.gen.coroutine
+    def schedule_block_detail(self, id_code):
+        """Return detailed information about an observation schedule block.
+
+        For a list of schedule block IDs, see :meth:`.schedule_blocks_assigned`.
+
+        .. note::
+
+            The websocket is not used for this request - it does not need
+            to be connected.
+
+        Parameters
+        ----------
+        id_code: str
+            Schedule block identifier.  For example: ``20160908-0010``.
+
+        Returns
+        -------
+        dict:
+            Detailed information about the schedule block.  Some of the
+            more useful fields are indicated::
+
+                { 'description': str,
+                  'scheduled_time': str,
+                  'desired_start_time': str,
+                  'actual_start_time': str,
+                  'actual_end_time': str,
+                  'expected_duration_seconds': int,
+                  'state': str,
+                  'sub_nr': int,
+                  ... }
+
+                description: str
+                    Free text description of the observation.
+                scheduled_time: str
+                     Time (UTC) at which the Schedule Block went SCHEDULED.
+                desired_start_time: str
+                     Time (UTC) at which user would like the Schedule Block to start.
+                actual_start_time: str
+                     Time (UTC) at which the Schedule Block went ACTIVE.
+                actual_end_time: str
+                     Time (UTC) at which the Schedule Block went to COMPLETED
+                     or INTERRUPTED.
+                expected_duration_seconds: int
+                     Length of time (seconds) the observation is expected to take
+                     in total.
+                state: str
+                    'DRAFT': created, in process of being defined, but not yet
+                             ready for scheduling.
+                    'SCHEDULED': observation is scheduled for later execution, once
+                                 resources (receptors, correlator, etc.) become available.
+                    'ACTIVE':  observation is currently being executed.
+                    'COMPLETED': observation completed naturally (may have been
+                                 successful, or failed).
+                    'INTERRUPTED': observation was stopped or cancelled by a user or
+                                   the system.
+                sub_nr: int
+                    The number of the subarray the observation is scheduled on.
+
+        Raises
+        -------
+        ScheduleBlockNotFoundError:
+            If no information was available for the requested schedule block.
+        """
+        url = self.sitemap['schedule_blocks'] + '/' + id_code
+        response = yield self._http_client.fetch(url)
+        response = json.loads(response.body)
+        schedule_block = response['result']
+        if not schedule_block:
+            raise ScheduleBlockNotFoundError("Invalid schedule block ID: " + id_code)
+        raise tornado.gen.Return(schedule_block)
+
+
+class ScheduleBlockNotFoundError(Exception):
+    """Raise if requested schedule block is not found."""
