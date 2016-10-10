@@ -568,12 +568,17 @@ class KATPortalClient(object):
         """Extract and return list of sensor names from a JSON response."""
         sensors = json.loads(json_text)
         results = []
-        for sensor in sensors:
-            sensor_info = {}
-            sensor_info['name'] = sensor[0]
-            sensor_info['component'] = sensor[1]
-            sensor_info.update(sensor[2])
-            results.append(sensor_info)
+        # Errors are returned in dict, while valid data is returned in a list.
+        if isinstance(sensors, dict):
+            if 'error' in sensors:
+                raise SensorNotFoundError("Invalid sensor request: " + sensors['error'])
+        else:
+            for sensor in sensors:
+                sensor_info = {}
+                sensor_info['name'] = sensor[0]
+                sensor_info['component'] = sensor[1]
+                sensor_info.update(sensor[2])
+                results.append(sensor_info)
         return results
 
     @tornado.gen.coroutine
@@ -599,6 +604,11 @@ class KATPortalClient(object):
         -------
         list:
             List of sensor name strings.
+
+        Raises
+        -------
+        SensorNotFoundError:
+            - If any of the filters were invalid regular expression patterns.
         """
         url = self.sitemap['historic_sensor_values'] + '/sensors'
         if isinstance(filters, str):
@@ -652,7 +662,7 @@ class KATPortalClient(object):
                 units: str
                      Measurement units for sensor value, e.g. 'm/s'.
                 type: str
-                     Sensor type, e.g. 'float', 'discrete', 'bool'
+                     Sensor type, e.g. 'float', 'discrete', 'boolean'
                 resource: str
                      Name of resource that provides the sensor.
                 katcp_name: str

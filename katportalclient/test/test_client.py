@@ -57,7 +57,9 @@ sensor_json = {
                                        "katcp_name":"anc.weather.device-status",
                                        "params":"['ok', 'degraded', 'fail']",
                                        "units":"",
-                                       "type":"discrete"}]"""
+                                       "type":"discrete"}]""",
+
+    "regex_error": """{"error":"invalid regular expression: quantifier operand invalid\n"}"""
     }
 
 
@@ -389,6 +391,19 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         sensors = yield self._portal_client.sensor_names('non_existant_sensor')
 
         self.assertTrue(len(sensors) == 0, "Expect exactly 0 sensors")
+
+    @gen_test
+    def test_sensor_names_exception_for_invalid_regex(self):
+        """Test that invalid regex raises exception."""
+        history_base_url = self._portal_client.sitemap['historic_sensor_values']
+
+        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+            valid_response=sensor_json['regex_error'],
+            invalid_response='[]',
+            starts_with=history_base_url)
+
+        with self.assertRaises(SensorNotFoundError):
+            yield self._portal_client.sensor_names('*bad')
 
     @gen_test
     def test_sensor_detail(self):
