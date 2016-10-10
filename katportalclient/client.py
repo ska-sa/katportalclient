@@ -564,6 +564,123 @@ class KATPortalClient(object):
             raise ScheduleBlockNotFoundError("Invalid schedule block ID: " + id_code)
         raise tornado.gen.Return(schedule_block)
 
+    def _extract_sensors_details(self, json_text):
+        """Extract and return list of sensor names from a JSON response."""
+        sensors = json.loads(json_text)
+        results = []
+        for sensor in sensors:
+            sensor_info = {}
+            sensor_info['name'] = sensor[0]
+            sensor_info['component'] = sensor[1]
+            sensor_info.update(sensor[2])
+            results.append(sensor_info)
+        return results
+
+    @tornado.gen.coroutine
+    def sensor_names(self, filters):
+        """Return list of matching sensor names.
+
+        Provides the list of available sensors in the system that match the
+        specified pattern.  For detail about a sensor's attributes,
+        use :meth:`.sensor_detail`.
+
+        .. note::
+
+            The websocket is not used for this request - it does not need
+            to be connected.
+
+        Parameters
+        ----------
+        filters: str or list of str
+            List of regular expression patterns to match.
+            See :meth:`.set_sampling_strategies` for more detail.
+
+        Returns
+        -------
+        list:
+            List of sensor name strings.
+        """
+        url = self.sitemap['historic_sensor_values'] + '/sensors'
+        if isinstance(filters, str):
+            filters = [filters]
+        results = []
+        for filt in filters:
+            response = yield self._http_client.fetch("{}?sensors={}".format(url, filt))
+            new_sensors = self._extract_sensors_details(response.body)
+            # only add sensors once, to ensure a unique list
+            for sensor in new_sensors:
+                name = sensor['name']
+                if name not in results:
+                    results.append(name)
+        raise tornado.gen.Return(results)
+
+    @tornado.gen.coroutine
+    def sensor_detail(self, sensor_name):
+        """Return detailed atribute information for a sensor.
+
+        For a list of sensor names, see :meth:`.sensors_list`.
+
+        .. note::
+
+            The websocket is not used for this request - it does not need
+            to be connected.
+
+        Parameters
+        ----------
+        sensor_name: str
+            Exact sensor name - see description in :meth:`.set_sampling_strategy`.
+
+        Returns
+        -------
+        dict:
+            Detailed attribute information for the sensor.  Some of the
+            more useful fields are indicated::
+
+                { 'name': str,
+                  'description': str,
+                  'params': str,
+                  'units': str,
+                  'type': str,
+                  'resource': str,
+                  'katcp_name': str,
+                  ... }
+
+                name: str
+                    Normalised sensor name, as requested in input parameters.
+                description: str
+                    Free text description of the sensor.
+                params: str
+                     Limits or possible states for the sensor value.
+                units: str
+                     Measurement units for sensor value, e.g. 'm/s'.
+                type: str
+                     Sensor type, e.g. 'float', 'discrete', 'bool'
+                resource: str
+                     Name of resource that provides the sensor.
+                katcp_name: str
+                     Internal KATCP messaging name.
+
+        Raises
+        -------
+        SensorNotFoundError:
+            - If no information was available for the requested sensor name.
+            - If the sensor name was not a unique match for a single sensor.
+        """
+        url = self.sitemap['historic_sensor_values'] + '/sensors'
+        response = yield self._http_client.fetch("{}?sensors={}".format(url, sensor_name))
+        results = self._extract_sensors_details(response.body)
+        if len(results) == 0:
+            raise SensorNotFoundError("Sensor name not found: " + sensor_name)
+        elif len(results) > 1:
+            raise SensorNotFoundError("Multiple sensors found - specify a single sensor "
+                                      "not a pattern like: " + sensor_name)
+        else:
+            raise tornado.gen.Return(results[0])
+
 
 class ScheduleBlockNotFoundError(Exception):
     """Raise if requested schedule block is not found."""
+
+
+class SensorNotFoundError(Exception):
+    """Raise if requested sensor is not found."""

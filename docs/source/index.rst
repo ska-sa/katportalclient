@@ -29,6 +29,7 @@ Example usage
 
 .. code-block:: python
 
+    #!/usr/bin/env python
     import logging
 
     import tornado.gen
@@ -51,6 +52,12 @@ Example usage
         if len(sb_ids) > 0:
             sb_detail = yield portal_client.schedule_block_detail(sb_ids[0])
             print "\nDetail for SB {}:\n{}".format(sb_ids[0], sb_detail)
+
+        sensor_names = yield portal_client.sensor_names('anc_w.*_device_status')
+        print "\nMatching sensor names:", sensor_names
+        if len(sensor_names) > 0:
+            sensor_detail = yield portal_client.sensor_detail(sensor_names[0])
+            print "\nDetail for sensor {}:\n{}".format(sensor_names[0], sensor_detail)
         raw_input("\nEnter to continue with Pub/Sub...")
 
         # Websocket access
