@@ -603,16 +603,14 @@ class KATPortalClient(object):
         url = self.sitemap['historic_sensor_values'] + '/sensors'
         if isinstance(filters, str):
             filters = [filters]
-        results = []
+        results = set()
         for filt in filters:
             response = yield self._http_client.fetch("{}?sensors={}".format(url, filt))
             new_sensors = self._extract_sensors_details(response.body)
             # only add sensors once, to ensure a unique list
             for sensor in new_sensors:
-                name = sensor['name']
-                if name not in results:
-                    results.append(name)
-        raise tornado.gen.Return(results)
+                results.add(sensor['name'])
+        raise tornado.gen.Return(list(results))
 
     @tornado.gen.coroutine
     def sensor_detail(self, sensor_name):
