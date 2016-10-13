@@ -11,17 +11,48 @@ Websocket client and HTTP module for access to katportal webservers.
 """
 
 import logging
+import uuid
+import time
+from datetime import timedelta
+from collections import namedtuple
 
 import tornado.gen
 import tornado.ioloop
 import tornado.httpclient
+import tornado.locks
 import omnijson as json
 from tornado.websocket import websocket_connect
+from tornado.httputil import url_concat
 
 from request import JSONRPCRequest
 
 
+# Limit for sensor history queries, in order to preserve memory on katportal.
+MAX_SAMPLES_PER_HISTORY_QUERY = 1000000
+# Pick a reasonable chunk size for sample downloads.  The samples are
+# published in blocks, so many at a time.
+# 43200 = 12 hour chunks if 1 sample every second
+SAMPLE_HISTORY_CHUNK_SIZE = 43200
+
 module_logger = logging.getLogger('kat.katportalclient')
+
+
+class SensorSample(namedtuple('SensorSample', 'time, value, status')):
+    """Class to represent all sensor samples.
+
+    Fields:
+        - time:  float
+            The time (UNIX epoch) the sample was retrieved from the sensor by CAM.
+            Time value is reported with millisecond precision.
+        - value:  str
+            The value of the sensor when sampled.  The units depend on the
+            sensor, see :meth:`.sensor_detail`.
+        - status:  str
+            The status of the sensor when the sample was taken. As defined
+            by the KATCP protocol. Examples: 'nominal', 'warn', 'failure', 'error',
+            'critical', 'unreachable', 'unknown', etc.
+    """
+    pass
 
 
 class KATPortalClient(object):
@@ -47,8 +78,7 @@ class KATPortalClient(object):
         Optional logger instance (default=None).
     """
 
-    def __init__(self, url, on_update_callback,
-                 io_loop=None, logger=None):
+    def __init__(self, url, on_update_callback, io_loop=None, logger=None):
         self._logger = logger or module_logger
         self._url = url
         self._ws = None
@@ -57,6 +87,12 @@ class KATPortalClient(object):
         self._pending_requests = {}
         self._http_client = tornado.httpclient.AsyncHTTPClient()
         self._sitemap = None
+        self._sensor_history_state = {
+            'namespace': None,
+            'done_event': tornado.locks.Event(),
+            'num_samples_pending': 0,
+            'samples': []
+            }
 
     def _get_sitemap(self, url):
         """
@@ -166,6 +202,58 @@ class KATPortalClient(object):
             self._logger.debug("Disconnected client websocket.")
 
     @tornado.gen.coroutine
+    def _process_redis_message(self, msg, msg_id):
+        """Internal handler for Redis messages."""
+        msg_result = msg['result']
+        processed = False
+        if msg_id == 'redis-pubsub-init':
+            processed = True  # Nothing to do really.
+        elif 'msg_channel' in msg_result:
+            namespace = msg_result['msg_channel'].split(':', 1)[0]
+            if namespace == self._sensor_history_state['namespace']:
+                msg_data = msg_result['msg_data']
+                if (isinstance(msg_data, dict)
+                        and 'inform_type' in msg_data
+                        and msg_data['inform_type'] == 'sample_history'):
+                    # inform message which provides synchronisation information.
+                    inform = msg_data['inform_data']
+                    num_new_samples = inform['num_samples_to_be_published']
+                    self._sensor_history_state['num_samples_pending'] += num_new_samples
+                    if inform['done']:
+                        self._sensor_history_state['done_event'].set()
+                elif isinstance(msg_data, list):
+                    num_received = 0
+                    for sample in msg_data:
+                        if len(sample) == 6:
+                            # assume sample data message, extract fields of interest
+                            # (time returned in milliseconds, so scale to seconds)
+                            sensor_sample = SensorSample(
+                                time=sample[0]/1000.0, value=sample[3], status=sample[5])
+                            self._sensor_history_state['samples'].append(sensor_sample)
+                            num_received += 1
+                    self._sensor_history_state['num_samples_pending'] -= num_received
+                else:
+                    self._logger.warn('Ignoring unexpected message: %s', msg_result)
+                processed = True
+        if not processed:
+            self._io_loop.add_callback(self._on_update, msg_result)
+
+    @tornado.gen.coroutine
+    def _process_json_rpc_message(self, msg, msg_id):
+        """Internal handler for JSON RPC response messages."""
+        future = self._pending_requests.get(msg_id, None)
+        if future:
+            error = msg.get('error', None)
+            result = msg.get('result', None)
+            if error:
+                future.set_result(error)
+            else:
+                future.set_result(result)
+        else:
+            self._logger.error(
+                "Message received without a matching pending request! '{}'".format(msg))
+
+    @tornado.gen.coroutine
     def _run(self):
         """
         Start the main message loop.
@@ -187,24 +275,12 @@ class KATPortalClient(object):
                 self._logger.debug("Message received: %s", msg)
                 msg_id = str(msg['id'])
                 if msg_id.startswith('redis-pubsub'):
-                    self._io_loop.add_callback(self._on_update, msg['result'])
+                    self._process_redis_message(msg, msg_id)
                 else:
-                    future = self._pending_requests.get(msg_id, None)
-                    if future:
-                        error = msg.get('error', None)
-                        result = msg.get('result', None)
-                        if error:
-                            future.set_result(error)
-                        else:
-                            future.set_result(result)
-                    else:
-                        self._logger.error(
-                            "Message received without a matching pending "
-                            "request! '{}'".format(msg))
+                    self._process_json_rpc_message(msg, msg_id)
             except:
-                self._logger.warn(
-                    "Message received that is not JSON formatted! {}"
-                    .format(msg))
+                self._logger.exception(
+                    "Error processing websocket message! {}".format(msg))
                 self._io_loop.add_callback(self._on_update, msg)
         self._logger.info("Disconnected! Stop listening for messages "
                           "received from websocket server.")
@@ -624,7 +700,7 @@ class KATPortalClient(object):
 
     @tornado.gen.coroutine
     def sensor_detail(self, sensor_name):
-        """Return detailed atribute information for a sensor.
+        """Return detailed attribute information for a sensor.
 
         For a list of sensor names, see :meth:`.sensors_list`.
 
@@ -685,6 +761,95 @@ class KATPortalClient(object):
         else:
             raise tornado.gen.Return(results[0])
 
+    @tornado.gen.coroutine
+    def sensor_history(self, sensor_name, start_time_sec, end_time_sec, timeout_sec=60):
+        """Return time history of sample measurements for a sensor.
+
+        For a list of sensor names, see :meth:`.sensors_list`.
+
+        Parameters
+        ----------
+        sensor_name: str
+            Exact sensor name - see description in :meth:`.set_sampling_strategy`.
+        start_time_sec: float
+            Start time for sample history query, in seconds since the UNIX epoch
+            (1970-01-01 UTC).
+        end_time_sec: float
+            End time for sample history query, in seconds since the UNIX epoch.
+        timeout_sec: float
+            Maximum time to wait for the history to be retrieved.  An exception will
+            be raised if the request times out.
+
+        Returns
+        -------
+        list:
+            List of :class:`.SensorSample` namedtuples, one per sample, with fields
+            time, value and status.  See :class:`.SensorSample` for details.
+
+        Raises
+        -------
+        SensorHistoryRequestError:
+            - If there was an error submitting the request.
+            - If the request timed out
+        """
+        # clear any history received previously, before subscribing to new namespace
+        # (any samples in flight will be lost due to namespace change)
+        self._sensor_history_state['namespace'] = str(uuid.uuid4())
+        self._sensor_history_state['done_event'].clear()
+        self._sensor_history_state['num_samples_pending'] = 0
+        self._sensor_history_state['samples'] = []
+
+        # ensure connected, and subscribed before sending request
+        yield self.connect()
+        yield self.subscribe(self._sensor_history_state['namespace'], ['*'])
+
+        params = {
+            'sensor': sensor_name,
+            'time_type': 'ms',  # request in milliseconds for better precision
+            'start': start_time_sec * 1000,
+            'end': end_time_sec * 1000,
+            'namespace': self._sensor_history_state['namespace'],
+            'request_in_chunks': 1,
+            'chunk_size': SAMPLE_HISTORY_CHUNK_SIZE,
+            'limit': MAX_SAMPLES_PER_HISTORY_QUERY
+            }
+        url = url_concat(self.sitemap['historic_sensor_values'] + '/samples', params)
+        self._logger.debug("Sensor history request: %s", url)
+        response = yield self._http_client.fetch(url)
+        data = json.loads(response.body)
+        if data['result'] == 'success':
+            download_start_sec = time.time()
+            # Query accepted by portal - data will be returned via websocket, but
+            # we need to wait until it has arrived.  For synchronisation, we wait
+            # for a 'done_event'. This events is updated in _process_redis_message().
+            try:
+                done_event = self._sensor_history_state['done_event']
+                timeout_delta = timedelta(seconds=timeout_sec)
+                yield done_event.wait(timeout=timeout_delta)
+
+                self._logger.debug('Done in %d seconds, fetched %s samples.' % (
+                    time.time() - download_start_sec,
+                    len(self._sensor_history_state['samples'])))
+            except tornado.gen.TimeoutError:
+                raise SensorHistoryRequestError("Sensor history request timed out")
+
+        else:
+            raise SensorHistoryRequestError("Error requesting sensor history: {}".
+                                            format(response.body))
+
+        def sort_by_time(sample):
+            return sample.time
+        # return a sorted copy, and then clear internal list to save some memory
+        result = sorted(self._sensor_history_state['samples'], key=sort_by_time)
+        self._sensor_history_state['samples'] = []
+
+        if len(result) >= MAX_SAMPLES_PER_HISTORY_QUERY:
+            self._logger.warn(
+                'Maximum sample limit (%d) hit - there may be more data available.',
+                MAX_SAMPLES_PER_HISTORY_QUERY)
+
+        raise tornado.gen.Return(result)
+
 
 class ScheduleBlockNotFoundError(Exception):
     """Raise if requested schedule block is not found."""
@@ -692,3 +857,7 @@ class ScheduleBlockNotFoundError(Exception):
 
 class SensorNotFoundError(Exception):
     """Raise if requested sensor is not found."""
+
+
+class SensorHistoryRequestError(Exception):
+    """Raise if error requesting sensor sample history."""

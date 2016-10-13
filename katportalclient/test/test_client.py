@@ -11,6 +11,7 @@
 
 import logging
 import StringIO
+import time
 from functools import partial
 
 import mock
@@ -63,15 +64,43 @@ sensor_json = {
     }
 
 
+# Example redis-pubsub message for sensor history
+sensor_history_pub_messages_json = {
+    "init": """{"result":[],"id":"redis-pubsub-init"}""",
+
+    "anc_mean_wind_speed": [
+        # Initial inform has done:false, and num_samples_to_be_published 0
+        """{"result":{"msg_pattern":"test_namespace:*","msg_channel":"test_namespace:katstore_data","msg_data":{"inform_type":"sample_history","inform_data":{"num_samples_to_be_published":0,"sensor_name":"anc_mean_wind_speed","done":false}}},"id":"redis-pubsub"}""",
+        # Next inform has done:false, and num_samples_to_be_published > 0, if any data
+        """{"result":{"msg_pattern":"test_namespace:*","msg_channel":"test_namespace:katstore_data","msg_data":{"inform_type":"sample_history","inform_data":{"num_samples_to_be_published":4,"sensor_name":"anc_mean_wind_speed","done":false}}},"id":"redis-pubsub"}""",
+
+        # Multiple data messages (may be out of order)
+        """{"result":{"msg_pattern":"test_namespace:*","msg_channel":"test_namespace:katstore_data","msg_data":[[1476164224429,1476164223101,1476164224429354,"5.07571614843","anc_mean_wind_speed","nominal"],[1476164225534,1476164224102,1476164225534476,"5.07574851017","anc_mean_wind_speed","nominal"]]},"id":"redis-pubsub"}""",
+        """{"result":{"msg_pattern":"test_namespace:*","msg_channel":"test_namespace:katstore_data","msg_data":[[1476164228142,1476164227102,1476164228142342,"5.0883800412","anc_mean_wind_speed","nominal"]]},"id":"redis-pubsub"}""",
+        """{"result":{"msg_pattern":"test_namespace:*","msg_channel":"test_namespace:katstore_data","msg_data":[[1476164226128,1476164225103,1476164226128442,"5.0753700255","anc_mean_wind_speed","nominal"]]},"id":"redis-pubsub"}""",
+
+        # Could get more informs with done:false
+        """{"result":{"msg_pattern":"test_namespace:*","msg_channel":"test_namespace:katstore_data","msg_data":{"inform_type":"sample_history","inform_data":{"num_samples_to_be_published":0,"sensor_name":"anc_mean_wind_speed","done":false}}},"id":"redis-pubsub"}""",
+        # Final inform has done:true and num_samples_to_be_published: 0
+        """{"result":{"msg_pattern":"test_namespace:*","msg_channel":"test_namespace:katstore_data","msg_data":{"inform_type":"sample_history","inform_data":{"num_samples_to_be_published":0,"sensor_name":"anc_mean_wind_speed","done":true}}},"id":"redis-pubsub"}"""
+        ]
+    }
+
+# Keep a reference to the last test websocket handler instantiated, so that it
+# can be used in tests that require injecting data from the server side.
+# (yes, it is hacky)
+test_websocket = None
+
 class TestWebSocket(TestWebSocketHandler):
     """Web socket test server."""
 
     def open(self):
+        global test_websocket
+        test_websocket = self
         print("WebSocket opened")
 
     def on_message(self, message):
         """Fake the typical replies depending on the type of method called."""
-
         reply = {}
         message = json.loads(message)
         reply['id'] = message['id']
@@ -85,7 +114,6 @@ class TestWebSocket(TestWebSocketHandler):
             reply['result'] = len(message['params'][1])
         elif message['method'] in ('set_sampling_strategy',
                                    'set_sampling_strategies'):
-
             reply['result'] = {}
             filters = message['params'][1]
             if not isinstance(filters, list):
@@ -99,6 +127,8 @@ class TestWebSocket(TestWebSocketHandler):
         self.write_message(json.dumps(reply))
 
     def on_close(self):
+        global test_websocket
+        test_websocket = None
         print("WebSocket closed")
 
 
@@ -445,9 +475,65 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         with self.assertRaises(SensorNotFoundError):
             yield self._portal_client.sensor_detail(sensor_name_filter)
 
+    @gen_test
+    def test_sensor_history_single_sensor_valid_times(self):
+        """Test that time ordered data is received for a single sensor request."""
+        history_base_url = self._portal_client.sitemap['historic_sensor_values']
+        sensor_name = 'anc_mean_wind_speed'
+        publish_messages = [sensor_history_pub_messages_json['init']]
+        publish_messages.extend(sensor_history_pub_messages_json[sensor_name])
+
+        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+            valid_response='{"result":"success"}',
+            invalid_response='error',
+            starts_with=history_base_url,
+            contains=sensor_name,
+            publish_raw_messages=publish_messages,
+            client_state=self._portal_client._sensor_history_state)
+
+        start_time_sec = 0
+        end_time_sec = time.time()
+        samples = yield self._portal_client.sensor_history(sensor_name,
+                                                           start_time_sec, end_time_sec)
+        # expect exactly 4 samples
+        self.assertTrue(len(samples) == 4)
+
+        # ensure time order is increasing
+        time_sec = 0
+        for sample in samples:
+            self.assertGreater(sample[0], time_sec)
+            time_sec = sample[0]
+
+    @gen_test
+    def test_sensor_history_single_sensor_invalid_times(self):
+        """Test that no data is received for a single sensor request."""
+        history_base_url = self._portal_client.sitemap['historic_sensor_values']
+        sensor_name = 'anc_mean_wind_speed'
+        publish_messages = [sensor_history_pub_messages_json['init']]
+        # include first and last synchronisation messages, but no data
+        publish_messages.append(sensor_history_pub_messages_json[sensor_name][0])
+        publish_messages.append(sensor_history_pub_messages_json[sensor_name][-1])
+
+        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+            valid_response='{"result":"success"}',
+            invalid_response='error',
+            starts_with=history_base_url,
+            contains=sensor_name,
+            publish_raw_messages=publish_messages,
+            client_state=self._portal_client._sensor_history_state)
+
+        start_time_sec = 0
+        end_time_sec = 100
+        samples = yield self._portal_client.sensor_history(sensor_name,
+                                                           start_time_sec, end_time_sec)
+        # expect no samples
+        self.assertTrue(len(samples) == 0)
+
+
 
 def mock_async_fetcher(valid_response, invalid_response, starts_with=None,
-                       ends_with=None, contains=None):
+                       ends_with=None, contains=None, publish_raw_messages=None,
+                       client_state=None):
     """Returns a mock HTTP async fetch function, depending on the conditions."""
 
     def mock_fetch(url):
@@ -459,6 +545,16 @@ def mock_async_fetcher(valid_response, invalid_response, starts_with=None,
             body_buffer = StringIO.StringIO(valid_response)
         else:
             body_buffer = StringIO.StringIO(invalid_response)
+
+        # optionally send raw message from test websocket server
+        if publish_raw_messages and test_websocket:
+            for raw_message in publish_raw_messages:
+                if isinstance(client_state, dict):
+                    # we need to rewrite the namespace, since the client
+                    # generates a random one at runtime (yes, it is hacky)
+                    raw_message = raw_message.replace(
+                        'test_namespace', client_state['namespace'])
+                test_websocket.write_message(raw_message)
 
         result = HTTPResponse(HTTPRequest(url), 200, buffer=body_buffer)
         future = concurrent.Future()
