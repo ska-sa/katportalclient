@@ -33,6 +33,9 @@ MAX_SAMPLES_PER_HISTORY_QUERY = 1000000
 # published in blocks, so many at a time.
 # 43200 = 12 hour chunks if 1 sample every second
 SAMPLE_HISTORY_CHUNK_SIZE = 43200
+# Request sample times  in milliseconds for better precision
+SAMPLE_HISTORY_REQUEST_TIME_TYPE = 'ms'
+SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC = 1000.0
 
 module_logger = logging.getLogger('kat.katportalclient')
 
@@ -228,7 +231,9 @@ class KATPortalClient(object):
                             # assume sample data message, extract fields of interest
                             # (time returned in milliseconds, so scale to seconds)
                             sensor_sample = SensorSample(
-                                time=sample[0]/1000.0, value=sample[3], status=sample[5])
+                                time=sample[0]/SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
+                                value=sample[3],
+                                status=sample[5])
                             self._sensor_history_state['samples'].append(sensor_sample)
                             num_received += 1
                     self._sensor_history_state['num_samples_pending'] -= num_received
@@ -785,6 +790,8 @@ class KATPortalClient(object):
         list:
             List of :class:`.SensorSample` namedtuples, one per sample, with fields
             time, value and status.  See :class:`.SensorSample` for details.
+            If the sensor named never existed, or is otherwise invalid, the
+            list will be empty - no exception is raised.
 
         Raises
         -------
@@ -805,9 +812,9 @@ class KATPortalClient(object):
 
         params = {
             'sensor': sensor_name,
-            'time_type': 'ms',  # request in milliseconds for better precision
-            'start': start_time_sec * 1000,
-            'end': end_time_sec * 1000,
+            'time_type': SAMPLE_HISTORY_REQUEST_TIME_TYPE,
+            'start': start_time_sec * SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
+            'end': end_time_sec * SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
             'namespace': self._sensor_history_state['namespace'],
             'request_in_chunks': 1,
             'chunk_size': SAMPLE_HISTORY_CHUNK_SIZE,
@@ -817,7 +824,7 @@ class KATPortalClient(object):
         self._logger.debug("Sensor history request: %s", url)
         response = yield self._http_client.fetch(url)
         data = json.loads(response.body)
-        if data['result'] == 'success':
+        if isinstance(data, dict) and data['result'] == 'success':
             download_start_sec = time.time()
             # Query accepted by portal - data will be returned via websocket, but
             # we need to wait until it has arrived.  For synchronisation, we wait
@@ -849,6 +856,55 @@ class KATPortalClient(object):
                 MAX_SAMPLES_PER_HISTORY_QUERY)
 
         raise tornado.gen.Return(result)
+
+    @tornado.gen.coroutine
+    def sensors_histories(self, filters, start_time_sec, end_time_sec, timeout_sec=90):
+        """Return time histories of sample measurements for mulitple sensors.
+
+        Finds the list of available sensors in the system that match the
+        specified pattern, and then requests the sample history for each one.
+
+        If only a single sensor's data is required, use :meth:`.sensor_history`.
+
+        Parameters
+        ----------
+        filters: str or list of str
+            List of regular expression patterns to match.
+            See :meth:`.set_sampling_strategies` for more detail.
+        start_time_sec: float
+            Start time for sample history query, in seconds since the UNIX epoch
+            (1970-01-01 UTC).
+        end_time_sec: float
+            End time for sample history query, in seconds since the UNIX epoch.
+        timeout_sec: float
+            Maximum time to wait for all sensors' histories to be retrieved.
+            An exception will be raised if the request times out.
+
+        Returns
+        -------
+        dict:
+            Dictonary of lists.  The keys are the full sensor names.
+            The values are lists of :class:`.SensorSample` namedtuples,
+            one per sample, with fields time, value and status.
+            See :class:`.SensorSample` for details.
+
+        Raises
+        -------
+        SensorHistoryRequestError:
+            - If there was an error submitting the request.
+            - If the request timed out
+        SensorNotFoundError:
+            - If any of the filters were invalid regular expression patterns.
+        """
+        request_start_sec = time.time()
+        sensors = yield self.sensor_names(filters)
+        histories = {}
+        for sensor in sensors:
+            elapsed_time_sec = time.time() - request_start_sec
+            timeout_left_sec = timeout_sec - elapsed_time_sec
+            histories[sensor] = yield self.sensor_history(
+                sensor, start_time_sec, end_time_sec, timeout_left_sec)
+        raise tornado.gen.Return(histories)
 
 
 class ScheduleBlockNotFoundError(Exception):
