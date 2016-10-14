@@ -97,7 +97,7 @@ class KATPortalClient(object):
             'done_event': tornado.locks.Event(),
             'num_samples_pending': 0,
             'samples': []
-            }
+        }
 
     def _get_sitemap(self, url):
         """
@@ -232,6 +232,9 @@ class KATPortalClient(object):
                         if len(sample) == 6:
                             # assume sample data message, extract fields of interest
                             # (time returned in milliseconds, so scale to seconds)
+                            # example:  [1476164224429L, 1476164223640L,
+                            #            1476164224429354L, u'5.07571614843',
+                            #            u'anc_mean_wind_speed', u'nominal']
                             sensor_sample = SensorSample(
                                 time=sample[0]/SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
                                 value=sample[3],
@@ -852,8 +855,8 @@ class KATPortalClient(object):
                 raise SensorHistoryRequestError("Sensor history request timed out")
 
         else:
-            raise SensorHistoryRequestError("Error requesting sensor history: {}".
-                                            format(response.body))
+            raise SensorHistoryRequestError("Error requesting sensor history: {}"
+                                            .format(response.body))
 
         def sort_by_time(sample):
             return sample.time
