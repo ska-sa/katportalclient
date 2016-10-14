@@ -859,7 +859,7 @@ class KATPortalClient(object):
 
     @tornado.gen.coroutine
     def sensors_histories(self, filters, start_time_sec, end_time_sec, timeout_sec=90):
-        """Return time histories of sample measurements for mulitple sensors.
+        """Return time histories of sample measurements for multiple sensors.
 
         Finds the list of available sensors in the system that match the
         specified pattern, and then requests the sample history for each one.
