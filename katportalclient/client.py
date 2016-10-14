@@ -55,7 +55,9 @@ class SensorSample(namedtuple('SensorSample', 'time, value, status')):
             by the KATCP protocol. Examples: 'nominal', 'warn', 'failure', 'error',
             'critical', 'unreachable', 'unknown', etc.
     """
-    pass
+    def csv(self):
+        """Returns sample in comma separated values format."""
+        return '{},{},{}'.format(self.time, self.value, self.status)
 
 
 class KATPortalClient(object):
@@ -241,7 +243,12 @@ class KATPortalClient(object):
                     self._logger.warn('Ignoring unexpected message: %s', msg_result)
                 processed = True
         if not processed:
-            self._io_loop.add_callback(self._on_update, msg_result)
+            if self._on_update:
+                self._io_loop.add_callback(self._on_update, msg_result)
+            else:
+                self._logger.warn('Ignoring message (no on_update_callback): %s',
+                                  msg_result)
+
 
     @tornado.gen.coroutine
     def _process_json_rpc_message(self, msg, msg_id):
@@ -286,7 +293,11 @@ class KATPortalClient(object):
             except:
                 self._logger.exception(
                     "Error processing websocket message! {}".format(msg))
-                self._io_loop.add_callback(self._on_update, msg)
+                if self._on_update:
+                    self._io_loop.add_callback(self._on_update, msg)
+                else:
+                    self._logger.warn('Ignoring message (no on_update_callback): %s',
+                                      msg)
         self._logger.info("Disconnected! Stop listening for messages "
                           "received from websocket server.")
 

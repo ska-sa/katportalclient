@@ -124,6 +124,7 @@ sensor_history_pub_messages_json = {
 # (yes, it is hacky)
 test_websocket = None
 
+
 class TestWebSocket(TestWebSocketHandler):
     """Web socket test server."""
 
