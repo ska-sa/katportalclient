@@ -40,7 +40,11 @@ def main():
     sensor_names = yield portal_client.sensor_names(args.sensors)
     print "\nMatching sensor names: {}".format(sensor_names)
     # Example output (if sensors is 'm01[12]_pos_request_base'):
-    #   Matching sensor names: [u'm011_pos_request_base_azim', u'm012_pos_request_base_ra', u'm012_pos_request_base_dec', u'm011_pos_request_base_ra', u'm012_pos_request_base_elev', u'm011_pos_request_base_dec', u'm012_pos_request_base_azim', u'm011_pos_request_base_elev']
+    #   Matching sensor names: [u'm011_pos_request_base_azim',
+    #   u'm012_pos_request_base_ra', u'm012_pos_request_base_dec',
+    #   u'm011_pos_request_base_ra', u'm012_pos_request_base_elev',
+    #   u'm011_pos_request_base_dec', u'm012_pos_request_base_azim',
+    #   u'm011_pos_request_base_elev']
 
     # Fetch the details for the sensors found.
     for sensor_name in sensor_names:
@@ -48,7 +52,11 @@ def main():
         print "\nDetail for sensor {}:\n{}\n".format(sensor_name, sensor_detail)
         # Example output:
         #   Detail for sensor m011_pos_request_base_azim:
-        #   {'name': u'm011_pos_request_base_azim', u'systype': u'mkat', 'component': u'm011', u'site': u'deva', u'katcp_name': u'm011.pos.request-base-azim', u'params': u'[-195.0, 370.0]', u'units': u'deg', u'type': u'float', u'description': u'Requested target azimuth'}
+        #   {'name': u'm011_pos_request_base_azim', u'systype': u'mkat',
+        #    'component': u'm011', u'site': u'deva',
+        #    u'katcp_name': u'm011.pos.request-base-azim',
+        #    u'params': u'[-195.0, 370.0]', u'units': u'deg', u'type': u'float',
+        #    u'description': u'Requested target azimuth'}
 
     num_sensors = len(sensor_names)
     if num_sensors == 0:
@@ -83,8 +91,13 @@ def main():
     # Matching sensor names: [u'anc_mean_wind_speed']
     #
     # Detail for sensor anc_mean_wind_speed:
-    # {'name': u'anc_mean_wind_speed', u'systype': u'mkat', 'component': u'anc', u'site': u'deva', u'katcp_name': u'anc.mean_wind_speed', u'params': u'[]', u'units': u'', u'type': u'float', u'description': u"Mean of  ['wind.wind-speed', 'weather.wind-speed'] in (600 * 1.0s) window"}
+    # {'name': u'anc_mean_wind_speed', u'systype': u'mkat', 'component': u'anc',
+    #   u'site': u'deva', u'katcp_name': u'anc.mean_wind_speed', u'params': u'[]',
+    #   u'units': u'', u'type': u'float',
+    #   u'description': u"Mean of  ['wind.wind-speed', 'weather.wind-speed']
+    #                     in (600 * 1.0s) window"}
     #
+    # Requesting history for 1 sensors, from 2016-10-11T05:37:04Z to 2016-10-11T05:37:09Z
     # Found 1 sensors.
     # History for: anc_mean_wind_speed (5 samples)
     #    index,time,value,status

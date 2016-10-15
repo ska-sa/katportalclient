@@ -252,7 +252,6 @@ class KATPortalClient(object):
                 self._logger.warn('Ignoring message (no on_update_callback): %s',
                                   msg_result)
 
-
     @tornado.gen.coroutine
     def _process_json_rpc_message(self, msg, msg_id):
         """Internal handler for JSON RPC response messages."""

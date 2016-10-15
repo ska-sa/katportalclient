@@ -43,8 +43,12 @@ def main():
     # Get the names of sensors matching a list of patterns
     sensor_names = yield portal_client.sensor_names('m01[12]_pos_request_base')
     print "\nMatching sensor names:", sensor_names
-    # Example output:
-    #   Matching sensor names: [u'm011_pos_request_base_azim', u'm012_pos_request_base_ra', u'm012_pos_request_base_dec', u'm011_pos_request_base_ra', u'm012_pos_request_base_elev', u'm011_pos_request_base_dec', u'm012_pos_request_base_azim', u'm011_pos_request_base_elev']
+    # Example output (if sensors is 'm01[12]_pos_request_base'):
+    #   Matching sensor names: [u'm011_pos_request_base_azim',
+    #   u'm012_pos_request_base_ra', u'm012_pos_request_base_dec',
+    #   u'm011_pos_request_base_ra', u'm012_pos_request_base_elev',
+    #   u'm011_pos_request_base_dec', u'm012_pos_request_base_azim',
+    #   u'm011_pos_request_base_elev']
 
     # Fetch the details for one of the sensors found.
     if len(sensor_names) > 0:
@@ -52,8 +56,11 @@ def main():
         print "\nDetail for sensor {}:\n{}\n".format(sensor_names[0], sensor_detail)
         # Example output:
         #   Detail for sensor m011_pos_request_base_azim:
-        #   {'name': u'm011_pos_request_base_azim', u'systype': u'mkat', 'component': u'm011', u'site': u'deva', u'katcp_name': u'm011.pos.request-base-azim', u'params': u'[-195.0, 370.0]', u'units': u'deg', u'type': u'float', u'description': u'Requested target azimuth'}
-
+        #   {'name': u'm011_pos_request_base_azim', u'systype': u'mkat',
+        #    'component': u'm011', u'site': u'deva',
+        #    u'katcp_name': u'm011.pos.request-base-azim',
+        #    u'params': u'[-195.0, 370.0]', u'units': u'deg', u'type': u'float',
+        #    u'description': u'Requested target azimuth'}
 
 if __name__ == '__main__':
     # Start up the tornado IO loop.
