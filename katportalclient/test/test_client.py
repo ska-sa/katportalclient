@@ -11,6 +11,7 @@
 
 import logging
 import StringIO
+import time
 from functools import partial
 
 import mock
@@ -24,7 +25,8 @@ from tornado.test.websocket_test import (
     WebSocketBaseTestCase, TestWebSocketHandler)
 
 from katportalclient import (
-    KATPortalClient, JSONRPCRequest, ScheduleBlockNotFoundError, SensorNotFoundError)
+    KATPortalClient, JSONRPCRequest, ScheduleBlockNotFoundError, SensorNotFoundError,
+    SensorHistoryRequestError)
 
 
 LOGGER_NAME = 'test_portalclient'
@@ -40,6 +42,24 @@ sensor_json = {
                                    "params":"[0.0, 70.0]",
                                    "units":"m\/s",
                                    "type":"float"}]""",
+
+    "anc_mean_wind_speed": """["anc_mean_wind_speed","anc",
+                                {"description":"Mean wind speed",
+                                 "systype":"mkat",
+                                 "site":"deva",
+                                 "katcp_name":"anc.mean-wind-speed",
+                                 "params":"[0.0, 70.0]",
+                                 "units":"m\/s",
+                                 "type":"float"}]""",
+
+    "anc_gust_wind_speed": """["anc_gust_wind_speed","anc",
+                               {"description":"Gust wind speed",
+                                "systype":"mkat",
+                                "site":"deva",
+                                "katcp_name":"anc.gust-wind-speed",
+                                "params":"[0.0, 70.0]",
+                                "units":"m\/s",
+                                "type":"float"}]""",
 
     "anc_wind_device_status": """["anc_wind_device_status","anc",
                                   {"description":"Overall status of wind system",
@@ -63,15 +83,58 @@ sensor_json = {
     }
 
 
+# Example redis-pubsub message for sensor history
+sensor_history_pub_messages_json = {
+    "init": """{"result":[],"id":"redis-pubsub-init"}""",
+
+    "anc_mean_wind_speed": [
+        # Initial inform has done:false, and num_samples_to_be_published 0
+        """{"result":{"msg_pattern":"test_namespace:*","msg_channel":"test_namespace:katstore_data","msg_data":{"inform_type":"sample_history","inform_data":{"num_samples_to_be_published":0,"sensor_name":"anc_mean_wind_speed","done":false}}},"id":"redis-pubsub"}""",
+        # Next inform has done:false, and num_samples_to_be_published > 0, if any data
+        """{"result":{"msg_pattern":"test_namespace:*","msg_channel":"test_namespace:katstore_data","msg_data":{"inform_type":"sample_history","inform_data":{"num_samples_to_be_published":4,"sensor_name":"anc_mean_wind_speed","done":false}}},"id":"redis-pubsub"}""",
+
+        # Multiple data messages (may be out of order)
+        """{"result":{"msg_pattern":"test_namespace:*","msg_channel":"test_namespace:katstore_data","msg_data":[[1476164224429,1476164223101,1476164224429354,"5.07571614843","anc_mean_wind_speed","nominal"],[1476164225534,1476164224102,1476164225534476,"5.07574851017","anc_mean_wind_speed","nominal"]]},"id":"redis-pubsub"}""",
+        """{"result":{"msg_pattern":"test_namespace:*","msg_channel":"test_namespace:katstore_data","msg_data":[[1476164228142,1476164227102,1476164228142342,"5.0883800412","anc_mean_wind_speed","nominal"]]},"id":"redis-pubsub"}""",
+        """{"result":{"msg_pattern":"test_namespace:*","msg_channel":"test_namespace:katstore_data","msg_data":[[1476164226128,1476164225103,1476164226128442,"5.0753700255","anc_mean_wind_speed","nominal"]]},"id":"redis-pubsub"}""",
+
+        # Could get more informs with done:false
+        """{"result":{"msg_pattern":"test_namespace:*","msg_channel":"test_namespace:katstore_data","msg_data":{"inform_type":"sample_history","inform_data":{"num_samples_to_be_published":0,"sensor_name":"anc_mean_wind_speed","done":false}}},"id":"redis-pubsub"}""",
+        # Final inform has done:true and num_samples_to_be_published: 0
+        """{"result":{"msg_pattern":"test_namespace:*","msg_channel":"test_namespace:katstore_data","msg_data":{"inform_type":"sample_history","inform_data":{"num_samples_to_be_published":0,"sensor_name":"anc_mean_wind_speed","done":true}}},"id":"redis-pubsub"}"""
+        ],
+
+    "anc_gust_wind_speed": [
+        # Initial inform has done:false, and num_samples_to_be_published 0
+        """{"result":{"msg_pattern":"test_namespace:*","msg_channel":"test_namespace:katstore_data","msg_data":{"inform_type":"sample_history","inform_data":{"num_samples_to_be_published":0,"sensor_name":"anc_gust_wind_speed","done":false}}},"id":"redis-pubsub"}""",
+        # Next inform has done:false, and num_samples_to_be_published > 0, if any data
+        """{"result":{"msg_pattern":"test_namespace:*","msg_channel":"test_namespace:katstore_data","msg_data":{"inform_type":"sample_history","inform_data":{"num_samples_to_be_published":3,"sensor_name":"anc_gust_wind_speed","done":false}}},"id":"redis-pubsub"}""",
+
+        # Multiple data messages (may be out of order)
+        """{"result":{"msg_pattern":"test_namespace:*","msg_channel":"test_namespace:katstore_data","msg_data":[[1476164225429,1476164224101,1476164225429354,"6.07571614843","anc_gust_wind_speed","nominal"],[1476164226534,1476164225102,1476164226534476,"6.07574851017","anc_gust_wind_speed","nominal"]]},"id":"redis-pubsub"}""",
+        """{"result":{"msg_pattern":"test_namespace:*","msg_channel":"test_namespace:katstore_data","msg_data":[[1476164229142,1476164228102,1476164229142342,"6.0883800412","anc_gust_wind_speed","nominal"]]},"id":"redis-pubsub"}""",
+
+        # Final inform has done:true and num_samples_to_be_published: 0
+        """{"result":{"msg_pattern":"test_namespace:*","msg_channel":"test_namespace:katstore_data","msg_data":{"inform_type":"sample_history","inform_data":{"num_samples_to_be_published":0,"sensor_name":"anc_gust_wind_speed","done":true}}},"id":"redis-pubsub"}"""
+        ]
+    }
+
+# Keep a reference to the last test websocket handler instantiated, so that it
+# can be used in tests that require injecting data from the server side.
+# (yes, it is hacky)
+test_websocket = None
+
+
 class TestWebSocket(TestWebSocketHandler):
     """Web socket test server."""
 
     def open(self):
+        global test_websocket
+        test_websocket = self
         print("WebSocket opened")
 
     def on_message(self, message):
         """Fake the typical replies depending on the type of method called."""
-
         reply = {}
         message = json.loads(message)
         reply['id'] = message['id']
@@ -85,7 +148,6 @@ class TestWebSocket(TestWebSocketHandler):
             reply['result'] = len(message['params'][1])
         elif message['method'] in ('set_sampling_strategy',
                                    'set_sampling_strategies'):
-
             reply['result'] = {}
             filters = message['params'][1]
             if not isinstance(filters, list):
@@ -99,6 +161,8 @@ class TestWebSocket(TestWebSocketHandler):
         self.write_message(json.dumps(reply))
 
     def on_close(self):
+        global test_websocket
+        test_websocket = None
         print("WebSocket closed")
 
 
@@ -445,9 +509,173 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         with self.assertRaises(SensorNotFoundError):
             yield self._portal_client.sensor_detail(sensor_name_filter)
 
+    @gen_test
+    def test_sensor_history_single_sensor_valid_times(self):
+        """Test that time ordered data is received for a single sensor request."""
+        history_base_url = self._portal_client.sitemap['historic_sensor_values']
+        sensor_name = 'anc_mean_wind_speed'
+        publish_messages = [sensor_history_pub_messages_json['init']]
+        publish_messages.extend(sensor_history_pub_messages_json[sensor_name])
+
+        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+            valid_response='{"result":"success"}',
+            invalid_response='error',
+            starts_with=history_base_url,
+            contains=sensor_name,
+            publish_raw_messages=publish_messages,
+            client_state=self._portal_client._sensor_history_state)
+
+        samples = yield self._portal_client.sensor_history(
+            sensor_name, start_time_sec=0, end_time_sec=time.time())
+        # expect exactly 4 samples
+        self.assertTrue(len(samples) == 4)
+
+        # ensure time order is increasing
+        time_sec = 0
+        for sample in samples:
+            self.assertGreater(sample[0], time_sec)
+            time_sec = sample[0]
+
+    @gen_test
+    def test_sensor_history_single_sensor_invalid_times(self):
+        """Test that no data is received for a single sensor request."""
+        history_base_url = self._portal_client.sitemap['historic_sensor_values']
+        sensor_name = 'anc_mean_wind_speed'
+        publish_messages = [sensor_history_pub_messages_json['init']]
+        # include first and last synchronisation messages, but no data
+        publish_messages.append(sensor_history_pub_messages_json[sensor_name][0])
+        publish_messages.append(sensor_history_pub_messages_json[sensor_name][-1])
+
+        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+            valid_response='{"result":"success"}',
+            invalid_response='error',
+            starts_with=history_base_url,
+            contains=sensor_name,
+            publish_raw_messages=publish_messages,
+            client_state=self._portal_client._sensor_history_state)
+
+        samples = yield self._portal_client.sensor_history(
+            sensor_name, start_time_sec=0, end_time_sec=100)
+        # expect no samples
+        self.assertTrue(len(samples) == 0)
+
+    @gen_test
+    def test_sensor_history_exception_on_timeout(self):
+        """Test that exception is raised is download exceeds timeout."""
+        history_base_url = self._portal_client.sitemap['historic_sensor_values']
+        sensor_name = 'anc_mean_wind_speed'
+        publish_messages = [sensor_history_pub_messages_json['init']]
+        publish_messages.extend(sensor_history_pub_messages_json[sensor_name])
+
+        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+            valid_response='{"result":"success"}',
+            invalid_response='error',
+            starts_with=history_base_url,
+            contains=sensor_name,
+            publish_raw_messages=publish_messages,
+            client_state=self._portal_client._sensor_history_state)
+
+        with self.assertRaises(SensorHistoryRequestError):
+            yield self._portal_client.sensor_history(
+                sensor_name, start_time_sec=0, end_time_sec=100, timeout_sec=0)
+
+    @gen_test
+    def test_sensor_history_multiple_sensors_valid_times(self):
+        """Test that time ordered data is received for a multiple sensor request."""
+        history_base_url = self._portal_client.sitemap['historic_sensor_values']
+        sensor_name_filter = 'anc_.*_wind_speed'
+        sensor_names = ['anc_mean_wind_speed', 'anc_gust_wind_speed']
+        publish_messages = [
+            [sensor_history_pub_messages_json['init']],
+            [sensor_history_pub_messages_json['init']]
+            ]
+        publish_messages[0].extend(sensor_history_pub_messages_json[sensor_names[0]])
+        publish_messages[1].extend(sensor_history_pub_messages_json[sensor_names[1]])
+
+        # complicated way to define the behaviour for the 3 expected HTTPS requests
+        #  - 1st call gives sensor list
+        #  - 2nd call provides the sample history for sensor 0
+        #  - 3rd call provides the sample history for sensor 1
+        self.mock_http_async_client().fetch.side_effect = mock_async_fetchers(
+                valid_responses=[
+                    '[{}, {}]'.format(sensor_json[sensor_names[0]],
+                                      sensor_json[sensor_names[1]]),
+                    '{"result":"success"}',
+                    '{"result":"success"}'],
+                invalid_responses=['1error', '2error', '3error'],
+                starts_withs=history_base_url,
+                containses=[
+                    sensor_name_filter,
+                    sensor_names[0],
+                    sensor_names[1]],
+                publish_raw_messageses=[
+                    None,
+                    publish_messages[0],
+                    publish_messages[1]],
+                client_states=[
+                    None,
+                    self._portal_client._sensor_history_state,
+                    self._portal_client._sensor_history_state])
+
+        histories = yield self._portal_client.sensors_histories(
+            sensor_name_filter, start_time_sec=0, end_time_sec=time.time())
+        # expect exactly 2 lists of samples
+        self.assertTrue(len(histories) == 2)
+        # expect keys to match the 2 sensor names
+        self.assertIn(sensor_names[0], histories.keys())
+        self.assertIn(sensor_names[1], histories.keys())
+        # expect 4 samples for 1st, and 3 samples for 2nd
+        self.assertTrue(len(histories[sensor_names[0]]) == 4)
+        self.assertTrue(len(histories[sensor_names[1]]) == 3)
+
+        # ensure time order is increasing, per sensor
+        for sensor in histories:
+            time_sec = 0
+            for sample in histories[sensor]:
+                self.assertGreater(sample[0], time_sec)
+                time_sec = sample[0]
+
+
+def mock_async_fetchers(valid_responses, invalid_responses, starts_withs=None,
+                        ends_withs=None, containses=None, publish_raw_messageses=None,
+                        client_states=None):
+    """Allows definition of multiple HTTP async fetchers."""
+    num_calls = len(valid_responses)
+    if starts_withs is None or isinstance(starts_withs, basestring):
+        starts_withs = [starts_withs] * num_calls
+    if ends_withs is None or isinstance(ends_withs, basestring):
+        ends_withs = [ends_withs] * num_calls
+    if containses is None or isinstance(containses, basestring):
+        containses = [containses] * num_calls
+    if publish_raw_messageses is None:
+        publish_raw_messageses = [None] * num_calls
+    if client_states is None:
+        client_states = [None] * num_calls
+    assert(len(invalid_responses) == num_calls)
+    assert(len(starts_withs) == num_calls)
+    assert(len(ends_withs) == num_calls)
+    assert(len(containses) == num_calls)
+    assert(len(publish_raw_messageses) == num_calls)
+    assert(len(client_states) == num_calls)
+
+    mock_fetches = [mock_async_fetcher(v, i, s, e, c, p, cs)
+                    for v, i, s, e, c, p, cs in zip(
+                        valid_responses, invalid_responses,
+                        starts_withs, ends_withs, containses,
+                        publish_raw_messageses, client_states)]
+    # flip order so that poping effectively goes from first to last input
+    mock_fetches.reverse()
+
+    def mock_fetch(url):
+        single_fetch = mock_fetches.pop()
+        return single_fetch(url)
+
+    return mock_fetch
+
 
 def mock_async_fetcher(valid_response, invalid_response, starts_with=None,
-                       ends_with=None, contains=None):
+                       ends_with=None, contains=None, publish_raw_messages=None,
+                       client_state=None):
     """Returns a mock HTTP async fetch function, depending on the conditions."""
 
     def mock_fetch(url):
@@ -459,6 +687,16 @@ def mock_async_fetcher(valid_response, invalid_response, starts_with=None,
             body_buffer = StringIO.StringIO(valid_response)
         else:
             body_buffer = StringIO.StringIO(invalid_response)
+
+        # optionally send raw message from test websocket server
+        if publish_raw_messages and test_websocket:
+            for raw_message in publish_raw_messages:
+                if isinstance(client_state, dict):
+                    # we need to rewrite the namespace, since the client
+                    # generates a random one at runtime (yes, it is hacky)
+                    raw_message = raw_message.replace(
+                        'test_namespace', client_state['namespace'])
+                test_websocket.write_message(raw_message)
 
         result = HTTPResponse(HTTPRequest(url), 200, buffer=body_buffer)
         future = concurrent.Future()

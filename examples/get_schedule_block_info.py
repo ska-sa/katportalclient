@@ -46,7 +46,21 @@ def main():
         print "\nDetail for SB {}:\n{}\n".format(sb_ids[0], sb_detail)
         # Example output:
         #   Detail for SB 20161010-0001:
-        #   {u'id_code': u'20161010-0001', u'owner': u'CAM', u'actual_end_time': None, u'instruction_set': u'run-obs-script ~/svn/katscripts/cam/basic-session-track.py azel,20,30 -t 10 -n off ', u'ready': True, u'resource_spec': {u'antenna_spec': u'available', u'schedule_block_id': 287, u'controlled_resources': u'data', u'id': 287}, u'id': 287, u'scheduled_time': u'2016-10-10 12:17:06.000Z', u'priority': u'LOW', u'state': u'SCHEDULED', u'config_label': u'', u'type': u'OBSERVATION', u'actual_start_time': None, u'description': u'a test sb', u'verification_state': u'VERIFIED', u'sub_nr': 1, u'desired_start_time': None, u'expected_duration_seconds': 89, u'dry_run_resource_alloc': {u'antennas': u'm011,m022', u'schedule_block_id': 287, u'controlled_resources': u'data_1', u'id': 304}, u'notes': u'(Cloned from 20160908-0001) None', u'outcome': u'UNKNOWN', u'resource_alloc': None}
+        #   {u'id_code': u'20161010-0001', u'owner': u'CAM', u'actual_end_time': None,
+        #    u'instruction_set': u'run-obs-script ~/svn/katscripts/cam/basic-session-track.py azel,20,30 -t 10 -n off ',
+        #    u'ready': True,
+        #    u'resource_spec': {u'antenna_spec': u'available', u'schedule_block_id': 287,
+        #                       u'controlled_resources': u'data', u'id': 287},
+        #    u'id': 287, u'scheduled_time': u'2016-10-10 12:17:06.000Z',
+        #    u'priority': u'LOW', u'state': u'SCHEDULED', u'config_label': u'',
+        #    u'type': u'OBSERVATION', u'actual_start_time': None,
+        #    u'description': u'a test sb', u'verification_state': u'VERIFIED',
+        #    u'sub_nr': 1, u'desired_start_time': None, u'expected_duration_seconds': 89,
+        #    u'dry_run_resource_alloc': {u'antennas': u'm011,m022',
+        #                                u'schedule_block_id': 287,
+        #                                u'controlled_resources': u'data_1', u'id': 304},
+        #    u'notes': u'(Cloned from 20160908-0001) None', u'outcome': u'UNKNOWN',
+        #    u'resource_alloc': None}
 
 
 if __name__ == '__main__':

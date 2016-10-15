@@ -9,7 +9,8 @@
 """Root of katportalclient package."""
 
 from client import (
-    KATPortalClient, ScheduleBlockNotFoundError, SensorNotFoundError)
+    KATPortalClient, ScheduleBlockNotFoundError, SensorNotFoundError,
+    SensorHistoryRequestError)
 from request import JSONRPCRequest
 
 # BEGIN VERSION CHECK
