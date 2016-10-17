@@ -592,7 +592,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         publish_messages[0].extend(sensor_history_pub_messages_json[sensor_names[0]])
         publish_messages[1].extend(sensor_history_pub_messages_json[sensor_names[1]])
 
-        # complicated way to define the behaviour for the 3 expected HTTPS requests
+        # complicated way to define the behaviour for the 3 expected HTTP requests
         #  - 1st call gives sensor list
         #  - 2nd call provides the sample history for sensor 0
         #  - 3rd call provides the sample history for sensor 1
@@ -647,7 +647,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         publish_messages[0].extend(sensor_history_pub_messages_json[sensor_names[0]])
         publish_messages[1].extend(sensor_history_pub_messages_json[sensor_names[1]])
 
-        # complicated way to define the behaviour for the 2 expected HTTPS requests
+        # complicated way to define the behaviour for the 2 expected HTTP requests
         #  - 1st call provides the sample history for sensor 0
         #  - 2nd call provides the sample history for sensor 1
         self.mock_http_async_client().fetch.side_effect = mock_async_fetchers(

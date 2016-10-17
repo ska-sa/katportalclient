@@ -129,7 +129,7 @@ if __name__ == '__main__':
         '-r', '--timeout',
         type=int,
         default=60,
-        help="maximum time allowed for query [sec] (default: now).")
+        help="maximum time allowed for query [sec] (default: %(default)s).")
     parser.add_argument(
         '-d', '--decimate',
         type=int,
