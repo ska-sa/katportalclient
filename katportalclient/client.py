@@ -87,17 +87,13 @@ class KATPortalClient(object):
         self._logger = logger or module_logger
         self._url = url
         self._ws = None
+        self._ws_connecting_lock = tornado.locks.Lock()
         self._io_loop = io_loop or tornado.ioloop.IOLoop.current()
         self._on_update = on_update_callback
         self._pending_requests = {}
         self._http_client = tornado.httpclient.AsyncHTTPClient()
         self._sitemap = None
-        self._sensor_history_state = {
-            'namespace': None,
-            'done_event': tornado.locks.Event(),
-            'num_samples_pending': 0,
-            'samples': []
-        }
+        self._sensor_history_states = {}
 
     def _get_sitemap(self, url):
         """
@@ -189,15 +185,18 @@ class KATPortalClient(object):
     @tornado.gen.coroutine
     def connect(self):
         """Connect to the websocket server specified during instantiation."""
-        if not self.is_connected:
-            # TODO(TA): check the connect_timeout option
-            self._logger.debug("Connecting to websocket %s", self.sitemap['websocket'])
-            self._ws = yield websocket_connect(
-                self.sitemap['websocket'], io_loop=self._io_loop)
-            if self.is_connected:
-                self._io_loop.add_callback(self._run)
-            else:
-                self._logger.error("Failed to connect!")
+        # The lock is used to ensure only a single connection can be made
+        with (yield self._ws_connecting_lock.acquire()):
+            if not self.is_connected:
+                # TODO(TA): check the connect_timeout option
+                self._logger.debug(
+                    "Connecting to websocket %s", self.sitemap['websocket'])
+                self._ws = yield websocket_connect(
+                    self.sitemap['websocket'], io_loop=self._io_loop)
+                if self.is_connected:
+                    self._io_loop.add_callback(self._run)
+                else:
+                    self._logger.error("Failed to connect!")
 
     def disconnect(self):
         """Disconnect from the connected websocket server."""
@@ -215,7 +214,8 @@ class KATPortalClient(object):
             processed = True  # Nothing to do really.
         elif 'msg_channel' in msg_result:
             namespace = msg_result['msg_channel'].split(':', 1)[0]
-            if namespace == self._sensor_history_state['namespace']:
+            if namespace in self._sensor_history_states:
+                state = self._sensor_history_states[namespace]
                 msg_data = msg_result['msg_data']
                 if (isinstance(msg_data, dict)
                         and 'inform_type' in msg_data
@@ -223,9 +223,9 @@ class KATPortalClient(object):
                     # inform message which provides synchronisation information.
                     inform = msg_data['inform_data']
                     num_new_samples = inform['num_samples_to_be_published']
-                    self._sensor_history_state['num_samples_pending'] += num_new_samples
+                    state['num_samples_pending'] += num_new_samples
                     if inform['done']:
-                        self._sensor_history_state['done_event'].set()
+                        state['done_event'].set()
                 elif isinstance(msg_data, list):
                     num_received = 0
                     for sample in msg_data:
@@ -239,9 +239,9 @@ class KATPortalClient(object):
                                 time=sample[0]/SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
                                 value=sample[3],
                                 status=sample[5])
-                            self._sensor_history_state['samples'].append(sensor_sample)
+                            state['samples'].append(sensor_sample)
                             num_received += 1
-                    self._sensor_history_state['num_samples_pending'] -= num_received
+                    state['num_samples_pending'] -= num_received
                 else:
                     self._logger.warn('Ignoring unexpected message: %s', msg_result)
                 processed = True
@@ -812,23 +812,26 @@ class KATPortalClient(object):
             - If there was an error submitting the request.
             - If the request timed out
         """
-        # clear any history received previously, before subscribing to new namespace
-        # (any samples in flight will be lost due to namespace change)
-        self._sensor_history_state['namespace'] = str(uuid.uuid4())
-        self._sensor_history_state['done_event'].clear()
-        self._sensor_history_state['num_samples_pending'] = 0
-        self._sensor_history_state['samples'] = []
-
+        # create new namespace and state variables per query, to allow multiple
+        # request simultaneously
+        state = {
+            'sensor': sensor_name,
+            'done_event': tornado.locks.Event(),
+            'num_samples_pending': 0,
+            'samples': []
+        }
+        namespace = str(uuid.uuid4())
+        self._sensor_history_states[namespace] = state
         # ensure connected, and subscribed before sending request
         yield self.connect()
-        yield self.subscribe(self._sensor_history_state['namespace'], ['*'])
+        yield self.subscribe(namespace, ['*'])
 
         params = {
             'sensor': sensor_name,
             'time_type': SAMPLE_HISTORY_REQUEST_TIME_TYPE,
             'start': start_time_sec * SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
             'end': end_time_sec * SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
-            'namespace': self._sensor_history_state['namespace'],
+            'namespace': namespace,
             'request_in_chunks': 1,
             'chunk_size': SAMPLE_HISTORY_CHUNK_SIZE,
             'limit': MAX_SAMPLES_PER_HISTORY_QUERY
@@ -841,15 +844,14 @@ class KATPortalClient(object):
             download_start_sec = time.time()
             # Query accepted by portal - data will be returned via websocket, but
             # we need to wait until it has arrived.  For synchronisation, we wait
-            # for a 'done_event'. This events is updated in _process_redis_message().
+            # for a 'done_event'. This event is updated in _process_redis_message().
             try:
-                done_event = self._sensor_history_state['done_event']
                 timeout_delta = timedelta(seconds=timeout_sec)
-                yield done_event.wait(timeout=timeout_delta)
+                yield state['done_event'].wait(timeout=timeout_delta)
 
                 self._logger.debug('Done in %d seconds, fetched %s samples.' % (
                     time.time() - download_start_sec,
-                    len(self._sensor_history_state['samples'])))
+                    len(state['samples'])))
             except tornado.gen.TimeoutError:
                 raise SensorHistoryRequestError("Sensor history request timed out")
 
@@ -859,14 +861,19 @@ class KATPortalClient(object):
 
         def sort_by_time(sample):
             return sample.time
-        # return a sorted copy, and then clear internal list to save some memory
-        result = sorted(self._sensor_history_state['samples'], key=sort_by_time)
-        self._sensor_history_state['samples'] = []
+        # return a sorted copy, as data may have arrived out of order
+        result = sorted(state['samples'], key=sort_by_time)
 
         if len(result) >= MAX_SAMPLES_PER_HISTORY_QUERY:
             self._logger.warn(
                 'Maximum sample limit (%d) hit - there may be more data available.',
                 MAX_SAMPLES_PER_HISTORY_QUERY)
+
+        # Free the state variables that were only required for the duration of
+        # the download.  Do not disconnect - there may be websocket activity
+        # initiated by another call.
+        yield self.unsubscribe(namespace, ['*'])
+        del self._sensor_history_states[namespace]
 
         raise tornado.gen.Return(result)
 

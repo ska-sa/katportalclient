@@ -523,7 +523,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             starts_with=history_base_url,
             contains=sensor_name,
             publish_raw_messages=publish_messages,
-            client_state=self._portal_client._sensor_history_state)
+            client_states=self._portal_client._sensor_history_states)
 
         samples = yield self._portal_client.sensor_history(
             sensor_name, start_time_sec=0, end_time_sec=time.time())
@@ -552,7 +552,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             starts_with=history_base_url,
             contains=sensor_name,
             publish_raw_messages=publish_messages,
-            client_state=self._portal_client._sensor_history_state)
+            client_states=self._portal_client._sensor_history_states)
 
         samples = yield self._portal_client.sensor_history(
             sensor_name, start_time_sec=0, end_time_sec=100)
@@ -573,7 +573,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             starts_with=history_base_url,
             contains=sensor_name,
             publish_raw_messages=publish_messages,
-            client_state=self._portal_client._sensor_history_state)
+            client_states=self._portal_client._sensor_history_states)
 
         with self.assertRaises(SensorHistoryRequestError):
             yield self._portal_client.sensor_history(
@@ -592,7 +592,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         publish_messages[0].extend(sensor_history_pub_messages_json[sensor_names[0]])
         publish_messages[1].extend(sensor_history_pub_messages_json[sensor_names[1]])
 
-        # complicated way to define the behaviour for the 3 expected HTTPS requests
+        # complicated way to define the behaviour for the 3 expected HTTP requests
         #  - 1st call gives sensor list
         #  - 2nd call provides the sample history for sensor 0
         #  - 3rd call provides the sample history for sensor 1
@@ -612,10 +612,10 @@ class TestKATPortalClient(WebSocketBaseTestCase):
                     None,
                     publish_messages[0],
                     publish_messages[1]],
-                client_states=[
+                client_stateses=[
                     None,
-                    self._portal_client._sensor_history_state,
-                    self._portal_client._sensor_history_state])
+                    self._portal_client._sensor_history_states,
+                    self._portal_client._sensor_history_states])
 
         histories = yield self._portal_client.sensors_histories(
             sensor_name_filter, start_time_sec=0, end_time_sec=time.time())
@@ -635,10 +635,66 @@ class TestKATPortalClient(WebSocketBaseTestCase):
                 self.assertGreater(sample[0], time_sec)
                 time_sec = sample[0]
 
+    @gen_test
+    def test_sensor_history_multiple_sensor_futures(self):
+        """Test multiple sensor requests in list of futures."""
+        history_base_url = self._portal_client.sitemap['historic_sensor_values']
+        sensor_names = ['anc_mean_wind_speed', 'anc_gust_wind_speed']
+        publish_messages = [
+            [sensor_history_pub_messages_json['init']],
+            [sensor_history_pub_messages_json['init']]
+            ]
+        publish_messages[0].extend(sensor_history_pub_messages_json[sensor_names[0]])
+        publish_messages[1].extend(sensor_history_pub_messages_json[sensor_names[1]])
+
+        # complicated way to define the behaviour for the 2 expected HTTP requests
+        #  - 1st call provides the sample history for sensor 0
+        #  - 2nd call provides the sample history for sensor 1
+        self.mock_http_async_client().fetch.side_effect = mock_async_fetchers(
+                valid_responses=[
+                    '{"result":"success"}',
+                    '{"result":"success"}'],
+                invalid_responses=['1error', '2error'],
+                starts_withs=history_base_url,
+                containses=[
+                    sensor_names[0],
+                    sensor_names[1]],
+                publish_raw_messageses=[
+                    publish_messages[0],
+                    publish_messages[1]],
+                client_stateses=[
+                    self._portal_client._sensor_history_states,
+                    self._portal_client._sensor_history_states])
+
+        futures = []
+        futures.append(self._portal_client.sensor_history(
+            sensor_names[0], start_time_sec=0, end_time_sec=time.time()))
+        futures.append(self._portal_client.sensor_history(
+            sensor_names[1], start_time_sec=0, end_time_sec=time.time()))
+        yield futures
+        histories = {}
+        for future, sensor_name in zip(futures, sensor_names):
+            histories[sensor_name] = future.result()
+        # expect exactly 2 lists of samples
+        self.assertTrue(len(histories) == 2)
+        # expect keys to match the 2 sensor names
+        self.assertIn(sensor_names[0], histories.keys())
+        self.assertIn(sensor_names[1], histories.keys())
+        # expect 4 samples for 1st, and 3 samples for 2nd
+        self.assertTrue(len(histories[sensor_names[0]]) == 4)
+        self.assertTrue(len(histories[sensor_names[1]]) == 3)
+
+        # ensure time order is increasing, per sensor
+        for sensor in histories:
+            time_sec = 0
+            for sample in histories[sensor]:
+                self.assertGreater(sample[0], time_sec)
+                time_sec = sample[0]
+
 
 def mock_async_fetchers(valid_responses, invalid_responses, starts_withs=None,
                         ends_withs=None, containses=None, publish_raw_messageses=None,
-                        client_states=None):
+                        client_stateses=None):
     """Allows definition of multiple HTTP async fetchers."""
     num_calls = len(valid_responses)
     if starts_withs is None or isinstance(starts_withs, basestring):
@@ -649,20 +705,20 @@ def mock_async_fetchers(valid_responses, invalid_responses, starts_withs=None,
         containses = [containses] * num_calls
     if publish_raw_messageses is None:
         publish_raw_messageses = [None] * num_calls
-    if client_states is None:
-        client_states = [None] * num_calls
+    if client_stateses is None:
+        client_stateses = [None] * num_calls
     assert(len(invalid_responses) == num_calls)
     assert(len(starts_withs) == num_calls)
     assert(len(ends_withs) == num_calls)
     assert(len(containses) == num_calls)
     assert(len(publish_raw_messageses) == num_calls)
-    assert(len(client_states) == num_calls)
+    assert(len(client_stateses) == num_calls)
 
     mock_fetches = [mock_async_fetcher(v, i, s, e, c, p, cs)
                     for v, i, s, e, c, p, cs in zip(
                         valid_responses, invalid_responses,
                         starts_withs, ends_withs, containses,
-                        publish_raw_messageses, client_states)]
+                        publish_raw_messageses, client_stateses)]
     # flip order so that poping effectively goes from first to last input
     mock_fetches.reverse()
 
@@ -675,7 +731,7 @@ def mock_async_fetchers(valid_responses, invalid_responses, starts_withs=None,
 
 def mock_async_fetcher(valid_response, invalid_response, starts_with=None,
                        ends_with=None, contains=None, publish_raw_messages=None,
-                       client_state=None):
+                       client_states=None):
     """Returns a mock HTTP async fetch function, depending on the conditions."""
 
     def mock_fetch(url):
@@ -691,11 +747,18 @@ def mock_async_fetcher(valid_response, invalid_response, starts_with=None,
         # optionally send raw message from test websocket server
         if publish_raw_messages and test_websocket:
             for raw_message in publish_raw_messages:
-                if isinstance(client_state, dict):
+                if isinstance(client_states, dict):
                     # we need to rewrite the namespace, since the client
-                    # generates a random one at runtime (yes, it is hacky)
+                    # generates a random one per request at runtime.
+                    # We have to find the state dict that contains the sensor
+                    # name (in 'contains') to figure out which namespace
+                    # is being used for this sensor (yes, it is hacky)
+                    namespace = None
+                    for key, state in client_states.items():
+                        if contains == state['sensor']:
+                            namespace = key
                     raw_message = raw_message.replace(
-                        'test_namespace', client_state['namespace'])
+                        'test_namespace', namespace)
                 test_websocket.write_message(raw_message)
 
         result = HTTPResponse(HTTPRequest(url), 200, buffer=body_buffer)
