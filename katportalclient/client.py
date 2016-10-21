@@ -838,7 +838,7 @@ class KATPortalClient(object):
         list:
             List of :class:`.SensorSample` namedtuples (one per sample, with fields
             timestamp, value and status) or, if include_value_ts was set, then
-            list of :class:`.SensorSampleV`namedtuples (one per sample, with fields
+            list of :class:`.SensorSampleV` namedtuples (one per sample, with fields
             timestamp, value_timestamp, value and status).  
             See :class:`.SensorSample` and :class:`.SensorSampleV` for details.
             If the sensor named never existed, or is otherwise invalid, the
