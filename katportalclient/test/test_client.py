@@ -510,7 +510,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             yield self._portal_client.sensor_detail(sensor_name_filter)
 
     @gen_test
-    def test_sensor_history_single_sensor_with_value(self):
+    def test_sensor_history_single_sensor_with_value_ts(self):
         """Test that time ordered data with value_timestamp is received for a single sensor request."""
         history_base_url = self._portal_client.sitemap['historic_sensor_values']
         sensor_name = 'anc_mean_wind_speed'
@@ -533,8 +533,8 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         # ensure time order is increasing
         time_sec = 0
         for sample in samples:
-            self.assertGreater(sample[0], time_sec)
-            time_sec = sample[0]
+            self.assertGreater(sample.timestamp, time_sec)
+            time_sec = sample.timestamp
             # Ensure sample contains timestamp, value, status
             self.assertEqual(len(sample), 3)
 
@@ -546,12 +546,12 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         # ensure time order is increasing
         time_sec = 0
         for sample in samples:
-            self.assertGreater(sample[0], time_sec)
-            time_sec = sample[0]
+            self.assertGreater(sample.timestamp, time_sec)
+            time_sec = sample.timestamp
             # Ensure sample contains timestamp, value_timestamp, value, status
             self.assertEqual(len(sample), 4)
             # Ensure value_timestamp 
-            self.assertGreater(sample[0], sample[1])
+            self.assertGreater(sample.timestamp, sample.value_timestamp)
 
     @gen_test
     def test_sensor_history_single_sensor_valid_times(self):
