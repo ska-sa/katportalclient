@@ -510,6 +510,48 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             yield self._portal_client.sensor_detail(sensor_name_filter)
 
     @gen_test
+    def test_sensor_history_single_sensor_with_value(self):
+        """Test that time ordered data with value_timestamp is received for a single sensor request."""
+        history_base_url = self._portal_client.sitemap['historic_sensor_values']
+        sensor_name = 'anc_mean_wind_speed'
+        publish_messages = [sensor_history_pub_messages_json['init']]
+        publish_messages.extend(sensor_history_pub_messages_json[sensor_name])
+
+        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+            valid_response='{"result":"success"}',
+            invalid_response='error',
+            starts_with=history_base_url,
+            contains=sensor_name,
+            publish_raw_messages=publish_messages,
+            client_states=self._portal_client._sensor_history_states)
+
+        samples = yield self._portal_client.sensor_history(
+            sensor_name, start_time_sec=0, end_time_sec=time.time(), include_value_ts=False)
+        # expect exactly 4 samples
+        self.assertTrue(len(samples) == 4)
+
+        # ensure time order is increasing
+        time_sec = 0
+        for sample in samples:
+            self.assertGreater(sample[0], time_sec)
+            time_sec = sample[0]
+            # Ensure sample contains timestamp, value, status
+            self.assertEqual(len(sample), 3)
+
+        samples = yield self._portal_client.sensor_history(
+            sensor_name, start_time_sec=0, end_time_sec=time.time(), include_value_ts=True)
+        # expect exactly 4 samples
+        self.assertTrue(len(samples) == 4)
+
+        # ensure time order is increasing
+        time_sec = 0
+        for sample in samples:
+            self.assertGreater(sample[0], time_sec)
+            time_sec = sample[0]
+            # Ensure sample contains timestamp, value_timestamp, value, status
+            self.assertEqual(len(sample), 4)
+
+    @gen_test
     def test_sensor_history_single_sensor_valid_times(self):
         """Test that time ordered data is received for a single sensor request."""
         history_base_url = self._portal_client.sitemap['historic_sensor_values']
