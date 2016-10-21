@@ -68,21 +68,25 @@ def main():
                     datetime.utcfromtimestamp(args.start).strftime('%Y-%m-%dT%H:%M:%SZ'),
                     datetime.utcfromtimestamp(args.end).strftime('%Y-%m-%dT%H:%M:%SZ')))
         if len(sensor_names) == 1:
-            # Request history for just a single sensor
+            # Request history for just a single sensor - result is timestamp, value, status
+            #    If value timestamp is also required, then add the additional argument: include_value_ts=True
+            #    result is then timestmap, value_timestmap, value, status
             history = yield portal_client.sensor_history(
-                sensor_names[0], args.start, args.end, args.timeout)
+                sensor_names[0], args.start, args.end, timeout_sec=args.timeout)
             histories = {sensor_names[0]: history}
         else:
-            # Request history for all the sensors
+            # Request history for all the sensors - result is timestamp, value, status
+            #    If value timestamp is also required, then add the additional argument: include_value_ts=True
+            #    result is then timestmap, value_timestmap, value, status
             histories = yield portal_client.sensors_histories(
-                sensor_names, args.start, args.end, args.timeout)
+                sensor_names, args.start, args.end, timeout_sec=args.timeout)
 
         print "Found {} sensors.".format(len(histories))
         for sensor_name, history in histories.items():
             num_samples = len(history)
             print "History for: {} ({} samples)".format(sensor_name, num_samples)
             if num_samples > 0:
-                print "\tindex,time,value,status"
+                print "\tindex,timestamp,value,status"
                 for count in range(0, num_samples, args.decimate):
                     print "\t{},{}".format(count, history[count].csv())
 
@@ -100,7 +104,7 @@ def main():
     # Requesting history for 1 sensors, from 2016-10-11T05:37:04Z to 2016-10-11T05:37:09Z
     # Found 1 sensors.
     # History for: anc_mean_wind_speed (5 samples)
-    #    index,time,value,status
+    #    index,timestamp,value,status
     #    0,1476164224.43,5.07571614843,nominal
     #    1,1476164225.43,5.07574851017,nominal
     #    2,1476164226.43,5.0753700255,nominal
