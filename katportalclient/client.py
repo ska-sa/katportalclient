@@ -60,6 +60,29 @@ class SensorSample(namedtuple('SensorSample', 'timestamp, value, status')):
         return '{},{},{}'.format(self.timestamp, self.value, self.status)
 
 
+class SensorSampleV(namedtuple('SensorSampleV', 'timestamp, value_timestamp, value, status')):
+    """Class to represent sensor samples, including the value_timestamp.
+
+    Fields:
+        - timestamp:  float
+            The timestamp (UNIX epoch) the sample was received by CAM.
+            Timestamp value is reported with millisecond precision.
+        - value_timestamp:  float
+            The timestamp (UNIX epoch) the sample was read at the lowest level sensor.
+            value_timestamp value is reported with millisecond precision.
+        - value:  str
+            The value of the sensor when sampled.  The units depend on the
+            sensor, see :meth:`.sensor_detail`.
+        - status:  str
+            The status of the sensor when the sample was taken. As defined
+            by the KATCP protocol. Examples: 'nominal', 'warn', 'failure', 'error',
+            'critical', 'unreachable', 'unknown', etc.
+    """
+    def csv(self):
+        """Returns sample in comma separated values format."""
+        return '{},{},{},{}'.format(self.timestamp, self.value_timestamp, self.value, self.status)
+
+
 class KATPortalClient(object):
     """
     Client providing simple access to katportal.
@@ -235,10 +258,19 @@ class KATPortalClient(object):
                             # example:  [1476164224429L, 1476164223640L,
                             #            1476164224429354L, u'5.07571614843',
                             #            u'anc_mean_wind_speed', u'nominal']
-                            sensor_sample = SensorSample(
-                                timestamp=sample[0]/SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
-                                value=sample[3],
-                                status=sample[5])
+                            if state['include_value_ts']:
+                                # Requesting value_timestamp in addition to sample timestamp
+                                sensor_sample = SensorSampleV(
+                                    timestamp=sample[0]/SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
+                                    value_timestamp=sample[1]/SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
+                                    value=sample[3],
+                                    status=sample[5])
+                            else:
+                                # Only sample timestamp
+                                sensor_sample = SensorSample(
+                                    timestamp=sample[0]/SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
+                                    value=sample[3],
+                                    status=sample[5])
                             state['samples'].append(sensor_sample)
                             num_received += 1
                     state['num_samples_pending'] -= num_received
@@ -780,7 +812,7 @@ class KATPortalClient(object):
             raise tornado.gen.Return(results[0])
 
     @tornado.gen.coroutine
-    def sensor_history(self, sensor_name, start_time_sec, end_time_sec, timeout_sec=300):
+    def sensor_history(self, sensor_name, start_time_sec, end_time_sec, include_value_ts=False, timeout_sec=300):
         """Return time history of sample measurements for a sensor.
 
         For a list of sensor names, see :meth:`.sensors_list`.
@@ -794,6 +826,9 @@ class KATPortalClient(object):
             (1970-01-01 UTC).
         end_time_sec: float
             End time for sample history query, in seconds since the UNIX epoch.
+        include_value_ts: bool
+            Flag to also include value timestamp in addition to time series sample timestamp in the result.
+            Default: False.
         timeout_sec: float
             Maximum time (in sec) to wait for the history to be retrieved.  An exception will
             be raised if the request times out. (default:300)
@@ -818,6 +853,7 @@ class KATPortalClient(object):
             'sensor': sensor_name,
             'done_event': tornado.locks.Event(),
             'num_samples_pending': 0,
+            'include_value_ts': include_value_ts,
             'samples': []
         }
         namespace = str(uuid.uuid4())
@@ -878,7 +914,7 @@ class KATPortalClient(object):
         raise tornado.gen.Return(result)
 
     @tornado.gen.coroutine
-    def sensors_histories(self, filters, start_time_sec, end_time_sec, timeout_sec=300):
+    def sensors_histories(self, filters, start_time_sec, end_time_sec, include_value_ts=False, timeout_sec=300):
         """Return time histories of sample measurements for multiple sensors.
 
         Finds the list of available sensors in the system that match the
@@ -896,6 +932,9 @@ class KATPortalClient(object):
             (1970-01-01 UTC).
         end_time_sec: float
             End time for sample history query, in seconds since the UNIX epoch.
+        include_value_ts: bool
+            Flag to also include value timestamp in addition to time series sample timestamp in the result.
+            Default: False.
         timeout_sec: float
             Maximum time to wait for all sensors' histories to be retrieved.
             An exception will be raised if the request times out.
