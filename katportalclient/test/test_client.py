@@ -550,6 +550,8 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             time_sec = sample[0]
             # Ensure sample contains timestamp, value_timestamp, value, status
             self.assertEqual(len(sample), 4)
+            # Ensure value_timestamp 
+            self.assertGreater(sample[0], sample[1])
 
     @gen_test
     def test_sensor_history_single_sensor_valid_times(self):
