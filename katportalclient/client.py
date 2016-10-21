@@ -60,7 +60,7 @@ class SensorSample(namedtuple('SensorSample', 'timestamp, value, status')):
         return '{},{},{}'.format(self.timestamp, self.value, self.status)
 
 
-class SensorSampleV(namedtuple('SensorSampleV', 'timestamp, value_timestamp, value, status')):
+class SensorSampleValueTs(namedtuple('SensorSampleValueTs', 'timestamp, value_timestamp, value, status')):
     """Class to represent sensor samples, including the value_timestamp.
 
     Fields:
@@ -260,7 +260,7 @@ class KATPortalClient(object):
                             #            u'anc_mean_wind_speed', u'nominal']
                             if state['include_value_ts']:
                                 # Requesting value_timestamp in addition to sample timestamp
-                                sensor_sample = SensorSampleV(
+                                sensor_sample = SensorSampleValueTs(
                                     timestamp=sample[0]/SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
                                     value_timestamp=sample[1]/SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
                                     value=sample[3],
@@ -838,9 +838,9 @@ class KATPortalClient(object):
         list:
             List of :class:`.SensorSample` namedtuples (one per sample, with fields
             timestamp, value and status) or, if include_value_ts was set, then
-            list of :class:`.SensorSampleV` namedtuples (one per sample, with fields
+            list of :class:`.SensorSampleValueTs` namedtuples (one per sample, with fields
             timestamp, value_timestamp, value and status).  
-            See :class:`.SensorSample` and :class:`.SensorSampleV` for details.
+            See :class:`.SensorSample` and :class:`.SensorSampleValueTs` for details.
             If the sensor named never existed, or is otherwise invalid, the
             list will be empty - no exception is raised.
 
@@ -949,9 +949,9 @@ class KATPortalClient(object):
             The values are lists of :class:`.SensorSample` namedtuples,
             (one per sample, with fields timestamp, value and status)
             or, if include_value_ts was set, then
-            list of :class:`.SensorSampleV` namedtuples (one per sample, with fields
+            list of :class:`.SensorSampleValueTs` namedtuples (one per sample, with fields
             timestamp, value_timestamp, value and status).  
-            See :class:`.SensorSample` and :class:`.SensorSampleV` for details.
+            See :class:`.SensorSample` and :class:`.SensorSampleValueTs` for details.
 
         Raises
         -------
