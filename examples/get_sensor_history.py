@@ -49,20 +49,27 @@ def main():
     # Fetch the details for the sensors found.
     for sensor_name in sensor_names:
         sensor_detail = yield portal_client.sensor_detail(sensor_name)
-        print "\nDetail for sensor {}:\n{}\n".format(sensor_name, sensor_detail)
+        print "\nDetail for sensor {}:".format(sensor_name)
+        for key in sensor_detail:
+            print "    {}: {}".format(key, sensor_detail[key])
         # Example output:
         #   Detail for sensor m011_pos_request_base_azim:
-        #   {'name': u'm011_pos_request_base_azim', u'systype': u'mkat',
-        #    'component': u'm011', u'site': u'deva',
-        #    u'katcp_name': u'm011.pos.request-base-azim',
-        #    u'params': u'[-195.0, 370.0]', u'units': u'deg', u'type': u'float',
-        #    u'description': u'Requested target azimuth'}
+        #       name: m011_pos_request_base_azim
+        #       systype: mkat
+        #       component: m011
+        #       site: deva
+        #       katcp_name: m011.pos.request-base-azim
+        #       params: [-195.0, 370.0]
+        #       units: deg
+        #       type: float
+        #       description: Requested target azimuth
+
 
     num_sensors = len(sensor_names)
     if num_sensors == 0:
-        print "No matching sensors found - no history to request!"
+        print "\nNo matching sensors found - no history to request!"
     else:
-        print ("Requesting history for {} sensors, from {} to {}"
+        print ("\nRequesting history for {} sensors, from {} to {}"
                .format(
                     num_sensors,
                     datetime.utcfromtimestamp(args.start).strftime('%Y-%m-%dT%H:%M:%SZ'),
