@@ -32,8 +32,6 @@ def main():
     # (e.g. schedule blocks), then the number can be omitted, as below.
     # Note: if on_update_callback is set to None, then we cannot use the
     #       KATPortalClient.connect() method (i.e. no websocket access).
-    ## portal_client = KATPortalClient('http://127.0.0.1/api/client',
-    ##                                on_update_callback=None, logger=logger)
     portal_client = KATPortalClient('http://{}/api/client'.format(args.host),
                                     on_update_callback=None, logger=logger)
 
@@ -42,30 +40,26 @@ def main():
     print "\nMatching sensor names for pattern {}: {}".format(args.sensors, sensor_names)
 
     # Get the names of sensors matching a pattern
-    # pattern = 'anc_wind*.'
+    # pattern = 'anc_w.*_device_status'
     # sensor_names = yield portal_client.sensor_names(pattern)
     # print "\nMatching sensor names for pattern {} : {}".format(pattern, sensor_names)
     # Example output:
-    #   Matching sensor names: [u'anc_wind_device_status', u'anc_weather_device_status']
+    #   Matching sensor names for pattern ['anc_w.*_device_status']: [u'anc_wind_device_status', u'anc_weather_device_status']
 
     # Get the names of sensors matching a pattern
     # pattern = 'anc_(mean|gust)_wind_speed'
     # sensor_names = yield portal_client.sensor_names(pattern)
     # print "\nMatching sensor names for pattern {} : {}".format(pattern, sensor_names)
     # Example output:
-    #   Matching sensor names: [u'anc_mean_wind_speed', u'anc_gust_wind_speed']
+    #   Matching sensor names for pattern ['anc_(mean|gust)_wind_speed']: [u'anc_mean_wind_speed', u'anc_gust_wind_speed']
 
     # Get the names of sensors matching a list of patterns
-    # pattern = 'm01[12]_pos_request_base'
+    # pattern = 'm01[12]_pos_request_base_azim'
     # sensor_names = yield portal_client.sensor_names(pattern)
     # print "\nMatching sensor names for pattern {} : {}".format(pattern, sensor_names)
-    # Example output (if sensors is 'm01[12]_pos_request_base'):
-    #   Matching sensor names: [u'm011_pos_request_base_azim',
-    #   u'm012_pos_request_base_ra', u'm012_pos_request_base_dec',
-    #   u'm011_pos_request_base_ra', u'm012_pos_request_base_elev',
-    #   u'm011_pos_request_base_dec', u'm012_pos_request_base_azim',
-    #   u'm011_pos_request_base_elev']
-
+    # Example output (if sensors is 'm01[12]_pos_request_base_azim'):
+    #   Matching sensor names for pattern ['m01[12]_pos_request_base_azim']: [u'm011_pos_request_base_azim', u'm011_pos_request_base_azim']
+    
     # Fetch the details for the sensors found.
     if len(sensor_names) == 0:
         print "No matching sensors found!"
