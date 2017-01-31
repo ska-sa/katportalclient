@@ -10,9 +10,14 @@
 Websocket client and HTTP module for access to katportal webservers.
 """
 
+
+import base64
+import hashlib
+import hmac
 import logging
 import uuid
 import time
+
 from datetime import timedelta
 from collections import namedtuple
 
@@ -22,7 +27,7 @@ import tornado.httpclient
 import tornado.locks
 import omnijson as json
 from tornado.websocket import websocket_connect
-from tornado.httputil import url_concat
+from tornado.httputil import url_concat, HTTPHeaders
 
 from request import JSONRPCRequest
 
@@ -38,6 +43,29 @@ SAMPLE_HISTORY_REQUEST_TIME_TYPE = 'ms'
 SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC = 1000.0
 
 module_logger = logging.getLogger('kat.katportalclient')
+
+
+
+def create_login_token(email, password, custom_str="Custom_JWT "):
+    """Creates login token 
+
+    Parameters
+    ----------
+    email: str
+
+    """
+    jwt_header_alg = base64.standard_b64encode(u'{"alg":"HS256","typ":"JWT"}')
+    jwt_header_email = base64.standard_b64encode(u'{"email":"%s"}' % email).strip('=')
+    jwt_header = '.'.join([jwt_header_alg, jwt_header_email])
+
+    password_sha = hashlib.sha256(password).hexdigest()
+    dig = hmac.new(password_sha, msg=jwt_header, digestmod=hashlib.sha256).digest()
+    password_encrypted = base64.b64encode(dig).decode()
+    jwt_auth_token = '.'.join([jwt_header, password_encrypted])
+
+    return "{}{}".format(custom_str, jwt_auth_token)
+
+
 
 
 class SensorSample(namedtuple('SensorSample', 'timestamp, value, status')):
@@ -117,6 +145,29 @@ class KATPortalClient(object):
         self._http_client = tornado.httpclient.AsyncHTTPClient()
         self._sitemap = None
         self._sensor_history_states = {}
+
+
+
+
+
+    def login(self, username, password):
+        """
+        Logs user into katportal and adds JWT header
+
+        Parameters
+        ----------
+        username: str
+            Registered that exists on the system
+        
+        password: str
+            Password for username
+
+        """
+        custom_jwt = create_login_token(username, password)
+        self._header = HTTPHeaders({"Authorization": custom_jwt})
+        self._http_client = tornado.httpclient.AsyncHTTPClient(force_instance=True, defaults=dict(headers=self._header))
+        
+        
 
     def _get_sitemap(self, url):
         """
