@@ -143,8 +143,8 @@ class KATPortalClient(object):
             'schedule_blocks': '',
             'sub_nr': '',
         }
-        if (url.lower().startswith('http://')
-                or url.lower().startswith('https://')):
+        if (url.lower().startswith('http://') or
+                url.lower().startswith('https://')):
             http_client = tornado.httpclient.HTTPClient()
             try:
                 try:
@@ -240,9 +240,9 @@ class KATPortalClient(object):
             if namespace in self._sensor_history_states:
                 state = self._sensor_history_states[namespace]
                 msg_data = msg_result['msg_data']
-                if (isinstance(msg_data, dict)
-                        and 'inform_type' in msg_data
-                        and msg_data['inform_type'] == 'sample_history'):
+                if (isinstance(msg_data, dict) and
+                        'inform_type' in msg_data and
+                        msg_data['inform_type'] == 'sample_history'):
                     # inform message which provides synchronisation information.
                     inform = msg_data['inform_data']
                     num_new_samples = inform['num_samples_to_be_published']
@@ -583,8 +583,8 @@ class KATPortalClient(object):
         if data['result']:
             schedule_blocks = json.loads(data['result'])
             for schedule_block in schedule_blocks:
-                if (schedule_block['sub_nr'] == subarray_number
-                        and schedule_block['type'] == 'OBSERVATION'):
+                if (schedule_block['sub_nr'] == subarray_number and
+                        schedule_block['type'] == 'OBSERVATION'):
                     results.append(schedule_block['id_code'])
         return results
 
@@ -617,6 +617,58 @@ class KATPortalClient(object):
         results = self._extract_schedule_blocks(response.body,
                                                 int(self.sitemap['sub_nr']))
         raise tornado.gen.Return(results)
+
+    @tornado.gen.coroutine
+    def get_target_descriptions(
+            self, targets, longitude, latitude, altitude,
+            timestamp, config_label=None):
+        """
+        Return a list of targets with their pointing information calculated
+        by using the longitude, latitude, altitude as the reference observer
+        and timestamp as the time of the reference observer.
+        Using the config_label to select a specific version of the catalogues
+        files.
+
+        Parameters
+        ----------
+        targets: str
+            A CSV list of target names to retrieve the pointing details.
+        longitude: float
+            The longitude of the reference observer used in calculating the
+            pointing details.
+        latitude: float
+            The latitude of the reference observer used in calculating the
+            pointing details.
+        altitude: float
+            The altitude of the reference observer used in calculating the
+            pointing details.
+        timestamp: float
+            The unix timestamp (UTC) of the time of the reference observer
+            used to calculate the pointing details.
+        config_label: str
+            The config_label to use to select the version of the catalogue
+            files when calculating the pointing details.
+            Default: None, which means that the latest catalogue files will
+            be used - this is the normal use case.
+
+        Returns
+        -------
+        list:
+            A list of dictionaries containing pointing information calculated
+            taking the reference observer into account.
+        """
+        url = self.sitemap['target_descriptions'] + (
+            '/{targets}/{longitude}/{latitude}/{altitude}'
+            '/{config_label}/{timestamp}'.format(
+                targets=targets,
+                longitude=longitude,
+                latitude=latitude,
+                altitude=altitude,
+                timestamp=timestamp,
+                # None values should actually be empty strings!
+                config_label=config_label if config_label is not None else ''))
+        response = yield self._http_client.fetch(url)
+        raise tornado.gen.Return(json.loads(response.body))
 
     @tornado.gen.coroutine
     def schedule_block_detail(self, id_code):
@@ -839,7 +891,7 @@ class KATPortalClient(object):
             List of :class:`.SensorSample` namedtuples (one per sample, with fields
             timestamp, value and status) or, if include_value_ts was set, then
             list of :class:`.SensorSampleValueTs` namedtuples (one per sample, with fields
-            timestamp, value_timestamp, value and status).  
+            timestamp, value_timestamp, value and status).
             See :class:`.SensorSample` and :class:`.SensorSampleValueTs` for details.
             If the sensor named never existed, or is otherwise invalid, the
             list will be empty - no exception is raised.
@@ -874,7 +926,7 @@ class KATPortalClient(object):
             'request_in_chunks': 1,
             'chunk_size': SAMPLE_HISTORY_CHUNK_SIZE,
             'limit': MAX_SAMPLES_PER_HISTORY_QUERY
-            }
+        }
         url = url_concat(self.sitemap['historic_sensor_values'] + '/samples', params)
         self._logger.debug("Sensor history request: %s", url)
         response = yield self._http_client.fetch(url)
@@ -950,7 +1002,7 @@ class KATPortalClient(object):
             (one per sample, with fields timestamp, value and status)
             or, if include_value_ts was set, then
             list of :class:`.SensorSampleValueTs` namedtuples (one per sample, with fields
-            timestamp, value_timestamp, value and status).  
+            timestamp, value_timestamp, value and status).
             See :class:`.SensorSample` and :class:`.SensorSampleValueTs` for details.
 
         Raises
