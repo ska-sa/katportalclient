@@ -117,6 +117,7 @@ class KATPortalClient(object):
         self._http_client = tornado.httpclient.AsyncHTTPClient()
         self._sitemap = None
         self._sensor_history_states = {}
+        self._reference_observer_config = {}
 
     def _get_sitemap(self, url):
         """
@@ -619,9 +620,190 @@ class KATPortalClient(object):
         raise tornado.gen.Return(results)
 
     @tornado.gen.coroutine
-    def get_target_descriptions(
+    def future_targets(self, id_code):
+        """
+        Return a list of future targets as determined by the dry run of the
+        schedule block.
+
+        The schedule block will only have future targets (in the targets
+        attribute) if the schedule block has been through a dry run and
+        has the verification_state of VERIFIED. The future targets are
+        only applicable to schedule blocks of the OBSERVATION type.
+
+        Parameters
+        ----------
+        id_code: str
+            Schedule block identifier. For example: ``20160908-0010``.
+
+        Returns
+        -------
+        list:
+            Ordered list of future targets that was determined by the
+            verification dry run.
+            Example:
+            [{
+                u'target': u'Moon',
+                u'track_duration': 4.0,
+                u'slew_time': 53.6153013706
+            }, {..}]
+        Raises
+        ------
+        ScheduleBlockTargetsParsingError:
+            If there is an error parsing the schedule block's targets string.
+        ScheduleBlockNotFoundError:
+            If no information was available for the requested schedule block.
+        """
+        sb = yield self.schedule_block_detail(id_code)
+        targets_list = []
+        sb_targets = sb.get('targets')
+        if sb_targets is not None:
+            try:
+                targets_list = json.loads(sb_targets)
+            except:
+                raise ScheduleBlockTargetsParsingError(
+                    'There was an error parsing the schedule block (%s) '
+                    'targets attribute: %s', id_code, sb.targets)
+        raise tornado.gen.Return(targets_list)
+
+    @tornado.gen.coroutine
+    def future_targets_detail(self, id_code):
+        """
+        Return a detailed list of future targets as determined by the dry run
+        of the schedule block. This method requires that you have set the
+        reference observer before calling it, using the
+        set_reference_observer_config method in this class.
+
+        The schedule block will only have future targets (in the targets
+        attribute) if the schedule block has been through a dry run and
+        has the verification_state of VERIFIED. The future targets are
+        only applicable to schedule blocks of the OBSERVATION type.
+
+        Parameters
+        ----------
+        id_code: str
+            Schedule block identifier. For example: ``20160908-0010``.
+
+        Returns
+        -------
+        list:
+            Ordered list of future targets that was determined by the
+            verification dry run with pointing details calculated by using
+            the reference observer set by set_reference_observer_config
+            Example:
+            [{
+                u'target': u'Moon',
+                u'body_type': u'special',
+                u'description': u'Moon,special',
+                u'track_duration': 4.0,
+                u'slew_time': 53.6153013706,
+                u'azel': [3.6399178505, 1.3919397593],
+                u'astrometric_radec': [0.180696943, 0.0180189191],
+                u'apparent_radec': [0.1830730793, 0.0169845125],
+                u'tags': [u'special'],
+                u'galactic': [2.0531028499, -1.0774995277],
+                u'parallactic_angle': 0.49015412010000003,
+                u'name': u'Moon',
+                u'uvw_basis': [[0.996376853, -0.0150540303, 0.0837050956],
+                               [..], [..]]
+            }, {..}]
+
+        Raises
+        ------
+        ReferenceObserverConfigNotSet:
+            If the reference observer config has not been set before
+            calling this method.
+        ScheduleBlockTargetsParsingError:
+            If there is an error parsing the schedule block's targets string.
+        ScheduleBlockNotFoundError:
+            If no information was available for the requested schedule block.
+        """
+        if self._reference_observer_config is None:
+            raise ReferenceObserverConfigNotSet(
+                'Reference Observer config not set. '
+                'Please set the reference observer config using '
+                'the set_reference_observer_config method.')
+        sb = yield self.schedule_block_detail(id_code)
+        targets_list = []
+        sb_targets = sb.get('targets')
+        if sb_targets is not None:
+            try:
+                targets_list = json.loads(sb_targets)
+            except:
+                raise ScheduleBlockTargetsParsingError(
+                    'There was an error parsing the schedule block (%s) '
+                    'targets attribute: %s', id_code, sb.targets)
+            config_label = yield self.config_label_for_subarray(
+                int(self.sitemap['sub_nr']))
+            target_names = [target.get('target') for target in targets_list]
+            targets_csv = ','.join(target_names)
+            target_descriptions = yield self._get_target_descriptions(
+                targets=targets_csv,
+                longitude=self._reference_observer_config['longitude'],
+                latitude=self._reference_observer_config['latitude'],
+                altitude=self._reference_observer_config['altitude'],
+                timestamp=self._reference_observer_config['timestamp'],
+                config_label=config_label)
+            for target_desc in target_descriptions:
+                targets_list_index = targets_list.index(
+                    filter(lambda n: n.get('target') == target_desc.get('name'),
+                           targets_list)[0])
+                targets_list[targets_list_index].update(target_desc)
+
+        raise tornado.gen.Return(targets_list)
+
+    def set_reference_observer_config(
+            self, longitude, latitude, altitude, timestamp):
+        """
+        Set the reference observer config to be used when retrieving
+        the future target list from a schedule block.
+
+        Parameters
+        ----------
+        longitude: float
+            The longitude of the reference observer used in calculating the
+            pointing details.
+        latitude: float
+            The latitude of the reference observer used in calculating the
+            pointing details.
+        altitude: float
+            The altitude of the reference observer used in calculating the
+            pointing details.
+        timestamp: float
+            The unix timestamp (UTC) of the time of the reference observer
+            used to calculate the pointing details.
+        """
+        self._reference_observer_config['longitude'] = longitude
+        self._reference_observer_config['latitude'] = latitude
+        self._reference_observer_config['altitude'] = altitude
+        self._reference_observer_config['timestamp'] = timestamp
+
+    @tornado.gen.coroutine
+    def config_label_for_subarray(self, sub_nr):
+        """Get the config label for the specified sub_nr. Returns None if
+        the subarray has an empty config_label. An active subarray will
+        always have a config_label.
+
+        Parameters
+        ----------
+        sub_nr: int
+            The subarray's config label to get, can be 1,2,3,4
+
+        Returns
+        -------
+        str:
+            A csv string that is used as a config_label in the CAM system.
+            The config_label is used to select the version of the catalogue
+            files when calculating the pointing details.
+        """
+        url = self.sitemap['subarray_sensor_values'] + '/config_label'
+        response = yield self._http_client.fetch(url)
+        config_label_sensor_result = json.loads(response.body)[0]
+        raise tornado.gen.Return(config_label_sensor_result.get('value'))
+
+    @tornado.gen.coroutine
+    def _get_target_descriptions(
             self, targets, longitude, latitude, altitude,
-            timestamp, config_label=None):
+            timestamp, config_label):
         """
         Return a list of targets with their pointing information calculated
         by using the longitude, latitude, altitude as the reference observer
@@ -648,8 +830,6 @@ class KATPortalClient(object):
         config_label: str
             The config_label to use to select the version of the catalogue
             files when calculating the pointing details.
-            Default: None, which means that the latest catalogue files will
-            be used - this is the normal use case.
 
         Returns
         -------
@@ -659,14 +839,13 @@ class KATPortalClient(object):
         """
         url = self.sitemap['target_descriptions'] + (
             '/{targets}/{longitude}/{latitude}/{altitude}'
-            '/{config_label}/{timestamp}'.format(
+            '/{timestamp}/{config_label}'.format(
                 targets=targets,
                 longitude=longitude,
                 latitude=latitude,
                 altitude=altitude,
                 timestamp=timestamp,
-                # None values should actually be empty strings!
-                config_label=config_label if config_label is not None else ''))
+                config_label=config_label))
         response = yield self._http_client.fetch(url)
         raise tornado.gen.Return(json.loads(response.body))
 
@@ -1034,3 +1213,12 @@ class SensorNotFoundError(Exception):
 
 class SensorHistoryRequestError(Exception):
     """Raise if error requesting sensor sample history."""
+
+
+class ReferenceObserverConfigNotSet(Exception):
+    """Raise if reference observer config has not been set."""
+
+
+class ScheduleBlockTargetsParsingError(Exception):
+    """Raise if there was an error parsing the targets attribute of the
+    ScheduleBlock"""
