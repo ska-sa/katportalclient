@@ -199,6 +199,11 @@ class KATPortalClient(object):
                     URL for requesting observation schedule block information.
                 sub_nr: str
                     Subarray number to access (e.g. '1', '2', '3', or '4').
+                subarray_sensor_values: str
+                    URL for requesting once off current sensor values.
+                target_descriptions: str
+                    URL for requesting target pointing descriptions for a
+                    specified schedule block
 
         """
         if not self._sitemap:
@@ -647,9 +652,15 @@ class KATPortalClient(object):
             verification dry run.
             Example:
             [{
-                u'target': u'Moon',
-                u'track_duration': 4.0,
-                u'slew_time': 53.6153013706
+                'name': 'Moon',
+                'track_duration': 60.0,
+                'slew_time': 53.6153013706
+                'start_offset': 0.0,
+            },
+                'name': 'Sun',
+                'track_duration': 60.0,
+                'slew_time': 20.9873
+                'start_offset': 113.6153013706,
             }, {..}]
         Raises
         ------
@@ -696,19 +707,29 @@ class KATPortalClient(object):
             the reference observer set by set_reference_observer_config
             Example:
             [{
-                u'name': u'Moon',
-                u'body_type': u'special',
-                u'description': u'Moon,special',
-                u'track_duration': 4.0,
-                u'slew_time': 53.6153013706,
-                u'azel': [3.6399178505, 1.3919397593],
-                u'astrometric_radec': [0.180696943, 0.0180189191],
-                u'apparent_radec': [0.1830730793, 0.0169845125],
-                u'tags': [u'special'],
-                u'galactic': [2.0531028499, -1.0774995277],
-                u'parallactic_angle': 0.49015412010000003,
-                u'uvw_basis': [[0.996376853, -0.0150540303, 0.0837050956],
-                               [..], [..]]
+                'name': 'Moon',
+                'body_type': 'special',
+                'description': 'Moon,special',
+                'track_duration': 60.0,
+                'slew_time': 53.6153013706
+                'start_offset': 0.0,
+                'azel': [3.6399178505, 1.3919397593],
+                'astrometric_radec': [0.180696943, 0.0180189191],
+                'apparent_radec': [0.1830730793, 0.0169845125],
+                'tags': ['special'],
+                'galactic': [2.0531028499, -1.0774995277],
+                'parallactic_angle': 0.49015412010000003,
+                'uvw_basis': [[0.996376853, -0.0150540303, 0.0837050956],
+                              [..], [..]]
+            }, {..}]
+
+            Example for a target that is not found in the catalogue:
+            [{..}, {
+                'name': 'FAKETARGET',
+                'slew_time': 41.6139953136,
+                'track_duration': 21.0,
+                'error': 'Target not in catalogues!',
+                'start_offset': 137.8720090389},
             }, {..}]
 
         Raises
@@ -720,6 +741,10 @@ class KATPortalClient(object):
             If there is an error parsing the schedule block's targets string.
         ScheduleBlockNotFoundError:
             If no information was available for the requested schedule block.
+        ValueError:
+            If the returned target description value is not a list. This
+            could happen when there is an exception on katportal loading
+            the target details from the catalogues.
         """
         if self._reference_observer_config is None:
             raise ReferenceObserverConfigNotSet(
@@ -761,25 +786,40 @@ class KATPortalClient(object):
         raise tornado.gen.Return(targets_list)
 
     def set_reference_observer_config(
-            self, longitude, latitude, altitude, timestamp):
+            self, longitude=None, latitude=None, altitude=None, timestamp=None):
         """
         Set the reference observer config to be used when retrieving
         the future target list from a schedule block.
+
+        .. note::
+
+            If longitude, latitude or altitude is None then katpoint will use
+            the array's default reference observer. If timestamp is None,
+            katpoint will use the current utc time to calculate the pointing
+            details.
 
         Parameters
         ----------
         longitude: float
             The longitude of the reference observer used in calculating the
             pointing details.
+            Default: None, if longitude, latitude or altitude is None then
+            katpoint will use the array's
         latitude: float
             The latitude of the reference observer used in calculating the
             pointing details.
+            Default: None, if this is None katpoint will use the array's
+            default reference observer
         altitude: float
             The altitude of the reference observer used in calculating the
             pointing details.
+            Default: None, if this is None katpoint will use the array's
+            default reference observer
         timestamp: float
             The unix timestamp (UTC) of the time of the reference observer
             used to calculate the pointing details.
+            Default: None, katpoint uses current utc time to calculate
+            pointing details.
         """
         self._reference_observer_config['longitude'] = longitude
         self._reference_observer_config['latitude'] = latitude
