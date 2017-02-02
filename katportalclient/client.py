@@ -13,6 +13,7 @@ Websocket client and HTTP module for access to katportal webservers.
 import logging
 import uuid
 import time
+from urllib import urlencode
 from datetime import timedelta
 from collections import namedtuple
 
@@ -60,7 +61,8 @@ class SensorSample(namedtuple('SensorSample', 'timestamp, value, status')):
         return '{},{},{}'.format(self.timestamp, self.value, self.status)
 
 
-class SensorSampleValueTs(namedtuple('SensorSampleValueTs', 'timestamp, value_timestamp, value, status')):
+class SensorSampleValueTs(namedtuple(
+        'SensorSampleValueTs', 'timestamp, value_timestamp, value, status')):
     """Class to represent sensor samples, including the value_timestamp.
 
     Fields:
@@ -80,7 +82,8 @@ class SensorSampleValueTs(namedtuple('SensorSampleValueTs', 'timestamp, value_ti
     """
     def csv(self):
         """Returns sample in comma separated values format."""
-        return '{},{},{},{}'.format(self.timestamp, self.value_timestamp, self.value, self.status)
+        return '{},{},{},{}'.format(
+            self.timestamp, self.value_timestamp, self.value, self.status)
 
 
 class KATPortalClient(object):
@@ -143,6 +146,8 @@ class KATPortalClient(object):
             'historic_sensor_values': '',
             'schedule_blocks': '',
             'sub_nr': '',
+            'subarray_sensor_values': '',
+            'target_descriptions': ''
         }
         if (url.lower().startswith('http://') or
                 url.lower().startswith('https://')):
@@ -691,7 +696,7 @@ class KATPortalClient(object):
             the reference observer set by set_reference_observer_config
             Example:
             [{
-                u'target': u'Moon',
+                u'name': u'Moon',
                 u'body_type': u'special',
                 u'description': u'Moon,special',
                 u'track_duration': 4.0,
@@ -702,7 +707,6 @@ class KATPortalClient(object):
                 u'tags': [u'special'],
                 u'galactic': [2.0531028499, -1.0774995277],
                 u'parallactic_angle': 0.49015412010000003,
-                u'name': u'Moon',
                 u'uvw_basis': [[0.996376853, -0.0150540303, 0.0837050956],
                                [..], [..]]
             }, {..}]
@@ -734,7 +738,7 @@ class KATPortalClient(object):
                     'targets attribute: %s', id_code, sb.targets)
             config_label = yield self.config_label_for_subarray(
                 int(self.sitemap['sub_nr']))
-            target_names = [target.get('target') for target in targets_list]
+            target_names = [target.get('name') for target in targets_list]
             targets_csv = ','.join(target_names)
             target_descriptions = yield self._get_target_descriptions(
                 targets=targets_csv,
@@ -743,11 +747,16 @@ class KATPortalClient(object):
                 altitude=self._reference_observer_config['altitude'],
                 timestamp=self._reference_observer_config['timestamp'],
                 config_label=config_label)
-            for target_desc in target_descriptions:
-                targets_list_index = targets_list.index(
-                    filter(lambda n: n.get('target') == target_desc.get('name'),
-                           targets_list)[0])
-                targets_list[targets_list_index].update(target_desc)
+            if isinstance(target_descriptions, list):
+                for target_desc in target_descriptions:
+                    targets_list_index = targets_list.index(
+                        filter(lambda n: n.get('name') == target_desc.get('name'),
+                               targets_list)[0])
+                    targets_list[targets_list_index].update(target_desc)
+            else:
+                raise ValueError(
+                    'The returned target descriptions is not a list of '
+                    'targets, it is instead: %s' % target_descriptions)
 
         raise tornado.gen.Return(targets_list)
 
@@ -837,16 +846,17 @@ class KATPortalClient(object):
             A list of dictionaries containing pointing information calculated
             taking the reference observer into account.
         """
-        url = self.sitemap['target_descriptions'] + (
-            '/{targets}/{longitude}/{latitude}/{altitude}'
-            '/{timestamp}/{config_label}'.format(
-                targets=targets,
-                longitude=longitude,
-                latitude=latitude,
-                altitude=altitude,
-                timestamp=timestamp,
-                config_label=config_label))
-        response = yield self._http_client.fetch(url)
+        url = self.sitemap['target_descriptions']
+        request_data = {
+            'targets': targets,
+            'longitude': longitude,
+            'latitude': latitude,
+            'altitude': altitude,
+            'timestamp': timestamp,
+            'config_label': config_label
+        }
+        request_body = urlencode(request_data)
+        response = yield self._http_client.fetch(url, method='POST', body=request_body)
         raise tornado.gen.Return(json.loads(response.body))
 
     @tornado.gen.coroutine
