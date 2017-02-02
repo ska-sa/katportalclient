@@ -165,7 +165,7 @@ class KATPortalClient(object):
         """
         custom_jwt = create_login_token(username, password)
         self._header = HTTPHeaders({"Authorization": custom_jwt})
-        self._http_client = tornado.httpclient.AsyncHTTPClient(force_instance=True, defaults=dict(headers=self._header))
+        tornado.httpclient.AsyncHTTPClient.configure(self._http_client, defaults=dict(headers=self._header))
         
         
 
