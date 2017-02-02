@@ -120,7 +120,7 @@ class KATPortalClient(object):
         self._http_client = tornado.httpclient.AsyncHTTPClient()
         self._sitemap = None
         self._sensor_history_states = {}
-        self._reference_observer_config = {}
+        self._reference_observer_config = None
 
     def _get_sitemap(self, url):
         """
@@ -678,7 +678,7 @@ class KATPortalClient(object):
             except:
                 raise ScheduleBlockTargetsParsingError(
                     'There was an error parsing the schedule block (%s) '
-                    'targets attribute: %s', id_code, sb.targets)
+                    'targets attribute: %s', id_code, sb_targets)
         raise tornado.gen.Return(targets_list)
 
     @tornado.gen.coroutine
@@ -760,7 +760,7 @@ class KATPortalClient(object):
             except:
                 raise ScheduleBlockTargetsParsingError(
                     'There was an error parsing the schedule block (%s) '
-                    'targets attribute: %s', id_code, sb.targets)
+                    'targets attribute: %s', id_code, sb_targets)
             config_label = yield self.config_label_for_subarray(
                 int(self.sitemap['sub_nr']))
             target_names = [target.get('name') for target in targets_list]
@@ -821,6 +821,8 @@ class KATPortalClient(object):
             Default: None, katpoint uses current utc time to calculate
             pointing details.
         """
+        if self._reference_observer_config is None:
+            self._reference_observer_config = {}
         self._reference_observer_config['longitude'] = longitude
         self._reference_observer_config['latitude'] = latitude
         self._reference_observer_config['altitude'] = altitude
