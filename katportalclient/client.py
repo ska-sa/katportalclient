@@ -915,21 +915,25 @@ class KATPortalClient(object):
         Parameters
         ----------
         longitude: float
+            Unit: degrees
             The longitude of the reference observer used in calculating the
             pointing details.
             Default: None, if longitude, latitude or altitude is None then
             katpoint will use the array's
         latitude: float
+            Unit: degrees
             The latitude of the reference observer used in calculating the
             pointing details.
             Default: None, if this is None katpoint will use the array's
             default reference observer
         altitude: float
+            Unit: meters
             The altitude of the reference observer used in calculating the
             pointing details.
             Default: None, if this is None katpoint will use the array's
             default reference observer
         timestamp: float
+            Unit: seconds after the unix epoch
             The unix timestamp (UTC) of the time of the reference observer
             used to calculate the pointing details.
             Default: None, katpoint uses current utc time to calculate
