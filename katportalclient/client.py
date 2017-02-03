@@ -260,8 +260,12 @@ class KATPortalClient(object):
 
     @tornado.gen.coroutine
     def _send_heart_beat(self):
-        # Send the ping as json because we are sending it to a jsonrpc server
-        # it gets ignored on the server
+        """
+        Sends a PING message to katportal to test if the websocket connection is still
+        alive. If there is an error sending this message, tornado will call the
+        _websocket_message callback function with None as the message, where we realise
+        that the websocket connection has failed.
+        """
         self._ws.write_message('PING')
 
     def disconnect(self):
