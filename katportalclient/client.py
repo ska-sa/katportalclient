@@ -24,6 +24,7 @@ import tornado.locks
 import omnijson as json
 from tornado.websocket import websocket_connect
 from tornado.httputil import url_concat
+from tornado.ioloop import PeriodicCallback
 
 from request import JSONRPCRequest
 
@@ -41,6 +42,7 @@ SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC = 1000.0
 # Websocket connect and reconnect timeouts
 WS_CONNECT_TIMEOUT = 10
 WS_RECONNECT_INTERVAL = 15
+WS_HEART_BEAT_INTERVAL = 20000  # in milliseconds
 
 module_logger = logging.getLogger('kat.katportalclient')
 
@@ -127,6 +129,8 @@ class KATPortalClient(object):
         self._reference_observer_config = None
         self._disconnect_issued = False
         self._ws_jsonrpc_cache = []
+        self._heart_beat_timer = PeriodicCallback(
+            self._send_heart_beat, WS_HEART_BEAT_INTERVAL)
 
     def _get_sitemap(self, url):
         """
@@ -232,6 +236,8 @@ class KATPortalClient(object):
                 self._logger.debug(
                     "Connecting to websocket %s", self.sitemap['websocket'])
                 try:
+                    if self._heart_beat_timer.is_running():
+                        self._heart_beat_timer.stop()
                     self._ws = yield websocket_connect(
                         self.sitemap['websocket'],
                         on_message_callback=self._websocket_message,
@@ -239,6 +245,7 @@ class KATPortalClient(object):
                     if reconnecting:
                         yield self._resend_subscriptions_and_strategies()
                         self._logger.info("Reconnected :)")
+                    self._heart_beat_timer.start()
                 except:
                     self._logger.exception(
                         'Could not connect websocket to %s',
@@ -250,6 +257,12 @@ class KATPortalClient(object):
                             WS_RECONNECT_INTERVAL, self.connect, True)
                 if not self.is_connected and not reconnecting:
                     self._logger.error("Failed to connect!")
+
+    @tornado.gen.coroutine
+    def _send_heart_beat(self):
+        # Send the ping as json because we are sending it to a jsonrpc server
+        # it gets ignored on the server
+        self._ws.write_message('PING')
 
     def disconnect(self):
         """Disconnect from the connected websocket server."""
