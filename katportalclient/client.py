@@ -38,6 +38,10 @@ SAMPLE_HISTORY_CHUNK_SIZE = 43200
 SAMPLE_HISTORY_REQUEST_TIME_TYPE = 'ms'
 SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC = 1000.0
 
+# Websocket connect and reconnect timeouts
+WS_CONNECT_TIMEOUT = 10
+WS_RECONNECT_INTERVAL = 15
+
 module_logger = logging.getLogger('kat.katportalclient')
 
 
@@ -121,6 +125,8 @@ class KATPortalClient(object):
         self._sitemap = None
         self._sensor_history_states = {}
         self._reference_observer_config = None
+        self._disconnect_issued = False
+        self._ws_jsonrpc_cache = []
 
     def _get_sitemap(self, url):
         """
@@ -221,23 +227,163 @@ class KATPortalClient(object):
         """Connect to the websocket server specified during instantiation."""
         # The lock is used to ensure only a single connection can be made
         with (yield self._ws_connecting_lock.acquire()):
+            self._disconnect_issued = False
             if not self.is_connected:
-                # TODO(TA): check the connect_timeout option
                 self._logger.debug(
                     "Connecting to websocket %s", self.sitemap['websocket'])
-                self._ws = yield websocket_connect(
-                    self.sitemap['websocket'], io_loop=self._io_loop)
-                if self.is_connected:
-                    self._io_loop.add_callback(self._run)
-                else:
+                try:
+                    self._ws = yield websocket_connect(
+                        self.sitemap['websocket'],
+                        on_message_callback=self._websocket_message,
+                        connect_timeout=WS_CONNECT_TIMEOUT)
+                except:
+                    self._logger.exception(
+                        'Could not connect websocket to %s',
+                        self.sitemap['websocket'])
+                if not self.is_connected:
                     self._logger.error("Failed to connect!")
 
     def disconnect(self):
         """Disconnect from the connected websocket server."""
         if self.is_connected:
+            self._disconnect_issued = True
+            self._ws_jsonrpc_cache = []
             self._ws.close()
             self._ws = None
             self._logger.debug("Disconnected client websocket.")
+
+    def _reconnect_ws(self):
+        """
+        Immediately try to reconnect the websocket. If that failed, retry
+        the connect every 15 seconds or until the client issues a
+        disconnect."""
+        if not self._disconnect_issued:
+            self._logger.info("Reconnecting the websocket...")
+            self.connect()
+            if self.is_connected:
+                self._resend_subscriptions_and_strategies()
+                self._logger.info("Reconnected :)")
+            else:
+                # Retry the connect in WS_RECONNECT_INTERVAL seconds
+                self._io_loop.call_later(
+                    WS_RECONNECT_INTERVAL, self._reconnect_ws)
+
+    def _cache_jsonrpc_request(self, jsonrpc_request):
+        """
+        If the websocket is connected, cache all the the jsonrpc requests.
+        When the websocket connection closes unexpectedly, we will attempt
+        to reconnect. When the reconnection was successful, we will resend
+        all of the jsonrpc applicable requests to ensure that we set the same
+        subscriptions and sampling strategies that was set while the
+        websocket was connected.
+
+        .. note::
+
+        When an unsubscribe or set_sampling_strategy and set_sampling_strategies
+        with a none value is cached, we remove the matching converse call for
+        that pattern. For example, if we cache a subscribe message for a
+        namespace, then later cache an unsubscribe message for that same
+        namespace, we will remove the subscribe message from the cache and not
+        add the unsubscribe message to the cache. If we cache a
+        set_sampling_strategy for a sensor, then later cache a call to
+        set_sampling_strategy for the same sensor with none (clearing the
+        strategy on the sensor), we remove the set_sampling_strategy from the
+        cache and do not add the set_sampling_strategy to the cache that had
+        a strategy of none. The same counts for set_sampling_strategies,
+        except that we match on the sensor name pattern.
+        We do not cache unsubscribe because creating a new websocket
+        connection has no subscriptions on katportal. Also when we receive a
+        'redis-reconnect' message, we do not have any subscriptions on
+        katportal.
+        """
+        requests_to_remove = []
+        if jsonrpc_request.method == 'unsubscribe':
+            for req in self._ws_jsonrpc_cache:
+                # match namespace and subscription string for subscribes
+                if (req.method == 'subscribe' and
+                        req.params == jsonrpc_request.params):
+                    requests_to_remove.append(req)
+        elif (jsonrpc_request.method.startswith('set_sampling_strat') and
+              jsonrpc_request.params[2] == 'none'):
+            # index 2 of params is always the sampling strategy
+            for req in self._ws_jsonrpc_cache:
+                # match the namespace and sensor/filter combination
+                # namespace is always at index 0 of params and sensor/filter
+                # is always at index 1
+                if (req.method == jsonrpc_request.method and
+                        req.params[0] == jsonrpc_request.params[0] and
+                        req.params[1] == jsonrpc_request.params[1]):
+                    requests_to_remove.append(req)
+        else:
+            self._ws_jsonrpc_cache.append(jsonrpc_request)
+
+        for req in requests_to_remove:
+            self._ws_jsonrpc_cache.remove(req)
+
+    def _resend_subscriptions_and_strategies(self):
+        """
+        Resend the cached subscriptions and strategies that has been set while
+        the websocket connection was connected. This cache is cleared when a
+        disconnect is issued by the client. The cache is a list of
+        JSONRPCRequests"""
+        for req in self._ws_jsonrpc_cache:
+            self._logger.info('Resending JSONRPCRequest %s', req)
+            result = yield self._send(req)
+            self._logger.info('Resent JSONRPCRequest, with result: %s', result)
+
+    def _resend_subscriptions(self):
+        """
+        Resend the cached subscriptions only. This is necessary when we receive
+        a redis-reconnect server message."""
+        for req in self._ws_jsonrpc_cache:
+            if req.method == 'subscribe':
+                self._logger.info('Resending JSONRPCRequest %s', req)
+                result = yield self._send(req)
+                self._logger.info('Resent JSONRPCRequest, with result: %s', result)
+
+    def _websocket_message(self, msg):
+        """
+        All websocket messages calls this method.
+        If the message is None, the websocket connection was closed. When
+        the websocket is closed by a disconnect that was not issued by the
+        client, we need to reconnect, resubscribe and reset sampling
+        strategies.
+
+        There are different types of websocket messages that we receive:
+
+            - json RPC message, the result for setting sampling strategies or
+              subscribing/unsubscribing to namespaces
+            - pub-sub message
+            - redis-reconnect - when portal reconnects to redis. When this
+              happens we need to resend our subscriptions
+        """
+        if msg is None:
+            self._logger.warn("Websocket server disconnected!")
+            if not self._disconnect_issued:
+                self._periodic_reconnect_ws()
+            return
+        try:
+            msg = json.loads(msg)
+            self._logger.debug("Message received: %s", msg)
+            msg_id = str(msg['id'])
+            if msg_id.startswith('redis-pubsub'):
+                self._process_redis_message(msg, msg_id)
+            elif msg_id.startswith('redis-reconnect'):
+                # only resubscribe to namespaces, the server will still
+                # publish sensor value updates to redis because the client
+                # did not disconnect, katportal lost its own connection
+                # to redis
+                self._resend_subscriptions()
+            else:
+                self._process_json_rpc_message(msg, msg_id)
+        except:
+            self._logger.exception(
+                "Error processing websocket message! {}".format(msg))
+            if self._on_update:
+                self._io_loop.add_callback(self._on_update, msg)
+            else:
+                self._logger.warn('Ignoring message (no on_update_callback): %s',
+                                  msg)
 
     @tornado.gen.coroutine
     def _process_redis_message(self, msg, msg_id):
@@ -309,42 +455,6 @@ class KATPortalClient(object):
         else:
             self._logger.error(
                 "Message received without a matching pending request! '{}'".format(msg))
-
-    @tornado.gen.coroutine
-    def _run(self):
-        """
-        Start the main message loop.
-
-        This loop listens for all messages received from the websocket
-        server and handles them appropriately.
-        """
-        # TODO(TA):
-        # - Add timeouts
-        self._logger.info("Connected! Start listening for messages "
-                          "received from websocket server.")
-        while self.is_connected:
-            msg = yield self._ws.read_message()
-            if msg is None:
-                self._logger.info("Websocket server disconnected!")
-                break
-            try:
-                msg = json.loads(msg)
-                self._logger.debug("Message received: %s", msg)
-                msg_id = str(msg['id'])
-                if msg_id.startswith('redis-pubsub'):
-                    self._process_redis_message(msg, msg_id)
-                else:
-                    self._process_json_rpc_message(msg, msg_id)
-            except:
-                self._logger.exception(
-                    "Error processing websocket message! {}".format(msg))
-                if self._on_update:
-                    self._io_loop.add_callback(self._on_update, msg)
-                else:
-                    self._logger.warn('Ignoring message (no on_update_callback): %s',
-                                      msg)
-        self._logger.info("Disconnected! Stop listening for messages "
-                          "received from websocket server.")
 
     def _send(self, req):
         future = tornado.gen.Future()
@@ -451,6 +561,7 @@ class KATPortalClient(object):
         """
         req = JSONRPCRequest('subscribe', [namespace, sub_strings])
         result = yield self._send(req)
+        self._cache_jsonrpc_request(req)
         raise tornado.gen.Return(result)
 
     @tornado.gen.coroutine
@@ -483,6 +594,7 @@ class KATPortalClient(object):
         """
         req = JSONRPCRequest('unsubscribe', [namespace, unsub_strings])
         result = yield self._send(req)
+        self._cache_jsonrpc_request(req)
         raise tornado.gen.Return(result)
 
     @tornado.gen.coroutine
@@ -524,6 +636,7 @@ class KATPortalClient(object):
             [namespace, sensor_name, strategy_and_params, persist_to_redis]
         )
         result = yield self._send(req)
+        self._cache_jsonrpc_request(req)
         raise tornado.gen.Return(result)
 
     @tornado.gen.coroutine
@@ -585,6 +698,7 @@ class KATPortalClient(object):
             [namespace, filters, strategy_and_params, persist_to_redis]
         )
         result = yield self._send(req)
+        self._cache_jsonrpc_request(req)
         raise tornado.gen.Return(result)
 
     def _extract_schedule_blocks(self, json_text, subarray_number):

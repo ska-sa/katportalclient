@@ -38,3 +38,11 @@ class JSONRPCRequest(object):
     def __call__(self):
         """Return object's attribute dictionary in JSON form."""
         return json.dumps(self.__dict__)
+
+    def __str__(self):
+        """Return a human readable string of the object"""
+        return "{_class}: id: {_id}, method: {method}, params: {params}".format(
+            _class=self.__class__,
+            _id=self.id,
+            method=self.method,
+            params=self.params)
