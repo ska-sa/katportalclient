@@ -13,6 +13,7 @@ Websocket client and HTTP module for access to katportal webservers.
 import logging
 import uuid
 import time
+from urllib import urlencode
 from datetime import timedelta
 from collections import namedtuple
 
@@ -60,7 +61,8 @@ class SensorSample(namedtuple('SensorSample', 'timestamp, value, status')):
         return '{},{},{}'.format(self.timestamp, self.value, self.status)
 
 
-class SensorSampleValueTs(namedtuple('SensorSampleValueTs', 'timestamp, value_timestamp, value, status')):
+class SensorSampleValueTs(namedtuple(
+        'SensorSampleValueTs', 'timestamp, value_timestamp, value, status')):
     """Class to represent sensor samples, including the value_timestamp.
 
     Fields:
@@ -80,7 +82,8 @@ class SensorSampleValueTs(namedtuple('SensorSampleValueTs', 'timestamp, value_ti
     """
     def csv(self):
         """Returns sample in comma separated values format."""
-        return '{},{},{},{}'.format(self.timestamp, self.value_timestamp, self.value, self.status)
+        return '{},{},{},{}'.format(
+            self.timestamp, self.value_timestamp, self.value, self.status)
 
 
 class KATPortalClient(object):
@@ -117,6 +120,7 @@ class KATPortalClient(object):
         self._http_client = tornado.httpclient.AsyncHTTPClient()
         self._sitemap = None
         self._sensor_history_states = {}
+        self._reference_observer_config = None
 
     def _get_sitemap(self, url):
         """
@@ -142,9 +146,11 @@ class KATPortalClient(object):
             'historic_sensor_values': '',
             'schedule_blocks': '',
             'sub_nr': '',
+            'subarray_sensor_values': '',
+            'target_descriptions': ''
         }
-        if (url.lower().startswith('http://')
-                or url.lower().startswith('https://')):
+        if (url.lower().startswith('http://') or
+                url.lower().startswith('https://')):
             http_client = tornado.httpclient.HTTPClient()
             try:
                 try:
@@ -193,6 +199,11 @@ class KATPortalClient(object):
                     URL for requesting observation schedule block information.
                 sub_nr: str
                     Subarray number to access (e.g. '1', '2', '3', or '4').
+                subarray_sensor_values: str
+                    URL for requesting once off current sensor values.
+                target_descriptions: str
+                    URL for requesting target pointing descriptions for a
+                    specified schedule block
 
         """
         if not self._sitemap:
@@ -240,9 +251,9 @@ class KATPortalClient(object):
             if namespace in self._sensor_history_states:
                 state = self._sensor_history_states[namespace]
                 msg_data = msg_result['msg_data']
-                if (isinstance(msg_data, dict)
-                        and 'inform_type' in msg_data
-                        and msg_data['inform_type'] == 'sample_history'):
+                if (isinstance(msg_data, dict) and
+                        'inform_type' in msg_data and
+                        msg_data['inform_type'] == 'sample_history'):
                     # inform message which provides synchronisation information.
                     inform = msg_data['inform_data']
                     num_new_samples = inform['num_samples_to_be_published']
@@ -583,8 +594,8 @@ class KATPortalClient(object):
         if data['result']:
             schedule_blocks = json.loads(data['result'])
             for schedule_block in schedule_blocks:
-                if (schedule_block['sub_nr'] == subarray_number
-                        and schedule_block['type'] == 'OBSERVATION'):
+                if (schedule_block['sub_nr'] == subarray_number and
+                        schedule_block['type'] == 'OBSERVATION'):
                     results.append(schedule_block['id_code'])
         return results
 
@@ -617,6 +628,278 @@ class KATPortalClient(object):
         results = self._extract_schedule_blocks(response.body,
                                                 int(self.sitemap['sub_nr']))
         raise tornado.gen.Return(results)
+
+    @tornado.gen.coroutine
+    def future_targets(self, id_code):
+        """
+        Return a list of future targets as determined by the dry run of the
+        schedule block.
+
+        The schedule block will only have future targets (in the targets
+        attribute) if the schedule block has been through a dry run and
+        has the verification_state of VERIFIED. The future targets are
+        only applicable to schedule blocks of the OBSERVATION type.
+
+        Parameters
+        ----------
+        id_code: str
+            Schedule block identifier. For example: ``20160908-0010``.
+
+        Returns
+        -------
+        list:
+            Ordered list of future targets that was determined by the
+            verification dry run.
+            Example:
+            [{
+                'name': 'Moon',
+                'track_duration': 60.0,
+                'slew_time': 53.6153013706
+                'start_offset': 0.0,
+            },
+                'name': 'Sun',
+                'track_duration': 60.0,
+                'slew_time': 20.9873
+                'start_offset': 113.6153013706,
+            }, {..}]
+        Raises
+        ------
+        ScheduleBlockTargetsParsingError:
+            If there is an error parsing the schedule block's targets string.
+        ScheduleBlockNotFoundError:
+            If no information was available for the requested schedule block.
+        """
+        sb = yield self.schedule_block_detail(id_code)
+        targets_list = []
+        sb_targets = sb.get('targets')
+        if sb_targets is not None:
+            try:
+                targets_list = json.loads(sb_targets)
+            except:
+                raise ScheduleBlockTargetsParsingError(
+                    'There was an error parsing the schedule block (%s) '
+                    'targets attribute: %s', id_code, sb_targets)
+        raise tornado.gen.Return(targets_list)
+
+    @tornado.gen.coroutine
+    def future_targets_detail(self, id_code):
+        """
+        Return a detailed list of future targets as determined by the dry run
+        of the schedule block. This method requires that you have set the
+        reference observer before calling it, using the
+        set_reference_observer_config method in this class.
+
+        The schedule block will only have future targets (in the targets
+        attribute) if the schedule block has been through a dry run and
+        has the verification_state of VERIFIED. The future targets are
+        only applicable to schedule blocks of the OBSERVATION type.
+
+        Parameters
+        ----------
+        id_code: str
+            Schedule block identifier. For example: ``20160908-0010``.
+
+        Returns
+        -------
+        list:
+            Ordered list of future targets that was determined by the
+            verification dry run with pointing details calculated by using
+            the reference observer set by set_reference_observer_config
+            Example:
+            [{
+                'name': 'Moon',
+                'body_type': 'special',
+                'description': 'Moon,special',
+                'track_duration': 60.0,
+                'slew_time': 53.6153013706
+                'start_offset': 0.0,
+                'azel': [3.6399178505, 1.3919397593],
+                'astrometric_radec': [0.180696943, 0.0180189191],
+                'apparent_radec': [0.1830730793, 0.0169845125],
+                'tags': ['special'],
+                'galactic': [2.0531028499, -1.0774995277],
+                'parallactic_angle': 0.49015412010000003,
+                'uvw_basis': [[0.996376853, -0.0150540303, 0.0837050956],
+                              [..], [..]]
+            }, {..}]
+
+            Example for a target that is not found in the catalogue:
+            [{..}, {
+                'name': 'FAKETARGET',
+                'slew_time': 41.6139953136,
+                'track_duration': 21.0,
+                'error': 'Target not in catalogues!',
+                'start_offset': 137.8720090389},
+            }, {..}]
+
+        Raises
+        ------
+        ReferenceObserverConfigNotSet:
+            If the reference observer config has not been set before
+            calling this method.
+        ScheduleBlockTargetsParsingError:
+            If there is an error parsing the schedule block's targets string.
+        ScheduleBlockNotFoundError:
+            If no information was available for the requested schedule block.
+        ValueError:
+            If the returned target description value is not a list. This
+            could happen when there is an exception on katportal loading
+            the target details from the catalogues.
+        """
+        if self._reference_observer_config is None:
+            raise ReferenceObserverConfigNotSet(
+                'Reference Observer config not set. '
+                'Please set the reference observer config using '
+                'the set_reference_observer_config method.')
+        sb = yield self.schedule_block_detail(id_code)
+        targets_list = []
+        sb_targets = sb.get('targets')
+        if sb_targets is not None:
+            try:
+                targets_list = json.loads(sb_targets)
+            except:
+                raise ScheduleBlockTargetsParsingError(
+                    'There was an error parsing the schedule block (%s) '
+                    'targets attribute: %s', id_code, sb_targets)
+            config_label = yield self.config_label_for_subarray(
+                int(self.sitemap['sub_nr']))
+            target_names = [target.get('name') for target in targets_list]
+            targets_csv = ','.join(target_names)
+            target_descriptions = yield self._get_target_descriptions(
+                targets=targets_csv,
+                longitude=self._reference_observer_config['longitude'],
+                latitude=self._reference_observer_config['latitude'],
+                altitude=self._reference_observer_config['altitude'],
+                timestamp=self._reference_observer_config['timestamp'],
+                config_label=config_label)
+            if isinstance(target_descriptions, list):
+                for target_desc in target_descriptions:
+                    targets_list_index = targets_list.index(
+                        filter(lambda n: n.get('name') == target_desc.get('name'),
+                               targets_list)[0])
+                    targets_list[targets_list_index].update(target_desc)
+            else:
+                raise ValueError(
+                    'The returned target descriptions is not a list of '
+                    'targets, it is instead: %s' % target_descriptions)
+
+        raise tornado.gen.Return(targets_list)
+
+    def set_reference_observer_config(
+            self, longitude=None, latitude=None, altitude=None, timestamp=None):
+        """
+        Set the reference observer config to be used when retrieving
+        the future target list from a schedule block.
+
+        .. note::
+
+            If longitude, latitude or altitude is None then katpoint will use
+            the array's default reference observer. If timestamp is None,
+            katpoint will use the current utc time to calculate the pointing
+            details.
+
+        Parameters
+        ----------
+        longitude: float
+            The longitude of the reference observer used in calculating the
+            pointing details.
+            Default: None, if longitude, latitude or altitude is None then
+            katpoint will use the array's
+        latitude: float
+            The latitude of the reference observer used in calculating the
+            pointing details.
+            Default: None, if this is None katpoint will use the array's
+            default reference observer
+        altitude: float
+            The altitude of the reference observer used in calculating the
+            pointing details.
+            Default: None, if this is None katpoint will use the array's
+            default reference observer
+        timestamp: float
+            The unix timestamp (UTC) of the time of the reference observer
+            used to calculate the pointing details.
+            Default: None, katpoint uses current utc time to calculate
+            pointing details.
+        """
+        if self._reference_observer_config is None:
+            self._reference_observer_config = {}
+        self._reference_observer_config['longitude'] = longitude
+        self._reference_observer_config['latitude'] = latitude
+        self._reference_observer_config['altitude'] = altitude
+        self._reference_observer_config['timestamp'] = timestamp
+
+    @tornado.gen.coroutine
+    def config_label_for_subarray(self, sub_nr):
+        """Get the config label for the specified sub_nr. Returns None if
+        the subarray has an empty config_label. An active subarray will
+        always have a config_label.
+
+        Parameters
+        ----------
+        sub_nr: int
+            The subarray's config label to get, can be 1,2,3,4
+
+        Returns
+        -------
+        str:
+            A csv string that is used as a config_label in the CAM system.
+            The config_label is used to select the version of the catalogue
+            files when calculating the pointing details.
+        """
+        url = self.sitemap['subarray_sensor_values'] + '/config_label'
+        response = yield self._http_client.fetch(url)
+        config_label_sensor_result = json.loads(response.body)[0]
+        raise tornado.gen.Return(config_label_sensor_result.get('value'))
+
+    @tornado.gen.coroutine
+    def _get_target_descriptions(
+            self, targets, longitude, latitude, altitude,
+            timestamp, config_label):
+        """
+        Return a list of targets with their pointing information calculated
+        by using the longitude, latitude, altitude as the reference observer
+        and timestamp as the time of the reference observer.
+        Using the config_label to select a specific version of the catalogues
+        files.
+
+        Parameters
+        ----------
+        targets: str
+            A CSV list of target names to retrieve the pointing details.
+        longitude: float
+            The longitude of the reference observer used in calculating the
+            pointing details.
+        latitude: float
+            The latitude of the reference observer used in calculating the
+            pointing details.
+        altitude: float
+            The altitude of the reference observer used in calculating the
+            pointing details.
+        timestamp: float
+            The unix timestamp (UTC) of the time of the reference observer
+            used to calculate the pointing details.
+        config_label: str
+            The config_label to use to select the version of the catalogue
+            files when calculating the pointing details.
+
+        Returns
+        -------
+        list:
+            A list of dictionaries containing pointing information calculated
+            taking the reference observer into account.
+        """
+        url = self.sitemap['target_descriptions']
+        request_data = {
+            'targets': targets,
+            'longitude': longitude,
+            'latitude': latitude,
+            'altitude': altitude,
+            'timestamp': timestamp,
+            'config_label': config_label
+        }
+        request_body = urlencode(request_data)
+        response = yield self._http_client.fetch(url, method='POST', body=request_body)
+        raise tornado.gen.Return(json.loads(response.body))
 
     @tornado.gen.coroutine
     def schedule_block_detail(self, id_code):
@@ -839,7 +1122,7 @@ class KATPortalClient(object):
             List of :class:`.SensorSample` namedtuples (one per sample, with fields
             timestamp, value and status) or, if include_value_ts was set, then
             list of :class:`.SensorSampleValueTs` namedtuples (one per sample, with fields
-            timestamp, value_timestamp, value and status).  
+            timestamp, value_timestamp, value and status).
             See :class:`.SensorSample` and :class:`.SensorSampleValueTs` for details.
             If the sensor named never existed, or is otherwise invalid, the
             list will be empty - no exception is raised.
@@ -874,7 +1157,7 @@ class KATPortalClient(object):
             'request_in_chunks': 1,
             'chunk_size': SAMPLE_HISTORY_CHUNK_SIZE,
             'limit': MAX_SAMPLES_PER_HISTORY_QUERY
-            }
+        }
         url = url_concat(self.sitemap['historic_sensor_values'] + '/samples', params)
         self._logger.debug("Sensor history request: %s", url)
         response = yield self._http_client.fetch(url)
@@ -950,7 +1233,7 @@ class KATPortalClient(object):
             (one per sample, with fields timestamp, value and status)
             or, if include_value_ts was set, then
             list of :class:`.SensorSampleValueTs` namedtuples (one per sample, with fields
-            timestamp, value_timestamp, value and status).  
+            timestamp, value_timestamp, value and status).
             See :class:`.SensorSample` and :class:`.SensorSampleValueTs` for details.
 
         Raises
@@ -982,3 +1265,12 @@ class SensorNotFoundError(Exception):
 
 class SensorHistoryRequestError(Exception):
     """Raise if error requesting sensor sample history."""
+
+
+class ReferenceObserverConfigNotSet(Exception):
+    """Raise if reference observer config has not been set."""
+
+
+class ScheduleBlockTargetsParsingError(Exception):
+    """Raise if there was an error parsing the targets attribute of the
+    ScheduleBlock"""

@@ -26,7 +26,8 @@ from tornado.test.websocket_test import (
 
 from katportalclient import (
     KATPortalClient, JSONRPCRequest, ScheduleBlockNotFoundError, SensorNotFoundError,
-    SensorHistoryRequestError)
+    SensorHistoryRequestError, ScheduleBlockTargetsParsingError,
+    ReferenceObserverConfigNotSet)
 
 
 LOGGER_NAME = 'test_portalclient'
@@ -80,7 +81,7 @@ sensor_json = {
                                        "type":"discrete"}]""",
 
     "regex_error": """{"error":"invalid regular expression: quantifier operand invalid\n"}"""
-    }
+}
 
 
 # Example redis-pubsub message for sensor history
@@ -183,6 +184,8 @@ class TestKATPortalClient(WebSocketBaseTestCase):
                        {'websocket': self.websocket_url,
                         'historic_sensor_values': r"http://0.0.0.0/history",
                         'schedule_blocks': r"http://0.0.0.0/sb",
+                        'subarray_sensor_values': r"http://0.0.0.0/sensor-list",
+                        'target_descriptions': r"http://0.0.0.0/sources",
                         'sub_nr': '3',
                         }
                        }
@@ -550,7 +553,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             time_sec = sample.timestamp
             # Ensure sample contains timestamp, value_timestamp, value, status
             self.assertEqual(len(sample), 4)
-            # Ensure value_timestamp 
+            # Ensure value_timestamp
             self.assertGreater(sample.timestamp, sample.value_timestamp)
 
     @gen_test
@@ -632,7 +635,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         publish_messages = [
             [sensor_history_pub_messages_json['init']],
             [sensor_history_pub_messages_json['init']]
-            ]
+        ]
         publish_messages[0].extend(sensor_history_pub_messages_json[sensor_names[0]])
         publish_messages[1].extend(sensor_history_pub_messages_json[sensor_names[1]])
 
@@ -641,25 +644,25 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         #  - 2nd call provides the sample history for sensor 0
         #  - 3rd call provides the sample history for sensor 1
         self.mock_http_async_client().fetch.side_effect = mock_async_fetchers(
-                valid_responses=[
-                    '[{}, {}]'.format(sensor_json[sensor_names[0]],
-                                      sensor_json[sensor_names[1]]),
-                    '{"result":"success"}',
-                    '{"result":"success"}'],
-                invalid_responses=['1error', '2error', '3error'],
-                starts_withs=history_base_url,
-                containses=[
-                    sensor_name_filter,
-                    sensor_names[0],
-                    sensor_names[1]],
-                publish_raw_messageses=[
-                    None,
-                    publish_messages[0],
-                    publish_messages[1]],
-                client_stateses=[
-                    None,
-                    self._portal_client._sensor_history_states,
-                    self._portal_client._sensor_history_states])
+            valid_responses=[
+                '[{}, {}]'.format(sensor_json[sensor_names[0]],
+                                  sensor_json[sensor_names[1]]),
+                '{"result":"success"}',
+                '{"result":"success"}'],
+            invalid_responses=['1error', '2error', '3error'],
+            starts_withs=history_base_url,
+            containses=[
+                sensor_name_filter,
+                sensor_names[0],
+                sensor_names[1]],
+            publish_raw_messageses=[
+                None,
+                publish_messages[0],
+                publish_messages[1]],
+            client_stateses=[
+                None,
+                self._portal_client._sensor_history_states,
+                self._portal_client._sensor_history_states])
 
         histories = yield self._portal_client.sensors_histories(
             sensor_name_filter, start_time_sec=0, end_time_sec=time.time())
@@ -687,7 +690,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         publish_messages = [
             [sensor_history_pub_messages_json['init']],
             [sensor_history_pub_messages_json['init']]
-            ]
+        ]
         publish_messages[0].extend(sensor_history_pub_messages_json[sensor_names[0]])
         publish_messages[1].extend(sensor_history_pub_messages_json[sensor_names[1]])
 
@@ -695,20 +698,20 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         #  - 1st call provides the sample history for sensor 0
         #  - 2nd call provides the sample history for sensor 1
         self.mock_http_async_client().fetch.side_effect = mock_async_fetchers(
-                valid_responses=[
-                    '{"result":"success"}',
-                    '{"result":"success"}'],
-                invalid_responses=['1error', '2error'],
-                starts_withs=history_base_url,
-                containses=[
-                    sensor_names[0],
-                    sensor_names[1]],
-                publish_raw_messageses=[
-                    publish_messages[0],
-                    publish_messages[1]],
-                client_stateses=[
-                    self._portal_client._sensor_history_states,
-                    self._portal_client._sensor_history_states])
+            valid_responses=[
+                '{"result":"success"}',
+                '{"result":"success"}'],
+            invalid_responses=['1error', '2error'],
+            starts_withs=history_base_url,
+            containses=[
+                sensor_names[0],
+                sensor_names[1]],
+            publish_raw_messageses=[
+                publish_messages[0],
+                publish_messages[1]],
+            client_stateses=[
+                self._portal_client._sensor_history_states,
+                self._portal_client._sensor_history_states])
 
         futures = []
         futures.append(self._portal_client.sensor_history(
@@ -735,6 +738,188 @@ class TestKATPortalClient(WebSocketBaseTestCase):
                 self.assertGreater(sample[0], time_sec)
                 time_sec = sample[0]
 
+    @gen_test
+    def test_future_targets(self):
+        sb_base_url = self._portal_client.sitemap['schedule_blocks']
+        sb_id_code_1 = "20160908-0005"
+        sb_id_code_2 = "20160908-0006"
+        sb_id_code_3 = "20160908-0007"
+
+        self.mock_http_async_client().fetch.side_effect = mock_async_fetchers(
+            valid_responses=[
+                r"""
+                {"result":
+                    {"id_code":"20160908-0005",
+                     "targets":""
+                    }
+                }""",
+                r"""
+                {"result":
+                    {"id_code":"20160908-0006",
+                     "targets":""
+                    }
+                }""",
+                r"""
+                {"result":
+                    {"id_code":"20160908-0007",
+                     "targets":"[{\"key\": \"some json body\"}]"
+                    }
+                }"""],
+            invalid_responses=[
+                """{"result":null}""",
+                """{"result":null}""",
+                """{"result":null}"""],
+            starts_withs=sb_base_url,
+            containses=[sb_id_code_1, sb_id_code_2, sb_id_code_3])
+
+        with self.assertRaises(ScheduleBlockTargetsParsingError):
+            yield self._portal_client.future_targets(sb_id_code_1)
+        with self.assertRaises(ScheduleBlockNotFoundError):
+            yield self._portal_client.future_targets('bad sb id code')
+        targets_list = yield self._portal_client.future_targets(sb_id_code_3)
+        self.assertEquals(targets_list, [{u'key': u'some json body'}])
+
+    @gen_test
+    def test_future_targets_details(self):
+        sb_base_url = self._portal_client.sitemap['schedule_blocks']
+        sb_id_code_1 = "20160908-0005"
+        sb_id_code_2 = "20160908-0006"
+        sb_id_code_3 = "20160908-0007"
+        sb_id_code_4 = "20160908-0008"
+
+        self.mock_http_async_client().fetch.side_effect = mock_async_fetchers(
+            valid_responses=[
+                r"""
+                {"result":
+                    {"id_code":"20160908-0005",
+                     "targets":""
+                    }
+                }""",
+                r"""
+                {"result":
+                    {"id_code":"20160908-0006",
+                     "targets":""
+                    }
+                }""",
+                r"""
+                {"result":
+                    {"id_code":"20160908-0007",
+                    "targets":"[{\"name\": \"Moon\", \"track_duration\":10, \"slew_duration\":10, \"start_offset\":0},
+                                {\"name\": \"Sun\", \"track_duration\":10, \"slew_duration\":10, \"start_offset\":0}]",
+                     "sub_nr": 1
+                    }
+                }""",
+                r"""
+                {"result":
+                    {"id_code":"20160908-0008",
+                    "targets":"[{\"name\": \"Moon\", \"track_duration\":10, \"slew_duration\":10, \"start_offset\":0},
+                                {\"name\": \"Sun\", \"track_duration\":10, \"slew_duration\":10, \"start_offset\":0}]",
+                     "sub_nr": 1
+                    }
+                }"""],
+            invalid_responses=[
+                """{"result":null}""",
+                """{"result":null}""",
+                """{"result":null}""",
+                """{"result":null}"""],
+            starts_withs=sb_base_url,
+            containses=[
+                sb_id_code_1,
+                sb_id_code_2,
+                sb_id_code_3,
+                sb_id_code_4])
+
+        with self.assertRaises(ReferenceObserverConfigNotSet):
+            yield self._portal_client.future_targets_detail(sb_id_code_1)
+
+        self._portal_client.set_reference_observer_config()
+
+        with self.assertRaises(ScheduleBlockTargetsParsingError):
+            yield self._portal_client.future_targets_detail(sb_id_code_1)
+        with self.assertRaises(ScheduleBlockNotFoundError):
+            yield self._portal_client.future_targets_detail('bad sb id code')
+
+        mocked_config_label_future = gen.Future()
+        mocked_config_label_future.set_result('mock,label')
+        self._portal_client.config_label_for_subarray = mock.MagicMock(
+            return_value=mocked_config_label_future)
+        mocked_target_descriptions_future = gen.Future()
+        mocked_target_descriptions_future.set_result(
+            [{"name": "Moon", "testvar": "test variable"},
+             {"name": "Sun", "testvar": "test variable 2"}])
+        self._portal_client._get_target_descriptions = mock.MagicMock(
+            return_value=mocked_target_descriptions_future)
+        result = yield self._portal_client.future_targets_detail(sb_id_code_3)
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0]['testvar'], 'test variable')
+        self.assertEqual(result[1]['testvar'], 'test variable 2')
+        self._portal_client.config_label_for_subarray.assert_called_once_with(3)
+        self._portal_client._get_target_descriptions.assert_called_once_with(
+            altitude=None,
+            config_label='mock,label',
+            latitude=None,
+            longitude=None,
+            targets=u'Moon,Sun',
+            timestamp=None)
+
+        mocked_config_label_future = gen.Future()
+        mocked_config_label_future.set_result('mock,label')
+        self._portal_client.config_label_for_subarray = mock.MagicMock(
+            return_value=mocked_config_label_future)
+        mocked_target_descriptions_future = gen.Future()
+        mocked_target_descriptions_future.set_result('invalid result')
+        self._portal_client._get_target_descriptions = mock.MagicMock(
+            return_value=mocked_target_descriptions_future)
+        with self.assertRaises(ValueError):
+            yield self._portal_client.future_targets_detail(sb_id_code_4)
+
+    @gen_test
+    def test_set_reference_observer_config(self):
+        self.assertIsNone(self._portal_client._reference_observer_config)
+        self._portal_client.set_reference_observer_config()
+        self.assertIsNotNone(self._portal_client._reference_observer_config)
+        for key in self._portal_client._reference_observer_config:
+            self.assertIsNone(self._portal_client._reference_observer_config[key])
+        longitude = 'test longitude'
+        latitude = 'test latitude'
+        altitude = 'test altitude'
+        timestamp = 'test timestamp'
+        self._portal_client.set_reference_observer_config(
+            longitude, latitude, altitude, timestamp)
+        for key in self._portal_client._reference_observer_config:
+            self.assertEquals(
+                self._portal_client._reference_observer_config[key],
+                'test {}'.format(key))
+
+    @gen_test
+    def test_config_label_for_subarray(self):
+        base_url = self._portal_client.sitemap['subarray_sensor_values'] + '/config_label'
+        sub_nr = 3
+
+        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+            valid_response='[{"sensor": "config_label", "value": "test config label"}]',
+            invalid_response='error',
+            starts_with=base_url)
+
+        result = yield self._portal_client.config_label_for_subarray(sub_nr)
+        self.assertEqual(result, "test config label")
+
+    @gen_test
+    def test_get_target_descriptions(self):
+        base_url = self._portal_client.sitemap['target_descriptions']
+        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+            valid_response=(
+                '[{"name": "Moon", "testvar": "test variable 1"},'
+                '{"name": "Sun", "testvar": "test variable 2"}]'),
+            invalid_response='error',
+            starts_with=base_url)
+
+        result = yield self._portal_client._get_target_descriptions(
+            'Moon,Sun', 1, 2, 3, 0, 'test config label')
+        self.assertEquals(
+            result,
+            [{u'name': u'Moon', u'testvar': u'test variable 1'},
+             {u'name': u'Sun', u'testvar': u'test variable 2'}])
 
 def mock_async_fetchers(valid_responses, invalid_responses, starts_withs=None,
                         ends_withs=None, containses=None, publish_raw_messageses=None,
@@ -778,7 +963,7 @@ def mock_async_fetcher(valid_response, invalid_response, starts_with=None,
                        client_states=None):
     """Returns a mock HTTP async fetch function, depending on the conditions."""
 
-    def mock_fetch(url):
+    def mock_fetch(url, method="GET", body=None):
         start_ok = starts_with is None or url.startswith(starts_with)
         end_ok = ends_with is None or url.endswith(ends_with)
         contains_ok = contains is None or contains in url

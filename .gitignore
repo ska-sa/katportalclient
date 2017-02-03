@@ -46,3 +46,7 @@ Thumbs.db
 version.txt
 dump.rdb
 build
+
+# Test results #
+###############
+nosetests.xml
