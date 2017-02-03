@@ -39,10 +39,16 @@ class JSONRPCRequest(object):
         """Return object's attribute dictionary in JSON form."""
         return json.dumps(self.__dict__)
 
-    def __str__(self):
+    def __repr__(self):
         """Return a human readable string of the object"""
         return "{_class}: id: {_id}, method: {method}, params: {params}".format(
             _class=self.__class__,
             _id=self.id,
             method=self.method,
             params=self.params)
+
+    def method_and_params_hash(self):
+        """Return a hash for the methods and params attributes for easy comparison"""
+        # cast self.params to string because we can only hash immutable objects
+        # if params is a list or set or anything like that, this will raise a TypeError
+        return hash((self.method, str(self.params)))

@@ -287,6 +287,9 @@ class KATPortalClient(object):
         connection has no subscriptions on katportal. Also when we receive a
         'redis-reconnect' message, we do not have any subscriptions on
         katportal.
+
+        JSONRPCRequests with identical methods and params will not be cached more than
+        once.
         """
         requests_to_remove = []
         if jsonrpc_request.method == 'unsubscribe':
@@ -307,7 +310,17 @@ class KATPortalClient(object):
                         req.params[1] == jsonrpc_request.params[1]):
                     requests_to_remove.append(req)
         else:
-            self._ws_jsonrpc_cache.append(jsonrpc_request)
+            duplicate_found = False
+            for req in self._ws_jsonrpc_cache:
+                # check if there is a difference between the items in the dict of existing
+                # JSONRPCRequests, if we find that we already have this JSONRPCRequest in
+                # the cache, don't add it to the cache.
+                duplicate_found = (req.method_and_params_hash() ==
+                                   jsonrpc_request.method_and_params_hash())
+                if duplicate_found:
+                    break
+            if not duplicate_found:
+                self._ws_jsonrpc_cache.append(jsonrpc_request)
 
         for req in requests_to_remove:
             self._ws_jsonrpc_cache.remove(req)
@@ -352,6 +365,7 @@ class KATPortalClient(object):
             - redis-reconnect - when portal reconnects to redis. When this
               happens we need to resend our subscriptions
         """
+        print self._ws_jsonrpc_cache
         if msg is None:
             self._logger.warn("Websocket server disconnected!")
             if not self._disconnect_issued:
