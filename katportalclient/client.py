@@ -170,7 +170,21 @@ class KATPortalClient(object):
         """
         custom_jwt = create_login_token(username, password)
         self._header = HTTPHeaders({"Authorization": custom_jwt})
-     
+
+    @tornado.gen.coroutine
+    def authorized_fetch(self, url, **kwargs):
+        """ Wraps tornado.fetch to add the headers
+        """
+         
+        if self._header:
+            request = httpclient.HTTPRequest(url, headers = self._header, **kwargs)
+            response = yield httpclient.AsyncHTTPClient().fetch(request)
+        else:
+            # TODO(MTO): Add an authorization exception
+            response = 'Header not found, have you logged in'
+        
+        raise tornado.gen.Return(response)
+        
 
     def _get_sitemap(self, url):
         """
