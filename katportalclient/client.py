@@ -147,9 +147,14 @@ class KATPortalClient(object):
         self._sensor_history_states = {}
 
 
-
-
-
+    def logout(self):
+        """ Logs user out of katportal by setting the header info to none.
+        
+        """
+        
+        self._header = None
+        
+        
     def login(self, username, password):
         """
         Logs user into katportal and adds JWT header
@@ -165,9 +170,7 @@ class KATPortalClient(object):
         """
         custom_jwt = create_login_token(username, password)
         self._header = HTTPHeaders({"Authorization": custom_jwt})
-        tornado.httpclient.AsyncHTTPClient.configure(self._http_client, defaults=dict(headers=self._header))
-        
-        
+     
 
     def _get_sitemap(self, url):
         """
