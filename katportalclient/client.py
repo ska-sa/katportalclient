@@ -365,7 +365,6 @@ class KATPortalClient(object):
             - redis-reconnect - when portal reconnects to redis. When this
               happens we need to resend our subscriptions
         """
-        print self._ws_jsonrpc_cache
         if msg is None:
             self._logger.warn("Websocket server disconnected!")
             if not self._disconnect_issued:
