@@ -154,8 +154,8 @@ class KATPortalClient(object):
         
         self._header = None
         
-        
-    def login(self, username, password):
+    @tornado.gen.coroutine
+    def login(self, username, password, role='read_only'):
         """
         Logs user into katportal and adds JWT header
 
@@ -168,16 +168,33 @@ class KATPortalClient(object):
             Password for username
 
         """
-        custom_jwt = create_login_token(username, password)
-        self._header = HTTPHeaders({"Authorization": custom_jwt})
+        login_token = create_login_token(username, password)
+        login_header = HTTPHeaders({"Authorization": login_token})
+        url = self.sitemap['authorization'] + '/user/verify/'+ role
+        request = tornado.httpclient.HTTPRequest(url, headers = login_header)
+        response = yield self._http_client.fetch(request)
+
+        try:
+            response_json = json.loads(response.body)
+            if response_json.get('logged_in', False) or response_json.get('session_id'):
+                self._logger.info('Succesfully logged in as %s', 
+                        response_json.get('email','email missing'))
+                self._session_id = response_json.get('session_id')
+            else:
+                self._logger.error('Error in logging see response %s' ,
+                        response)
+        except Exception:
+            self._logger.exception('Error in response')
 
     @tornado.gen.coroutine
     def authorized_fetch(self, url, **kwargs):
         """ Wraps tornado.fetch to add the headers
         """
          
-        if self._header:
-            request = httpclient.HTTPRequest(url, headers = self._header, **kwargs)
+
+        if self._session_id:
+            login_header = HTTPHeaders({"Authorization": self._session_id })
+            request = httpclient.HTTPRequest(url, headers = login_header, **kwargs)
             response = yield httpclient.AsyncHTTPClient().fetch(request)
         else:
             # TODO(MTO): Add an authorization exception
@@ -206,6 +223,7 @@ class KATPortalClient(object):
             Sitemap endpoints - see :meth:`.sitemap`.
         """
         result = {
+            'authorization': '',
             'websocket': '',
             'historic_sensor_values': '',
             'schedule_blocks': '',
