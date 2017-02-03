@@ -223,7 +223,7 @@ class KATPortalClient(object):
         return self._ws is not None
 
     @tornado.gen.coroutine
-    def connect(self):
+    def connect(self, reconnecting=False):
         """Connect to the websocket server specified during instantiation."""
         # The lock is used to ensure only a single connection can be made
         with (yield self._ws_connecting_lock.acquire()):
@@ -236,11 +236,19 @@ class KATPortalClient(object):
                         self.sitemap['websocket'],
                         on_message_callback=self._websocket_message,
                         connect_timeout=WS_CONNECT_TIMEOUT)
+                    if reconnecting:
+                        yield self._resend_subscriptions_and_strategies()
+                        self._logger.info("Reconnected :)")
                 except:
                     self._logger.exception(
                         'Could not connect websocket to %s',
                         self.sitemap['websocket'])
-                if not self.is_connected:
+                    if reconnecting:
+                        self._logger.info(
+                            'Retrying connection in %s seconds...', WS_RECONNECT_INTERVAL)
+                        self._io_loop.call_later(
+                            WS_RECONNECT_INTERVAL, self.connect, True)
+                if not self.is_connected and not reconnecting:
                     self._logger.error("Failed to connect!")
 
     def disconnect(self):
@@ -251,22 +259,6 @@ class KATPortalClient(object):
             self._ws.close()
             self._ws = None
             self._logger.debug("Disconnected client websocket.")
-
-    def _reconnect_ws(self):
-        """
-        Immediately try to reconnect the websocket. If that failed, retry
-        the connect every 15 seconds or until the client issues a
-        disconnect."""
-        if not self._disconnect_issued:
-            self._logger.info("Reconnecting the websocket...")
-            self.connect()
-            if self.is_connected:
-                self._resend_subscriptions_and_strategies()
-                self._logger.info("Reconnected :)")
-            else:
-                # Retry the connect in WS_RECONNECT_INTERVAL seconds
-                self._io_loop.call_later(
-                    WS_RECONNECT_INTERVAL, self._reconnect_ws)
 
     def _cache_jsonrpc_request(self, jsonrpc_request):
         """
@@ -320,6 +312,7 @@ class KATPortalClient(object):
         for req in requests_to_remove:
             self._ws_jsonrpc_cache.remove(req)
 
+    @tornado.gen.coroutine
     def _resend_subscriptions_and_strategies(self):
         """
         Resend the cached subscriptions and strategies that has been set while
@@ -331,6 +324,7 @@ class KATPortalClient(object):
             result = yield self._send(req)
             self._logger.info('Resent JSONRPCRequest, with result: %s', result)
 
+    @tornado.gen.coroutine
     def _resend_subscriptions(self):
         """
         Resend the cached subscriptions only. This is necessary when we receive
@@ -341,6 +335,7 @@ class KATPortalClient(object):
                 result = yield self._send(req)
                 self._logger.info('Resent JSONRPCRequest, with result: %s', result)
 
+    @tornado.gen.coroutine
     def _websocket_message(self, msg):
         """
         All websocket messages calls this method.
@@ -360,7 +355,9 @@ class KATPortalClient(object):
         if msg is None:
             self._logger.warn("Websocket server disconnected!")
             if not self._disconnect_issued:
-                self._periodic_reconnect_ws()
+                self._ws.close()
+                self._ws = None
+                self.connect(reconnecting=True)
             return
         try:
             msg = json.loads(msg)
@@ -373,7 +370,7 @@ class KATPortalClient(object):
                 # publish sensor value updates to redis because the client
                 # did not disconnect, katportal lost its own connection
                 # to redis
-                self._resend_subscriptions()
+                yield self._resend_subscriptions()
             else:
                 self._process_json_rpc_message(msg, msg_id)
         except:
