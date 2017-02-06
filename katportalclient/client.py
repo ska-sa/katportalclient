@@ -275,7 +275,7 @@ class KATPortalClient(object):
     @tornado.gen.coroutine
     def connect(self):
         """Connect to the websocket server specified during instantiation."""
-        self._connect(reconnecting=False)
+        yield self._connect(reconnecting=False)
 
     @tornado.gen.coroutine
     def _send_heart_beat(self):
