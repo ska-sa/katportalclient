@@ -268,7 +268,7 @@ class KATPortalClient(object):
                         self._logger.info(
                             'Retrying connection in %s seconds...', WS_RECONNECT_INTERVAL)
                         self._io_loop.call_later(
-                            WS_RECONNECT_INTERVAL, self.connect, True)
+                            WS_RECONNECT_INTERVAL, self._connect, True)
                 if not self.is_connected and not reconnecting:
                     self._logger.error("Failed to connect!")
 
