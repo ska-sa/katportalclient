@@ -28,6 +28,7 @@ import tornado.locks
 import omnijson as json
 from tornado.websocket import websocket_connect
 from tornado.httputil import url_concat, HTTPHeaders
+from tornado.httpclient import HTTPRequest
 
 from request import JSONRPCRequest
 
@@ -45,9 +46,8 @@ SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC = 1000.0
 module_logger = logging.getLogger('kat.katportalclient')
 
 
-
 def create_login_token(email, password, custom_str="Custom_JWT "):
-    """Creates login token 
+    """Creates login token
 
     Parameters
     ----------
@@ -55,17 +55,17 @@ def create_login_token(email, password, custom_str="Custom_JWT "):
 
     """
     jwt_header_alg = base64.standard_b64encode(u'{"alg":"HS256","typ":"JWT"}')
-    jwt_header_email = base64.standard_b64encode(u'{"email":"%s"}' % email).strip('=')
+    jwt_header_email = base64.standard_b64encode(
+        u'{"email":"%s"}' % email).strip('=')
     jwt_header = '.'.join([jwt_header_alg, jwt_header_email])
 
     password_sha = hashlib.sha256(password).hexdigest()
-    dig = hmac.new(password_sha, msg=jwt_header, digestmod=hashlib.sha256).digest()
+    dig = hmac.new(password_sha, msg=jwt_header,
+                   digestmod=hashlib.sha256).digest()
     password_encrypted = base64.b64encode(dig).decode()
     jwt_auth_token = '.'.join([jwt_header, password_encrypted])
 
     return "{}{}".format(custom_str, jwt_auth_token)
-
-
 
 
 class SensorSample(namedtuple('SensorSample', 'timestamp, value, status')):
@@ -83,6 +83,7 @@ class SensorSample(namedtuple('SensorSample', 'timestamp, value, status')):
             by the KATCP protocol. Examples: 'nominal', 'warn', 'failure', 'error',
             'critical', 'unreachable', 'unknown', etc.
     """
+
     def csv(self):
         """Returns sample in comma separated values format."""
         return '{},{},{}'.format(self.timestamp, self.value, self.status)
@@ -106,6 +107,7 @@ class SensorSampleValueTs(namedtuple('SensorSampleValueTs', 'timestamp, value_ti
             by the KATCP protocol. Examples: 'nominal', 'warn', 'failure', 'error',
             'critical', 'unreachable', 'unknown', etc.
     """
+
     def csv(self):
         """Returns sample in comma separated values format."""
         return '{},{},{},{}'.format(self.timestamp, self.value_timestamp, self.value, self.status)
@@ -146,14 +148,15 @@ class KATPortalClient(object):
         self._sitemap = None
         self._sensor_history_states = {}
 
-
     def logout(self):
         """ Logs user out of katportal by setting the header info to none.
-        
         """
-        
-        self._header = None
-        
+        url = self.sitemap['authorization'] + '/user/logout'
+        response = yield self.authorized_fetch(
+            url, auth_token=self._session_id, method='POST')
+        self._logger.info("Logout result: %s", response.body)
+        self._session_id = None
+
     @tornado.gen.coroutine
     def login(self, username, password, role='read_only'):
         """
@@ -163,45 +166,36 @@ class KATPortalClient(object):
         ----------
         username: str
             Registered that exists on the system
-        
+
         password: str
             Password for username
 
         """
         login_token = create_login_token(username, password)
-        login_header = HTTPHeaders({"Authorization": login_token})
-        url = self.sitemap['authorization'] + '/user/verify/'+ role
-        request = tornado.httpclient.HTTPRequest(url, headers = login_header)
-        response = yield self._http_client.fetch(request)
+        url = self.sitemap['authorization'] + '/user/verify/' + role
+        response = yield self.authorized_fetch(url, auth_token=login_token)
 
         try:
             response_json = json.loads(response.body)
             if response_json.get('logged_in', False) or response_json.get('session_id'):
-                self._logger.info('Succesfully logged in as %s', 
-                        response_json.get('email','email missing'))
+                self._logger.info('Succesfully logged in as %s',
+                                  response_json.get('email', 'email missing'))
                 self._session_id = response_json.get('session_id')
             else:
-                self._logger.error('Error in logging see response %s' ,
-                        response)
+                self._logger.error('Error in logging see response %s',
+                                   response)
         except Exception:
             self._logger.exception('Error in response')
 
     @tornado.gen.coroutine
-    def authorized_fetch(self, url, **kwargs):
+    def authorized_fetch(self, url, auth_token, **kwargs):
         """ Wraps tornado.fetch to add the headers
         """
-         
-
-        if self._session_id:
-            login_header = HTTPHeaders({"Authorization": self._session_id })
-            request = httpclient.HTTPRequest(url, headers = login_header, **kwargs)
-            response = yield httpclient.AsyncHTTPClient().fetch(request)
-        else:
-            # TODO(MTO): Add an authorization exception
-            response = 'Header not found, have you logged in'
-        
+        login_header = HTTPHeaders({"Authorization": auth_token})
+        request = HTTPRequest(
+            url, headers=login_header, **kwargs)
+        response = yield self._http_client.fetch(request)
         raise tornado.gen.Return(response)
-        
 
     def _get_sitemap(self, url):
         """
@@ -329,7 +323,8 @@ class KATPortalClient(object):
                 if (isinstance(msg_data, dict)
                         and 'inform_type' in msg_data
                         and msg_data['inform_type'] == 'sample_history'):
-                    # inform message which provides synchronisation information.
+                    # inform message which provides synchronisation
+                    # information.
                     inform = msg_data['inform_data']
                     num_new_samples = inform['num_samples_to_be_published']
                     state['num_samples_pending'] += num_new_samples
@@ -345,23 +340,28 @@ class KATPortalClient(object):
                             #            1476164224429354L, u'5.07571614843',
                             #            u'anc_mean_wind_speed', u'nominal']
                             if state['include_value_ts']:
-                                # Requesting value_timestamp in addition to sample timestamp
+                                # Requesting value_timestamp in addition to
+                                # sample timestamp
                                 sensor_sample = SensorSampleValueTs(
-                                    timestamp=sample[0]/SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
-                                    value_timestamp=sample[1]/SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
+                                    timestamp=sample[
+                                        0] / SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
+                                    value_timestamp=sample[
+                                        1] / SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
                                     value=sample[3],
                                     status=sample[5])
                             else:
                                 # Only sample timestamp
                                 sensor_sample = SensorSample(
-                                    timestamp=sample[0]/SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
+                                    timestamp=sample[
+                                        0] / SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
                                     value=sample[3],
                                     status=sample[5])
                             state['samples'].append(sensor_sample)
                             num_received += 1
                     state['num_samples_pending'] -= num_received
                 else:
-                    self._logger.warn('Ignoring unexpected message: %s', msg_result)
+                    self._logger.warn(
+                        'Ignoring unexpected message: %s', msg_result)
                 processed = True
         if not processed:
             if self._on_update:
@@ -773,7 +773,8 @@ class KATPortalClient(object):
         response = json.loads(response.body)
         schedule_block = response['result']
         if not schedule_block:
-            raise ScheduleBlockNotFoundError("Invalid schedule block ID: " + id_code)
+            raise ScheduleBlockNotFoundError(
+                "Invalid schedule block ID: " + id_code)
         raise tornado.gen.Return(schedule_block)
 
     def _extract_sensors_details(self, json_text):
@@ -783,7 +784,8 @@ class KATPortalClient(object):
         # Errors are returned in dict, while valid data is returned in a list.
         if isinstance(sensors, dict):
             if 'error' in sensors:
-                raise SensorNotFoundError("Invalid sensor request: " + sensors['error'])
+                raise SensorNotFoundError(
+                    "Invalid sensor request: " + sensors['error'])
         else:
             for sensor in sensors:
                 sensor_info = {}
@@ -898,7 +900,8 @@ class KATPortalClient(object):
             raise tornado.gen.Return(results[0])
 
     @tornado.gen.coroutine
-    def sensor_history(self, sensor_name, start_time_sec, end_time_sec, include_value_ts=False, timeout_sec=300):
+    def sensor_history(self, sensor_name, start_time_sec, end_time_sec,
+                       include_value_ts=False, timeout_sec=300):
         """Return time history of sample measurements for a sensor.
 
         For a list of sensor names, see :meth:`.sensors_list`.
@@ -913,11 +916,12 @@ class KATPortalClient(object):
         end_time_sec: float
             End time for sample history query, in seconds since the UNIX epoch.
         include_value_ts: bool
-            Flag to also include value timestamp in addition to time series sample timestamp in the result.
+            Flag to also include value timestamp in addition to time series
+            sample timestamp in the result.
             Default: False.
         timeout_sec: float
-            Maximum time (in sec) to wait for the history to be retrieved.  An exception will
-            be raised if the request times out. (default:300)
+            Maximum time (in sec) to wait for the history to be retrieved.
+            An exception will be raised if the request times out. (default:300)
 
         Returns
         -------
@@ -960,8 +964,9 @@ class KATPortalClient(object):
             'request_in_chunks': 1,
             'chunk_size': SAMPLE_HISTORY_CHUNK_SIZE,
             'limit': MAX_SAMPLES_PER_HISTORY_QUERY
-            }
-        url = url_concat(self.sitemap['historic_sensor_values'] + '/samples', params)
+        }
+        url = url_concat(
+            self.sitemap['historic_sensor_values'] + '/samples', params)
         self._logger.debug("Sensor history request: %s", url)
         response = yield self._http_client.fetch(url)
         data = json.loads(response.body)
@@ -969,7 +974,8 @@ class KATPortalClient(object):
             download_start_sec = time.time()
             # Query accepted by portal - data will be returned via websocket, but
             # we need to wait until it has arrived.  For synchronisation, we wait
-            # for a 'done_event'. This event is updated in _process_redis_message().
+            # for a 'done_event'. This event is updated in
+            # _process_redis_message().
             try:
                 timeout_delta = timedelta(seconds=timeout_sec)
                 yield state['done_event'].wait(timeout=timeout_delta)
@@ -978,7 +984,8 @@ class KATPortalClient(object):
                     time.time() - download_start_sec,
                     len(state['samples'])))
             except tornado.gen.TimeoutError:
-                raise SensorHistoryRequestError("Sensor history request timed out")
+                raise SensorHistoryRequestError(
+                    "Sensor history request timed out")
 
         else:
             raise SensorHistoryRequestError("Error requesting sensor history: {}"
@@ -1003,7 +1010,8 @@ class KATPortalClient(object):
         raise tornado.gen.Return(result)
 
     @tornado.gen.coroutine
-    def sensors_histories(self, filters, start_time_sec, end_time_sec, include_value_ts=False, timeout_sec=300):
+    def sensors_histories(self, filters, start_time_sec, end_time_sec,
+                          include_value_ts=False, timeout_sec=300):
         """Return time histories of sample measurements for multiple sensors.
 
         Finds the list of available sensors in the system that match the
@@ -1022,7 +1030,8 @@ class KATPortalClient(object):
         end_time_sec: float
             End time for sample history query, in seconds since the UNIX epoch.
         include_value_ts: bool
-            Flag to also include value timestamp in addition to time series sample timestamp in the result.
+            Flag to also include value timestamp in addition to time series
+            sample timestamp in the result.
             Default: False.
         timeout_sec: float
             Maximum time to wait for all sensors' histories to be retrieved.
@@ -1035,8 +1044,8 @@ class KATPortalClient(object):
             The values are lists of :class:`.SensorSample` namedtuples,
             (one per sample, with fields timestamp, value and status)
             or, if include_value_ts was set, then
-            list of :class:`.SensorSampleValueTs` namedtuples (one per sample, with fields
-            timestamp, value_timestamp, value and status).  
+            list of :class:`.SensorSampleValueTs` namedtuples (one per sample,
+            with fields timestamp, value_timestamp, value and status).
             See :class:`.SensorSample` and :class:`.SensorSampleValueTs` for details.
 
         Raises
@@ -1056,6 +1065,22 @@ class KATPortalClient(object):
             histories[sensor] = yield self.sensor_history(
                 sensor, start_time_sec, end_time_sec, timeout_left_sec)
         raise tornado.gen.Return(histories)
+
+    @tornado.gen.coroutine
+    def userlog_tags(self):
+        url = self.sitemap['userlogs'] + '/tags'
+        response = yield self._http_client.fetch(url)
+        raise tornado.gen.Return(response.body)
+
+    @tornado.gen.coroutine
+    def userlogs(self, start_time=None, end_time=None):
+        # request_params = {
+        #     'start_time': start_time,
+        #     'end_time': end_time
+        # }
+        # query_string = urlencode(request_params)
+        # TODO finish this
+        pass
 
 
 class ScheduleBlockNotFoundError(Exception):
