@@ -227,8 +227,22 @@ class KATPortalClient(object):
         return self._ws is not None
 
     @tornado.gen.coroutine
-    def connect(self, reconnecting=False):
-        """Connect to the websocket server specified during instantiation."""
+    def _connect(self, reconnecting=False):
+        """
+        Connect the websocket connection specified during instantiation.
+        When the connection drops, katportalclient will periodically attempt
+        to reconnect by calling this method until a disconnect() is called.
+
+        Params
+        ------
+        reconnecting: bool
+            Must be True if this method was called to reconnect a previously connected
+            websocket connection. If this is True the websocket connection will attempt
+            to resend the subscriptions and sampling strategies that was sent while the
+            websocket connection was open. If the websocket connection cannot reconnect,
+            it will try again periodically. If this is false and the websocket cannot be
+            connected, no further attempts will be made to connect.
+        """
         # The lock is used to ensure only a single connection can be made
         with (yield self._ws_connecting_lock.acquire()):
             self._disconnect_issued = False
@@ -246,7 +260,7 @@ class KATPortalClient(object):
                         yield self._resend_subscriptions_and_strategies()
                         self._logger.info("Reconnected :)")
                     self._heart_beat_timer.start()
-                except:
+                except Exception:
                     self._logger.exception(
                         'Could not connect websocket to %s',
                         self.sitemap['websocket'])
@@ -257,6 +271,11 @@ class KATPortalClient(object):
                             WS_RECONNECT_INTERVAL, self.connect, True)
                 if not self.is_connected and not reconnecting:
                     self._logger.error("Failed to connect!")
+
+    @tornado.gen.coroutine
+    def connect(self):
+        """Connect to the websocket server specified during instantiation."""
+        self._connect(reconnecting=False)
 
     @tornado.gen.coroutine
     def _send_heart_beat(self):
@@ -276,6 +295,8 @@ class KATPortalClient(object):
             self._ws.close()
             self._ws = None
             self._logger.debug("Disconnected client websocket.")
+        if self._heart_beat_timer.is_running():
+            self._heart_beat_timer.stop()
 
     def _cache_jsonrpc_request(self, jsonrpc_request):
         """
@@ -387,7 +408,7 @@ class KATPortalClient(object):
             if not self._disconnect_issued:
                 self._ws.close()
                 self._ws = None
-                self.connect(reconnecting=True)
+                self._connect(reconnecting=True)
             return
         try:
             msg = json.loads(msg)
@@ -403,7 +424,7 @@ class KATPortalClient(object):
                 yield self._resend_subscriptions()
             else:
                 self._process_json_rpc_message(msg, msg_id)
-        except:
+        except Exception:
             self._logger.exception(
                 "Error processing websocket message! {}".format(msg))
             if self._on_update:
@@ -816,7 +837,7 @@ class KATPortalClient(object):
         if sb_targets is not None:
             try:
                 targets_list = json.loads(sb_targets)
-            except:
+            except Exception:
                 raise ScheduleBlockTargetsParsingError(
                     'There was an error parsing the schedule block (%s) '
                     'targets attribute: %s', id_code, sb_targets)
@@ -898,7 +919,7 @@ class KATPortalClient(object):
         if sb_targets is not None:
             try:
                 targets_list = json.loads(sb_targets)
-            except:
+            except Exception:
                 raise ScheduleBlockTargetsParsingError(
                     'There was an error parsing the schedule block (%s) '
                     'targets attribute: %s', id_code, sb_targets)
