@@ -409,7 +409,7 @@ class KATPortalClient(object):
             if not self._disconnect_issued:
                 self._ws.close()
                 self._ws = None
-                self._connect(reconnecting=True)
+                yield self._connect(reconnecting=True)
             return
         try:
             msg = json.loads(msg)
