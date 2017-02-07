@@ -357,7 +357,7 @@ class KATPortalClient(object):
                         self._logger.info(
                             'Retrying connection in %s seconds...', WS_RECONNECT_INTERVAL)
                         self._io_loop.call_later(
-                            WS_RECONNECT_INTERVAL, self.connect, True)
+                            WS_RECONNECT_INTERVAL, self._connect, True)
                 if not self.is_connected and not reconnecting:
                     self._logger.error("Failed to connect!")
 
@@ -378,14 +378,15 @@ class KATPortalClient(object):
 
     def disconnect(self):
         """Disconnect from the connected websocket server."""
+        if self._heart_beat_timer.is_running():
+            self._heart_beat_timer.stop()
+
         if self.is_connected:
             self._disconnect_issued = True
             self._ws_jsonrpc_cache = []
             self._ws.close()
             self._ws = None
             self._logger.debug("Disconnected client websocket.")
-        if self._heart_beat_timer.is_running():
-            self._heart_beat_timer.stop()
 
     def _cache_jsonrpc_request(self, jsonrpc_request):
         """
@@ -497,7 +498,7 @@ class KATPortalClient(object):
             if not self._disconnect_issued:
                 self._ws.close()
                 self._ws = None
-                self._connect(reconnecting=True)
+                yield self._connect(reconnecting=True)
             return
         try:
             msg = json.loads(msg)
