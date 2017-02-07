@@ -10,8 +10,7 @@
 
 from client import (
     KATPortalClient, ScheduleBlockNotFoundError, SensorNotFoundError,
-    SensorHistoryRequestError, ScheduleBlockTargetsParsingError,
-    ReferenceObserverConfigNotSet)
+    SensorHistoryRequestError, ScheduleBlockTargetsParsingError)
 from request import JSONRPCRequest
 
 # BEGIN VERSION CHECK
