@@ -46,7 +46,7 @@ SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC = 1000.0
 module_logger = logging.getLogger('kat.katportalclient')
 
 
-def create_login_token(email, password, custom_str="Custom_JWT "):
+def create_login_token(email, password):
     """Creates login token
 
     Parameters
@@ -65,7 +65,7 @@ def create_login_token(email, password, custom_str="Custom_JWT "):
     password_encrypted = base64.b64encode(dig).decode()
     jwt_auth_token = '.'.join([jwt_header, password_encrypted])
 
-    return "{}{}".format(custom_str, jwt_auth_token)
+    return jwt_auth_token
 
 
 class SensorSample(namedtuple('SensorSample', 'timestamp, value, status')):
@@ -150,13 +150,15 @@ class KATPortalClient(object):
         self._sitemap = None
         self._sensor_history_states = {}
         self._reference_observer_config = None
+        self._current_user_id = None
 
+    @tornado.gen.coroutine
     def logout(self):
         """ Logs user out of katportal by setting the header info to none.
         """
         url = self.sitemap['authorization'] + '/user/logout'
         response = yield self.authorized_fetch(
-            url, auth_token=self._session_id, method='POST')
+            url=url, auth_token=self._session_id, method='POST', body='{}')
         self._logger.info("Logout result: %s", response.body)
         self._session_id = None
 
@@ -176,14 +178,21 @@ class KATPortalClient(object):
         """
         login_token = create_login_token(username, password)
         url = self.sitemap['authorization'] + '/user/verify/' + role
-        response = yield self.authorized_fetch(url, auth_token=login_token)
+        response = yield self.authorized_fetch(url=url, auth_token=login_token)
 
         try:
             response_json = json.loads(response.body)
             if response_json.get('logged_in', False) or response_json.get('session_id'):
-                self._logger.info('Succesfully logged in as %s',
-                                  response_json.get('email', 'email missing'))
                 self._session_id = response_json.get('session_id')
+                self._current_user_id = response_json.get('user_id')
+
+                login_url = self.sitemap['authorization'] + '/user/login'
+                response = yield self.authorized_fetch(
+                    url=login_url, auth_token=self._session_id,
+                    method='POST', body='')
+
+                self._logger.info('Succesfully logged in as %s',
+                                  response_json.get('email'))
             else:
                 self._logger.error('Error in logging see response %s',
                                    response)
@@ -194,7 +203,8 @@ class KATPortalClient(object):
     def authorized_fetch(self, url, auth_token, **kwargs):
         """ Wraps tornado.fetch to add the headers
         """
-        login_header = HTTPHeaders({"Authorization": auth_token})
+        login_header = HTTPHeaders({
+            "Authorization": "CustomJWT {}".format(auth_token)})
         request = HTTPRequest(
             url, headers=login_header, **kwargs)
         response = yield self._http_client.fetch(request)
@@ -1346,6 +1356,67 @@ class KATPortalClient(object):
                 sensor, start_time_sec, end_time_sec, timeout_left_sec)
         raise tornado.gen.Return(histories)
 
+    @tornado.gen.coroutine
+    def userlog_tags(self):
+        """
+        """
+        # TODO docstring
+        url = self.sitemap['userlogs'] + '/tags'
+        response = yield self._http_client.fetch(url)
+        raise tornado.gen.Return(response.body)
+
+    @tornado.gen.coroutine
+    def userlogs(self, start_time=None, end_time=None):
+        """
+        """
+        # TODO docstring
+        url = self.sitemap['userlogs'] + '/query?'
+        if start_time is None:
+            start_time = time.strftime('%Y-%m-%d 00:00:00')
+        if end_time is None:
+            end_time = time.strftime('%Y-%m-%d 23:59:59')
+        request_params = {
+            'start_time': start_time,
+            'end_time': end_time
+        }
+        query_string = urlencode(request_params)
+        response = yield self.authorized_fetch(
+            url='{}{}'.format(url, query_string), auth_token=self._session_id)
+        raise tornado.gen.Return(response.body)
+
+    @tornado.gen.coroutine
+    def create_userlog(self, content, tag_ids=None, start_time=None,
+                       end_time=None):
+        """
+        """
+        # TODO docstring
+        url = self.sitemap['userlogs']
+        new_userlog = {
+            'user': self._current_user_id,
+            'content': content
+        }
+        if start_time is not None:
+            new_userlog['start_time'] = start_time
+        if end_time is not None:
+            new_userlog['end_time'] = end_time
+        if tag_ids is not None:
+            new_userlog['tag_ids'] = tag_ids
+
+        response = yield self.authorized_fetch(
+            url=url, auth_token=self._session_id,
+            method='POST', body=json.dumps(new_userlog))
+        raise tornado.gen.Return(response.body)
+
+    @tornado.gen.coroutine
+    def edit_userlog(self, userlog):
+        """
+        """
+        # TODO docstring
+        url = '{}/{}'.format(self.sitemap['userlogs'], userlog['id'])
+        response = yield self.authorized_fetch(
+            url=url, auth_token=self._session_id,
+            method='POST', body=json.dumps(userlog))
+        raise tornado.gen.Return(response.body)
 
 class ScheduleBlockNotFoundError(Exception):
     """Raise if requested schedule block is not found."""
