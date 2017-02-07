@@ -52,13 +52,25 @@ WS_HEART_BEAT_INTERVAL = 20000  # in milliseconds
 module_logger = logging.getLogger('kat.katportalclient')
 
 
-def create_login_token(email, password):
-    """Creates login token
+def create_jwt_login_token(email, password):
+    """Creates a JWT login token. See http://jwt.io for the industry standard
+    specifications.
 
     Parameters
     ----------
     email: str
+        The email address of the user to include in the token. This email
+        address needs to exist in the kaportal user database to be able to
+        authenticate.
+    password: str
+        The password for the user specified in the email address to include
+        in the JWT login token.
 
+    Returns
+    -------
+    jwt_auth_token: str
+        The authentication token to include in the HTTP Authorization header
+        when verifying a user's credentials on katportal.
     """
     jwt_header_alg = base64.standard_b64encode(u'{"alg":"HS256","typ":"JWT"}')
     jwt_header_email = base64.standard_b64encode(
@@ -164,7 +176,9 @@ class KATPortalClient(object):
 
     @tornado.gen.coroutine
     def logout(self):
-        """ Logs user out of katportal by setting the header info to none.
+        """ Logs user out of katportal. Katportal then deletes the cached
+        session_id for this client. In order to call HTTP requests that
+        requires authentication, the user will need to login in again.
         """
         url = self.sitemap['authorization'] + '/user/logout'
         response = yield self.authorized_fetch(
@@ -175,18 +189,21 @@ class KATPortalClient(object):
     @tornado.gen.coroutine
     def login(self, username, password, role='read_only'):
         """
-        Logs user into katportal and adds JWT header
+        Logs the specified user into katportal and caches the session_id
+        created by katportal in this instance of KatportalClient.
 
         Parameters
         ----------
         username: str
-            Registered that exists on the system
+            The registered username that exists on katportal. This is an
+            email address, like abc@ska.ac.za.
 
         password: str
-            Password for username
+            The password for the specified username as saved in the katportal
+            users database.
 
         """
-        login_token = create_login_token(username, password)
+        login_token = create_jwt_login_token(username, password)
         url = self.sitemap['authorization'] + '/user/verify/' + role
         response = yield self.authorized_fetch(url=url, auth_token=login_token)
 
@@ -211,7 +228,9 @@ class KATPortalClient(object):
 
     @tornado.gen.coroutine
     def authorized_fetch(self, url, auth_token, **kwargs):
-        """ Wraps tornado.fetch to add the headers
+        """
+        Wraps tornado.fetch to add the Authorization headers with
+        the locally cached session_id.
         """
         login_header = HTTPHeaders({
             "Authorization": "CustomJWT {}".format(auth_token)})
@@ -1273,7 +1292,7 @@ class KATPortalClient(object):
         Returns
         -------
         dict:
-            Dictonary of lists.  The keys are the full sensor names.
+            Dictionary of lists.  The keys are the full sensor names.
             The values are lists of :class:`.SensorSample` namedtuples,
             (one per sample, with fields timestamp, value and status)
             or, if include_value_ts was set, then
@@ -1301,18 +1320,119 @@ class KATPortalClient(object):
 
     @tornado.gen.coroutine
     def userlog_tags(self):
+        """Return all userlog tags in the database.
+
+        Returns
+        -------
+        list:
+            List of userlog tags in the database. Example:
+
+            [{
+                'activated': True,
+                'slug': '',
+                'name': 'm047',
+                'id': 1
+            },
+            {
+                'activated': True,
+                'slug': '',
+                'name': 'm046',
+                'id': 2
+            },
+            {
+                'activated': True,
+                'slug': '',
+                'name': 'm045',
+                'id': 3},
+            {..}]
+
         """
-        """
-        # TODO docstring
         url = self.sitemap['userlogs'] + '/tags'
         response = yield self._http_client.fetch(url)
-        raise tornado.gen.Return(response.body)
+        raise tornado.gen.Return(json.loads(response.body))
 
     @tornado.gen.coroutine
     def userlogs(self, start_time=None, end_time=None):
         """
+        Return a list of userlogs in the database that has an start_time
+        and end_time combination that intersects with the given start_time
+        and end_time. For example of an userlog has a start_time before the
+        given start_time and an end time after the given end_time, the time
+        window of that userlog intersects with the time window of the given
+        start_time and end_time.
+
+        If an userlog has no end_time, an end_time of infinity is assumed.
+        For example, if the given end_time is after the userlog's start time,
+        there is an intersection of the two time windows.
+
+        Here are some visual representations of the time window intersections:
+
+                                Start       End
+        Userlog:                  [----------]
+        Search params:                 [-----------------]
+                                      Start              End
+
+                                              Start       End
+        Userlog:                                [----------]
+        Search params:              [-----------------]
+                                  Start              End
+
+                                 Start                End
+        Userlog:                  [--------------------]
+        Search params:                 [---------]
+                                     Start      End
+
+                                 Start     End
+        Userlog:                  [---------]
+        Search params:     [-------------------------]
+                         Start                      End
+
+                                              Start
+        Userlog:                                [-------------------*
+        Search params:              [-----------------]
+                                  Start              End
+
+                                                    End
+        Userlog:             *-----------------------]
+        Search params:                      [-----------------]
+                                          Start              End
+
+        Userlog:            *--------------------------------------*
+        Search params:              [-----------------]
+                                  Start              End
+        Parameters
+        ----------
+        start_time: str
+            A formatted datetime string used as the start of the time window
+            to query. Format: %Y-%m-%d %H:%m:%s.
+            Default: Today (local time) at %Y-%m-%d 00:00:00
+        end_time: str
+            A formatted datetime string used as the end of the time window
+            to query. Format: %Y-%m-%d %H:%m:%s.
+            Default: Today (local time) at %Y-%m-%d 23:59:59
+
+        Returns
+        -------
+        list:
+            List of userlog that intersects with the give start_time and
+            end_time. Example:
+
+            [{
+                'other_metadata': [],
+                'user_id': 1,
+                'attachments': [],
+                'tags': '[]',
+                'timestamp': '2017-02-07 08:47:22',
+                'start_time': '2017-02-07 00:00:00',
+                'modified': '',
+                'content': 'katportalclient userlog creation content!',
+                'parent_id': '',
+                'user': {'email': 'cam@ska.ac.za', 'id': 1, 'name': 'CAM'],
+                'attachment_count': 0,
+                'id': 40,
+                'end_time': '2017-02-07 23:59:59'
+             }, {..}]
         """
-        # TODO docstring
         url = self.sitemap['userlogs'] + '/query?'
         if start_time is None:
             start_time = time.strftime('%Y-%m-%d 00:00:00')
@@ -1325,14 +1445,52 @@ class KATPortalClient(object):
         query_string = urlencode(request_params)
         response = yield self.authorized_fetch(
             url='{}{}'.format(url, query_string), auth_token=self._session_id)
-        raise tornado.gen.Return(response.body)
+        raise tornado.gen.Return(json.loads(response.body))
 
     @tornado.gen.coroutine
     def create_userlog(self, content, tag_ids=None, start_time=None,
                        end_time=None):
         """
+        Create a userlog with specified linked tags and content, start_time
+        and end_time.
+
+        Parameters
+        ----------
+        content: str
+            The content of the userlog, could be any text. Required.
+
+        tag_ids: list
+            A list of tag id's to link to this userlog. Optional.
+            Example: [1, 2, 3, ..]
+
+        start_time: str
+            A formatted datetime string used as the start time of the userlog.
+            Format: %Y-%m-%d %H:%m:%s. Optional.
+
+        end_time: str
+            A formatted datetime string used as the end time of the userlog.
+            Format: %Y-%m-%d %H:%m:%s. Optional.
+
+        Returns
+        -------
+        userlog: dict
+            The userlog that was created. Example:
+            {
+                'other_metadata': [],
+                'user_id': 1,
+                'attachments': [],
+                'tags': '[]',
+                'timestamp': '2017-02-07 08:47:22',
+                'start_time': '2017-02-07 00:00:00',
+                'modified': '',
+                'content': 'katportalclient userlog creation content!',
+                'parent_id': '',
+                'user': {'email': 'cam@ska.ac.za', 'id': 1, 'name': 'CAM'],
+                'attachment_count': 0,
+                'id': 40,
+                'end_time': '2017-02-07 23:59:59'
+             }
         """
-        # TODO docstring
         url = self.sitemap['userlogs']
         new_userlog = {
             'user': self._current_user_id,
@@ -1348,18 +1506,45 @@ class KATPortalClient(object):
         response = yield self.authorized_fetch(
             url=url, auth_token=self._session_id,
             method='POST', body=json.dumps(new_userlog))
-        raise tornado.gen.Return(response.body)
+        raise tornado.gen.Return(json.loads(response.body))
 
     @tornado.gen.coroutine
-    def edit_userlog(self, userlog):
+    def modify_userlog(self, userlog):
         """
+        Modify an existing userlog using the dictionary provided as the
+        modified attributes of the userlog.
+
+        Parameters
+        ----------
+        userlog: dict
+            The userlog with the new values to be modified.
+
+        Returns
+        -------
+        userlog: dict
+            The userlog that was modified. Example:
+            {
+                'other_metadata': [],
+                'user_id': 1,
+                'attachments': [],
+                'tags': '[]',
+                'timestamp': '2017-02-07 08:47:22',
+                'start_time': '2017-02-07 00:00:00',
+                'modified': '',
+                'content': 'katportalclient userlog modified content!',
+                'parent_id': '',
+                'user': {'email': 'cam@ska.ac.za', 'id': 1, 'name': 'CAM'],
+                'attachment_count': 0,
+                'id': 40,
+                'end_time': '2017-02-07 23:59:59'
+             }
         """
-        # TODO docstring
         url = '{}/{}'.format(self.sitemap['userlogs'], userlog['id'])
         response = yield self.authorized_fetch(
             url=url, auth_token=self._session_id,
             method='POST', body=json.dumps(userlog))
-        raise tornado.gen.Return(response.body)
+        raise tornado.gen.Return(json.loads(response.body))
+
 
 class ScheduleBlockNotFoundError(Exception):
     """Raise if requested schedule block is not found."""

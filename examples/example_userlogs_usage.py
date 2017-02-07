@@ -15,7 +15,6 @@ It uses HTTP access to katportal.
 import time
 import logging
 import argparse
-import omnijson as json
 
 import tornado.gen
 
@@ -40,11 +39,6 @@ def main():
     yield portal_client.login(username="cam@ska.ac.za", password="cam")
     tags = yield portal_client.userlog_tags()
     userlogs = yield portal_client.userlogs()
-
-    # katportal returns the results as json strings, so load them for easy
-    # access
-    tags = json.loads(tags)
-    userlogs = json.loads(userlogs)
 
     print "There are %s userlog tags." % len(tags)
     print "=============================="
@@ -75,7 +69,7 @@ def main():
     if userlog_to_edit:
         userlog_to_edit['content'] = 'This content is edited by katportalclient!'
         userlog_to_edit['end_time'] = userlog_to_edit['start_time']
-        result = yield portal_client.edit_userlog(userlog_to_edit)
+        result = yield portal_client.modify_userlog(userlog_to_edit)
         print "=============================="
         print "Edited userlog! Result: "
         print result
