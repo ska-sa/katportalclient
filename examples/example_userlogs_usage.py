@@ -65,7 +65,7 @@ def main():
     print "=============================="
 
     # To edit an existing userlog, user edit_userlog with the modified userlog
-    userlog_to_edit = userlogs[0] if userlogs else None
+    userlog_to_edit = userlogs[-1] if userlogs else None
     if userlog_to_edit:
         userlog_to_edit['content'] = 'This content is edited by katportalclient!'
         userlog_to_edit['end_time'] = userlog_to_edit['start_time']

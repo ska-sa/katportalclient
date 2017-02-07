@@ -1509,7 +1509,7 @@ class KATPortalClient(object):
         raise tornado.gen.Return(json.loads(response.body))
 
     @tornado.gen.coroutine
-    def modify_userlog(self, userlog):
+    def modify_userlog(self, userlog, tag_ids=None):
         """
         Modify an existing userlog using the dictionary provided as the
         modified attributes of the userlog.
@@ -1518,6 +1518,12 @@ class KATPortalClient(object):
         ----------
         userlog: dict
             The userlog with the new values to be modified.
+
+        tag_ids: list
+            A list of tag id's to link to this userlog. Optional, if this is
+            not specified, the tags attribute of the given userlog will be
+            used.
+            Example: [1, 2, 3, ..]
 
         Returns
         -------
@@ -1539,6 +1545,16 @@ class KATPortalClient(object):
                 'end_time': '2017-02-07 23:59:59'
              }
         """
+        if tag_ids is None and 'tags' in userlog:
+            try:
+                userlog['tag_ids'] = [
+                    tag_id for tag_id in json.loads(userlog['tags'])]
+            except Exception:
+                self._logger.exception(
+                    'Could not parse the tags field of the userlog: %s', userlog)
+                raise
+        else:
+            userlog['tag_ids'] = tag_ids
         url = '{}/{}'.format(self.sitemap['userlogs'], userlog['id'])
         response = yield self.authorized_fetch(
             url=url, auth_token=self._session_id,
