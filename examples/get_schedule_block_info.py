@@ -46,22 +46,42 @@ def main():
         sb_detail = yield portal_client.schedule_block_detail(sb_ids[0])
         print "\nDetail for SB {}:\n{}\n".format(sb_ids[0], sb_detail)
         # Example output:
-        #   Detail for SB 20161010-0001:
-        #   {u'id_code': u'20161010-0001', u'owner': u'CAM', u'actual_end_time': None,
-        #    u'instruction_set': u'run-obs-script ~/svn/katscripts/cam/basic-session-track.py azel,20,30 -t 10 -n off ',
-        #    u'ready': True,
-        #    u'resource_spec': {u'antenna_spec': u'available', u'schedule_block_id': 287,
-        #                       u'controlled_resources': u'data', u'id': 287},
-        #    u'id': 287, u'scheduled_time': u'2016-10-10 12:17:06.000Z',
-        #    u'priority': u'LOW', u'state': u'SCHEDULED', u'config_label': u'',
-        #    u'type': u'OBSERVATION', u'actual_start_time': None,
-        #    u'description': u'a test sb', u'verification_state': u'VERIFIED',
-        #    u'sub_nr': 1, u'desired_start_time': None, u'expected_duration_seconds': 89,
-        #    u'dry_run_resource_alloc': {u'antennas': u'm011,m022',
-        #                                u'schedule_block_id': 287,
-        #                                u'controlled_resources': u'data_1', u'id': 304},
-        #    u'notes': u'(Cloned from 20160908-0001) None', u'outcome': u'UNKNOWN',
-        #    u'resource_alloc': None}
+        # Detail for SB 20161010-0001:
+        # {u'antennas_dry_run_alloc': u'm011',
+        #  u'id_code': u'20170208-0001',
+        #  u'obs_readiness': u'READY_TO_EXECUTE',
+        #  u'owner': u'CAM',
+        #  u'actual_end_time': None,
+        #  u'antennas_alloc': None,
+        #  u'instruction_set': u'run-obs-script ~/scripts/cam/basic-script.py '
+        #                      u'-t 20 -m 360 --proposal-id=CAM_AQF '
+        #                      u'--program-block-id=CAM_basic_script',
+        #  u'controlled_resources_alloc': None,
+        #  u'targets': u'[{"track_start_offset":73.0233476162,"target":"PKS 0023-26 '
+        #              u'| J0025-2602 | OB-238, radec, 0:25:49.16, -26:02:12.6, '
+        #              u'(1410.0 8400.0 -1.694 2.107 -0.4043)","track_duration":20.0}]',
+        #              u'scheduled_time': u'2017-02-08 11:53:34.000Z',
+        #              u'lead_operator_priority': None,
+        #              u'id': 156,
+        #              u'antenna_spec': u'm011',
+        #              u'state': u'SCHEDULED',
+        #              u'config_label': u'',
+        #              u'pb_id': None,
+        #              u'type': u'OBSERVATION',
+        #              u'actual_start_time': None,
+        #              u'description': u'Track for m011',
+        #              u'verification_state': u'VERIFIED',
+        #              u'sb_order': None,
+        #              u'sub_nr': 1,
+        #              u'desired_start_time': None,
+        #              u'sb_sequence': None,
+        #              u'expected_duration_seconds': 400,
+        #              u'action_time': u'2017-02-08 11:53:34.000Z',
+        #              u'controlled_resources_spec': u'',
+        #              u'controlled_resources_dry_run_alloc': u'',
+        #              u'notes': u'(Cloned from 20170123-0017) ',
+        #              u'outcome': u'UNKNOWN',
+        #              u'data_quality': None}
 
 
 if __name__ == '__main__':

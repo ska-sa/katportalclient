@@ -927,17 +927,29 @@ class KATPortalClient(object):
             Ordered list of future targets that was determined by the
             verification dry run.
             Example:
-            [{
-                'name': 'Moon',
-                'track_duration': 60.0,
-                'slew_time': 53.6153013706
-                'start_offset': 0.0,
-            },
-                'name': 'Sun',
-                'track_duration': 60.0,
-                'slew_time': 20.9873
-                'start_offset': 113.6153013706,
-            }, {..}]
+            [
+                {
+                    "track_start_offset":39.8941187859,
+                    "target":"PKS 0023-26 | J0025-2602 | OB-238, radec, "
+                             "0:25:49.16, -26:02:12.6, "
+                             "(1410.0 8400.0 -1.694 2.107 -0.4043)",
+                    "track_duration":20.0
+                },
+                {
+                    "track_start_offset":72.5947952271,
+                    "target":"PKS 0043-42 | J0046-4207, radec, "
+                             "0:46:17.75, -42:07:51.5, "
+                             "(400.0 2000.0 3.12 -0.7)",
+                    "track_duration":20.0
+                },
+                {
+                    "track_start_offset":114.597304821,
+                    "target":"PKS 0408-65 | J0408-6545, radec, "
+                             "4:08:20.38, -65:45:09.1, "
+                             "(1410.0 8400.0 -3.708 3.807 -0.7202)",
+                    "track_duration":20.0
+                }
+            ]
         Raises
         ------
         ScheduleBlockTargetsParsingError:
