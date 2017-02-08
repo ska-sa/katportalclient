@@ -1448,7 +1448,7 @@ class KATPortalClient(object):
                 'modified': '',
                 'content': 'katportalclient userlog creation content!',
                 'parent_id': '',
-                'user': {'email': 'cam@ska.ac.za', 'id': 1, 'name': 'CAM'],
+                'user': {'email': 'cam@ska.ac.za', 'id': 1, 'name': 'CAM'},
                 'attachment_count': 0,
                 'id': 40,
                 'end_time': '2017-02-07 23:59:59'
@@ -1506,7 +1506,7 @@ class KATPortalClient(object):
                 'modified': '',
                 'content': 'katportalclient userlog creation content!',
                 'parent_id': '',
-                'user': {'email': 'cam@ska.ac.za', 'id': 1, 'name': 'CAM'],
+                'user': {'email': 'cam@ska.ac.za', 'id': 1, 'name': 'CAM'},
                 'attachment_count': 0,
                 'id': 40,
                 'end_time': '2017-02-07 23:59:59'
@@ -1560,7 +1560,7 @@ class KATPortalClient(object):
                 'modified': '',
                 'content': 'katportalclient userlog modified content!',
                 'parent_id': '',
-                'user': {'email': 'cam@ska.ac.za', 'id': 1, 'name': 'CAM'],
+                'user': {'email': 'cam@ska.ac.za', 'id': 1, 'name': 'CAM'},
                 'attachment_count': 0,
                 'id': 40,
                 'end_time': '2017-02-07 23:59:59'
