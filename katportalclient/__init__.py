@@ -10,7 +10,7 @@
 
 from client import (
     KATPortalClient, ScheduleBlockNotFoundError, SensorNotFoundError,
-    SensorHistoryRequestError, ScheduleBlockTargetsParsingError)
+    SensorHistoryRequestError, ScheduleBlockTargetsParsingError, create_jwt_login_token)
 from request import JSONRPCRequest
 
 # BEGIN VERSION CHECK

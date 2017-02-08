@@ -180,11 +180,15 @@ class KATPortalClient(object):
         session_id for this client. In order to call HTTP requests that
         requires authentication, the user will need to login in again.
         """
-        url = self.sitemap['authorization'] + '/user/logout'
-        response = yield self.authorized_fetch(
-            url=url, auth_token=self._session_id, method='POST', body='{}')
-        self._logger.info("Logout result: %s", response.body)
-        self._session_id = None
+        try:
+            url = self.sitemap['authorization'] + '/user/logout'
+            response = yield self.authorized_fetch(
+                url=url, auth_token=self._session_id, method='POST', body='{}')
+            self._logger.info("Logout result: %s", response.body)
+        finally:
+            # Clear the local session_id, no matter what katportal says
+            self._session_id = None
+            self._current_user_id = None
 
     @tornado.gen.coroutine
     def login(self, username, password, role='read_only'):
@@ -209,7 +213,7 @@ class KATPortalClient(object):
 
         try:
             response_json = json.loads(response.body)
-            if response_json.get('logged_in', False) or response_json.get('session_id'):
+            if not response_json.get('logged_in', False) or response_json.get('session_id'):
                 self._session_id = response_json.get('session_id')
                 self._current_user_id = response_json.get('user_id')
 
@@ -221,6 +225,8 @@ class KATPortalClient(object):
                 self._logger.info('Succesfully logged in as %s',
                                   response_json.get('email'))
             else:
+                self._session_id = None
+                self._current_user_id = None
                 self._logger.error('Error in logging see response %s',
                                    response)
         except Exception:
@@ -493,7 +499,8 @@ class KATPortalClient(object):
             if req.method == 'subscribe':
                 self._logger.info('Resending JSONRPCRequest %s', req)
                 result = yield self._send(req)
-                self._logger.info('Resent JSONRPCRequest, with result: %s', result)
+                self._logger.info(
+                    'Resent JSONRPCRequest, with result: %s', result)
 
     @tornado.gen.coroutine
     def _websocket_message(self, msg):
@@ -557,7 +564,8 @@ class KATPortalClient(object):
                 if (isinstance(msg_data, dict) and
                         'inform_type' in msg_data and
                         msg_data['inform_type'] == 'sample_history'):
-                    # inform message which provides synchronisation information.
+                    # inform message which provides synchronisation
+                    # information.
                     inform = msg_data['inform_data']
                     num_new_samples = inform['num_samples_to_be_published']
                     state['num_samples_pending'] += num_new_samples
@@ -1230,7 +1238,8 @@ class KATPortalClient(object):
             'chunk_size': SAMPLE_HISTORY_CHUNK_SIZE,
             'limit': MAX_SAMPLES_PER_HISTORY_QUERY
         }
-        url = url_concat(self.sitemap['historic_sensor_values'] + '/samples', params)
+        url = url_concat(
+            self.sitemap['historic_sensor_values'] + '/samples', params)
         self._logger.debug("Sensor history request: %s", url)
         response = yield self._http_client.fetch(url)
         data = json.loads(response.body)

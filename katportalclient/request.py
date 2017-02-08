@@ -50,5 +50,6 @@ class JSONRPCRequest(object):
     def method_and_params_hash(self):
         """Return a hash for the methods and params attributes for easy comparison"""
         # cast self.params to string because we can only hash immutable objects
-        # if params is a list or set or anything like that, this will raise a TypeError
+        # if params is a list or set or anything like that, this will raise a
+        # TypeError
         return hash((self.method, str(self.params)))
