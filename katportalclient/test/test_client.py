@@ -234,6 +234,99 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         self.assertIsNotNone(self._portal_client)
         yield self._portal_client.connect()
         self.assertTrue(self._portal_client.is_connected)
+        self.assertTrue(self._portal_client._heart_beat_timer.is_running())
+        self.assertFalse(self._portal_client._disconnect_issued)
+
+    @gen_test
+    def test_reconnect(self):
+        self.assertIsNotNone(self._portal_client)
+        yield self._portal_client.connect()
+        self.assertTrue(self._portal_client.is_connected)
+        self.assertTrue(self._portal_client._heart_beat_timer.is_running())
+        connect_future = gen.Future()
+        self._portal_client._connect = mock.MagicMock(
+            return_value=connect_future)
+        connect_future.set_result(None)
+        yield self._portal_client._websocket_message(None)
+        self._portal_client._connect.assert_called_with(reconnecting=True)
+
+    @gen_test
+    def test_resend_subscriptions_and_strategies_after_reconnect(self):
+        self.assertIsNotNone(self._portal_client)
+        yield self._portal_client.connect()
+        self.assertTrue(self._portal_client.is_connected)
+        self.assertTrue(self._portal_client._heart_beat_timer.is_running())
+        resend_future = gen.Future()
+        self._portal_client._resend_subscriptions_and_strategies = mock.MagicMock(
+            return_value=resend_future)
+        resend_future.set_result(None)
+        yield self._portal_client._websocket_message(None)
+        self._portal_client._resend_subscriptions_and_strategies.assert_called_once()
+
+        # test another reconnect if resending the strategies did not work on a reconnect
+        resend_future2 = gen.Future()
+        resend_future2.set_result(None)
+        self._portal_client._resend_subscriptions_and_strategies = mock.MagicMock(
+            return_value=resend_future2)
+        self._portal_client._resend_subscriptions_and_strategies.side_effect = Exception(
+            'some exception was thrown while _resend_subscriptions_and_strategies')
+        self._portal_client._io_loop.call_later = mock.MagicMock()
+        yield self._portal_client._websocket_message(None)
+        self._portal_client._io_loop.call_later.assert_called_once()
+
+    @gen_test
+    def test_server_redis_reconnect_message(self):
+        self.assertIsNotNone(self._portal_client)
+        yield self._portal_client.connect()
+        self.assertTrue(self._portal_client.is_connected)
+        self.assertTrue(self._portal_client._heart_beat_timer.is_running())
+        resend_future = gen.Future()
+        self._portal_client._resend_subscriptions = mock.MagicMock(
+            return_value=resend_future)
+        self._portal_client._websocket_message('{"id": "redis-reconnect"}')
+        resend_future.set_result(None)
+        self._portal_client._resend_subscriptions.assert_called_once()
+
+    @gen_test
+    def test_resend_subscriptions(self):
+        self.assertIsNotNone(self._portal_client)
+        yield self._portal_client.connect()
+        self.assertTrue(self._portal_client.is_connected)
+        self.assertTrue(self._portal_client._heart_beat_timer.is_running())
+        send_future = gen.Future()
+        send_future.set_result('Test _send success')
+        self._portal_client._send = mock.MagicMock(
+            return_value=send_future)
+        self._portal_client._ws_jsonrpc_cache = [
+            JSONRPCRequest(method='subscribe', params='test params1'),
+            JSONRPCRequest(method='subscribe', params='test params2'),
+            JSONRPCRequest(method='not_subscribe', params='test params3'),
+            JSONRPCRequest(method='unsubscribe', params='test params4'),
+            JSONRPCRequest(method='subscribe', params='test params5'),
+            JSONRPCRequest(method='subscribe', params='test params6')]
+        yield self._portal_client._resend_subscriptions()
+        # only subscribes must be resent!
+        self.assertEquals(self._portal_client._send.call_count, 4)
+
+    @gen_test
+    def test_resend_subscriptions_and_strategies(self):
+        self.assertIsNotNone(self._portal_client)
+        yield self._portal_client.connect()
+        self.assertTrue(self._portal_client.is_connected)
+        self.assertTrue(self._portal_client._heart_beat_timer.is_running())
+        send_future = gen.Future()
+        send_future.set_result('Test _send success')
+        self._portal_client._send = mock.MagicMock(
+            return_value=send_future)
+        self._portal_client._ws_jsonrpc_cache = [
+            JSONRPCRequest(method='subscribe', params='test params1'),
+            JSONRPCRequest(method='subscribe', params='test params2'),
+            JSONRPCRequest(method='not_subscribe', params='test params3'),
+            JSONRPCRequest(method='unsubscribe', params='test params4'),
+            JSONRPCRequest(method='set_sampling_strategy', params='test params5'),
+            JSONRPCRequest(method='set_sampling_strategies', params='test params6')]
+        yield self._portal_client._resend_subscriptions_and_strategies()
+        self.assertEquals(self._portal_client._send.call_count, 6)
 
     @gen_test
     def test_disconnect(self):
@@ -242,6 +335,9 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         self.assertTrue(self._portal_client.is_connected)
         self._portal_client.disconnect()
         self.assertFalse(self._portal_client.is_connected)
+        self.assertFalse(self._portal_client._heart_beat_timer.is_running())
+        self.assertEquals(self._portal_client._ws_jsonrpc_cache, [])
+        self.assertTrue(self._portal_client._disconnect_issued)
 
     @gen_test
     def test_add(self):
@@ -255,33 +351,107 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             yield self._portal_client.add(8, 67)
 
     @gen_test
+    def test_cache_jsonrpc_request(self):
+        req1 = JSONRPCRequest('test1', 'test_params1')
+        req2 = JSONRPCRequest('test2', ['test_params2', 'test_params2'])
+        req3 = JSONRPCRequest('subscribe', ['namespace', 'sub_strings'])
+        req4 = JSONRPCRequest('unsubscribe', ['namespace', 'sub_strings'])
+        req5 = JSONRPCRequest('set_sampling_strategy',
+                              ['namespace', 'sensor_name', 'strategy_and_params'])
+        req6 = JSONRPCRequest('set_sampling_strategy',
+                              ['namespace', 'sensor_name', 'none'])
+        req7 = JSONRPCRequest('set_sampling_strategies',
+                              ['namespace', 'sensor_name', 'strategy_and_params'])
+        req8 = JSONRPCRequest('set_sampling_strategies',
+                              ['namespace', 'sensor_name', 'none'])
+        self._portal_client._cache_jsonrpc_request(req1)
+        self.assertEquals(len(self._portal_client._ws_jsonrpc_cache), 1)
+        self.assertEquals(self._portal_client._ws_jsonrpc_cache[0].id, req1.id)
+        self._portal_client._cache_jsonrpc_request(req2)
+        self.assertEquals(len(self._portal_client._ws_jsonrpc_cache), 2)
+        self.assertEquals(self._portal_client._ws_jsonrpc_cache[0].id, req1.id)
+        self.assertEquals(self._portal_client._ws_jsonrpc_cache[1].id, req2.id)
+        # test no duplicates are added
+        self._portal_client._cache_jsonrpc_request(req1)
+        self.assertEquals(len(self._portal_client._ws_jsonrpc_cache), 2)
+        self.assertEquals(self._portal_client._ws_jsonrpc_cache[0].id, req1.id)
+        self.assertEquals(self._portal_client._ws_jsonrpc_cache[1].id, req2.id)
+        # test subscriptions are added
+        self._portal_client._cache_jsonrpc_request(req3)
+        self.assertEquals(len(self._portal_client._ws_jsonrpc_cache), 3)
+        self.assertEquals(self._portal_client._ws_jsonrpc_cache[0].id, req1.id)
+        self.assertEquals(self._portal_client._ws_jsonrpc_cache[1].id, req2.id)
+        self.assertEquals(self._portal_client._ws_jsonrpc_cache[2].id, req3.id)
+        # test no duplicate subscriptions are added
+        self._portal_client._cache_jsonrpc_request(req3)
+        self.assertEquals(len(self._portal_client._ws_jsonrpc_cache), 3)
+        self.assertEquals(self._portal_client._ws_jsonrpc_cache[0].id, req1.id)
+        self.assertEquals(self._portal_client._ws_jsonrpc_cache[1].id, req2.id)
+        self.assertEquals(self._portal_client._ws_jsonrpc_cache[2].id, req3.id)
+        # test that an unsubscribe removes a subscribe message
+        self._portal_client._cache_jsonrpc_request(req4)
+        self.assertEquals(len(self._portal_client._ws_jsonrpc_cache), 2)
+        self.assertEquals(self._portal_client._ws_jsonrpc_cache[0].id, req1.id)
+        self.assertEquals(self._portal_client._ws_jsonrpc_cache[1].id, req2.id)
+        # test set_sampling_strategy and set_sampling_strategies are added
+        self._portal_client._cache_jsonrpc_request(req5)
+        self._portal_client._cache_jsonrpc_request(req7)
+        self.assertEquals(len(self._portal_client._ws_jsonrpc_cache), 4)
+        self.assertEquals(self._portal_client._ws_jsonrpc_cache[2].id, req5.id)
+        self.assertEquals(self._portal_client._ws_jsonrpc_cache[3].id, req7.id)
+        # test set_sampling_strategy and set_sampling_strategies are not duplicated
+        self._portal_client._cache_jsonrpc_request(req5)
+        self._portal_client._cache_jsonrpc_request(req7)
+        self.assertEquals(len(self._portal_client._ws_jsonrpc_cache), 4)
+        self.assertEquals(self._portal_client._ws_jsonrpc_cache[2].id, req5.id)
+        self.assertEquals(self._portal_client._ws_jsonrpc_cache[3].id, req7.id)
+        # test that set_sampling_strategy and set_sampling_strategies are removed
+        # when a strategy of none is given
+        self._portal_client._cache_jsonrpc_request(req6)
+        self._portal_client._cache_jsonrpc_request(req8)
+        self.assertEquals(len(self._portal_client._ws_jsonrpc_cache), 2)
+        self.assertEquals(self._portal_client._ws_jsonrpc_cache[0].id, req1.id)
+        self.assertEquals(self._portal_client._ws_jsonrpc_cache[1].id, req2.id)
+        # test cache is cleared on a disconnect
+        self._portal_client.disconnect()
+        self.assertEquals(len(self._portal_client._ws_jsonrpc_cache), 0)
+
+    @gen_test
     def test_subscribe(self):
+        self._portal_client._cache_jsonrpc_request = mock.MagicMock()
         yield self._portal_client.connect()
         result = yield self._portal_client.subscribe('planets', ['jupiter', 'm*'])
         self.assertEqual(result, 2)
+        self._portal_client._cache_jsonrpc_request.assert_called_once()
 
     @gen_test
     def test_unsubscribe(self):
+        self._portal_client._cache_jsonrpc_request = mock.MagicMock()
         yield self._portal_client.connect()
         result = yield self._portal_client.unsubscribe(
             'alpha', ['a*', 'b*', 'c*', 'd', 'e'])
         self.assertEqual(result, 5)
+        self._portal_client._cache_jsonrpc_request.assert_called_once()
 
     @gen_test
     def test_set_sampling_strategy(self):
+        self._portal_client._cache_jsonrpc_request = mock.MagicMock()
         yield self._portal_client.connect()
         result = yield self._portal_client.set_sampling_strategy(
             'ants', 'mode', 'period 1')
         self.assertTrue(isinstance(result, dict))
         self.assertTrue('mode' in result.keys())
+        self._portal_client._cache_jsonrpc_request.assert_called_once()
 
     @gen_test
     def test_set_sampling_strategies(self):
+        self._portal_client._cache_jsonrpc_request = mock.MagicMock()
         yield self._portal_client.connect()
         result = yield self._portal_client.set_sampling_strategies(
             'ants', ['mode', 'sensors_ok', 'ap_connected'], 'event-rate 1 5')
         self.assertTrue(isinstance(result, dict))
         self.assertTrue('mode' in result.keys())
+        self._portal_client._cache_jsonrpc_request.assert_called_once()
 
     @gen_test
     def test_on_update_callback(self):
@@ -1025,8 +1195,8 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         userlog = yield self._portal_client.create_userlog(
             content='test content',
             tag_ids=[1, 2, 3],
-            start_time=None,
-            end_time=None)
+            start_time='2017-02-07 08:47:22',
+            end_time='2017-02-07 08:47:22')
         self.assertEquals(
             userlog,
             {u'other_metadata': u'[]', u'user_id': u'1', u'attachments': u'[]',

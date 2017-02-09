@@ -399,16 +399,21 @@ class KATPortalClient(object):
         _websocket_message callback function with None as the message, where we realise
         that the websocket connection has failed.
         """
-        self._ws.write_message('PING')
+        if self._ws is not None:
+            self._ws.write_message('PING')
+        else:
+            self._logger.debug('Attempting to send a PING over a closed websocket!')
 
     def disconnect(self):
         """Disconnect from the connected websocket server."""
         if self._heart_beat_timer.is_running():
             self._heart_beat_timer.stop()
 
+        self._disconnect_issued = True
+        self._ws_jsonrpc_cache = []
+        self._logger.debug("Cleared JSONRPCRequests cache.")
+
         if self.is_connected:
-            self._disconnect_issued = True
-            self._ws_jsonrpc_cache = []
             self._ws.close()
             self._ws = None
             self._logger.debug("Disconnected client websocket.")
@@ -453,7 +458,7 @@ class KATPortalClient(object):
                     requests_to_remove.append(req)
         elif (jsonrpc_request.method.startswith('set_sampling_strat') and
               jsonrpc_request.params[2] == 'none'):
-            # index 2 of params is always the sampling strategy
+            # index 1 of params is always the sampling strategy
             for req in self._ws_jsonrpc_cache:
                 # match the namespace and sensor/filter combination
                 # namespace is always at index 0 of params and sensor/filter
@@ -522,10 +527,11 @@ class KATPortalClient(object):
         if msg is None:
             self._logger.warn("Websocket server disconnected!")
             if not self._disconnect_issued:
-                self._ws.close()
-                self._ws = None
+                if self._ws is not None:
+                    self._ws.close()
+                    self._ws = None
                 yield self._connect(reconnecting=True)
-            return
+            raise tornado.gen.Return()
         try:
             msg = json.loads(msg)
             self._logger.debug("Message received: %s", msg)
