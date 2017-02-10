@@ -44,22 +44,25 @@ def main():
     # sensor_names = yield portal_client.sensor_names(pattern)
     # print "\nMatching sensor names for pattern {} : {}".format(pattern, sensor_names)
     # Example output:
-    #   Matching sensor names for pattern ['anc_w.*_device_status']: [u'anc_wind_device_status', u'anc_weather_device_status']
+    # Matching sensor names for pattern ['anc_w.*_device_status']:
+    # [u'anc_wind_device_status', u'anc_weather_device_status']
 
     # Get the names of sensors matching a pattern
     # pattern = 'anc_(mean|gust)_wind_speed'
     # sensor_names = yield portal_client.sensor_names(pattern)
     # print "\nMatching sensor names for pattern {} : {}".format(pattern, sensor_names)
     # Example output:
-    #   Matching sensor names for pattern ['anc_(mean|gust)_wind_speed']: [u'anc_mean_wind_speed', u'anc_gust_wind_speed']
+    # Matching sensor names for pattern ['anc_(mean|gust)_wind_speed']:
+    # [u'anc_mean_wind_speed', u'anc_gust_wind_speed']
 
     # Get the names of sensors matching a list of patterns
     # pattern = 'm01[12]_pos_request_base_azim'
     # sensor_names = yield portal_client.sensor_names(pattern)
     # print "\nMatching sensor names for pattern {} : {}".format(pattern, sensor_names)
     # Example output (if sensors is 'm01[12]_pos_request_base_azim'):
-    #   Matching sensor names for pattern ['m01[12]_pos_request_base_azim']: [u'm011_pos_request_base_azim', u'm011_pos_request_base_azim']
-    
+    # Matching sensor names for pattern ['m01[12]_pos_request_base_azim']:
+    # [u'm011_pos_request_base_azim', u'm011_pos_request_base_azim']
+
     # Fetch the details for the sensors found.
     if len(sensor_names) == 0:
         print "No matching sensors found!"
@@ -94,8 +97,11 @@ def main():
     #
     # Another Example: ./get_sensor_info.py --host devx.camlab.kat.ac.za anc_.*_wind_speed
     #
-    # Matching sensor names for pattern ['anc_.*_wind_speed']: [u'anc_asc_wind_speed', u'anc_gust_wind_speed', u'anc_mean_wind_speed', u'anc_wind_wind_speed', u'anc_asccombo_wind_speed_2', u'anc_weather_wind_speed']
-    
+    # Matching sensor names for pattern ['anc_.*_wind_speed']:
+    # [u'anc_asc_wind_speed', u'anc_gust_wind_speed', u'anc_mean_wind_speed',
+    # u'anc_wind_wind_speed', u'anc_asccombo_wind_speed_2',
+    # u'anc_weather_wind_speed']
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(

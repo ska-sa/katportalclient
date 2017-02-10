@@ -36,7 +36,7 @@ def main():
                                     on_update_callback=None, logger=logger)
 
     # Login so that we know which user to create userlogs for!
-    yield portal_client.login(username="cam@ska.ac.za", password="cam")
+    yield portal_client.login(username="user@example.com", password="password")
     tags = yield portal_client.userlog_tags()
     userlogs = yield portal_client.userlogs()
 

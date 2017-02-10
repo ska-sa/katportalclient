@@ -64,16 +64,16 @@ def main():
         #       type: float
         #       description: Requested target azimuth
 
-
     num_sensors = len(sensor_names)
     if num_sensors == 0:
         print "\nNo matching sensors found - no history to request!"
     else:
         print ("\nRequesting history for {} sensors, from {} to {}"
                .format(
-                    num_sensors,
-                    datetime.utcfromtimestamp(args.start).strftime('%Y-%m-%dT%H:%M:%SZ'),
-                    datetime.utcfromtimestamp(args.end).strftime('%Y-%m-%dT%H:%M:%SZ')))
+                   num_sensors,
+                   datetime.utcfromtimestamp(
+                       args.start).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                   datetime.utcfromtimestamp(args.end).strftime('%Y-%m-%dT%H:%M:%SZ')))
         if len(sensor_names) == 1:
             # Request history for just a single sensor - result is timestamp, value, status
             #    If value timestamp is also required, then add the additional argument: include_value_ts=True
@@ -128,7 +128,7 @@ if __name__ == '__main__':
         help="hostname or IP of the portal server (default: %(default)s).")
     parser.add_argument(
         '-s', '--start',
-        default=time.time()-3600,
+        default=time.time() - 3600,
         type=int,
         help="start time of sample query [sec since UNIX epoch] (default: 1h ago).")
     parser.add_argument(
