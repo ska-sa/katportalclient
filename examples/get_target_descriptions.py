@@ -7,8 +7,8 @@
 # THIS SOFTWARE MAY NOT BE COPIED OR DISTRIBUTED IN ANY FORM WITHOUT THE      #
 # WRITTEN PERMISSION OF SKA SA.                                               #
 ###############################################################################
-"""Simple example demonstrating getting pointing information by supplying a
-reference observer location and time.
+"""Simple example demonstrating getting future pointing information by supplying
+a schedule block id code.
 
 This example uses HTTP access to katportal, not websocket access.
 """
@@ -38,44 +38,23 @@ def main():
     print results
 
     # Example output:
-    # [{u'target': u'Moon', u'slew_time': 53.6153013706, u'track_duration': 60.0, u'start_offset': 113.6153013706}]
-
-    portal_client.set_reference_observer_config(
-        longitude=10.0,
-        latitude=10.0,
-        altitude=10.0,
-        timestamp=time.time() + 3600)  # one hour in the future
-
-    results = yield portal_client.future_targets_detail(
-        '{sb_id_code}'.format(**vars(args)))
-    print results
-
-    # Example output:
-    # [{
-    #     u'name': u'Moon',
-    #     u'description': u'Moon,special',
-    #     u'track_duration': 60.0,
-    #     u'slew_time': 53.6153013706,
-    #     u'start_offset': 113.6153013706,
-    #     u'azel': [3.6399178505, 1.3919397593],
-    #     u'astrometric_radec': [0.180696943, 0.0180189191],
-    #     u'tags': [u'special'],
-    #     u'apparent_radec': [0.1830730793, 0.0169845125],
-    #     u'body_type': u'special',
-    #     u'galactic': [2.0531028499, -1.0774995277],
-    #     u'parallactic_angle': 0.49015412010000003,
-    #     u'uvw_basis': [[0.996376853, -0.0150540303, 0.0837050956],
-    #                    [0.0017334140000000002, 0.9875998825000001, 0.156982379],
-    #                    [-0.08503036010000001, -0.15626851320000001, 0.9840477578000001]]
-    # }]
-
-    # To use the default array reference observer, call the set_reference_observer_config
-    # with no parameters. This will also then default to using utc time to calculate the
-    # pointing details
-    portal_client.set_reference_observer_config()
-    results = yield portal_client.future_targets_detail(
-        '{sb_id_code}'.format(**vars(args)))
-    print results
+    # [
+    #     {
+    #         "track_start_offset":39.8941187859,
+    #         "target":"PKS 0023-26 | J0025-2602 | OB-238, radec, 0:25:49.16, -26:02:12.6, (1410.0 8400.0 -1.694 2.107 -0.4043)",
+    #         "track_duration":20.0
+    #     },
+    #     {
+    #         "track_start_offset":72.5947952271,
+    #         "target":"PKS 0043-42 | J0046-4207, radec, 0:46:17.75, -42:07:51.5, (400.0 2000.0 3.12 -0.7)",
+    #         "track_duration":20.0
+    #     },
+    #     {
+    #         "track_start_offset":114.597304821,
+    #         "target":"PKS 0408-65 | J0408-6545, radec, 4:08:20.38, -65:45:09.1, (1410.0 8400.0 -3.708 3.807 -0.7202)",
+    #         "track_duration":20.0
+    #     }
+    # ]
 
 
 if __name__ == '__main__':

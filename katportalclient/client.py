@@ -10,6 +10,10 @@
 Websocket client and HTTP module for access to katportal webservers.
 """
 
+
+import base64
+import hashlib
+import hmac
 import logging
 import uuid
 import time
@@ -23,7 +27,8 @@ import tornado.httpclient
 import tornado.locks
 import omnijson as json
 from tornado.websocket import websocket_connect
-from tornado.httputil import url_concat
+from tornado.httputil import url_concat, HTTPHeaders
+from tornado.httpclient import HTTPRequest
 from tornado.ioloop import PeriodicCallback
 
 from request import JSONRPCRequest
@@ -47,6 +52,40 @@ WS_HEART_BEAT_INTERVAL = 20000  # in milliseconds
 module_logger = logging.getLogger('kat.katportalclient')
 
 
+def create_jwt_login_token(email, password):
+    """Creates a JWT login token. See http://jwt.io for the industry standard
+    specifications.
+
+    Parameters
+    ----------
+    email: str
+        The email address of the user to include in the token. This email
+        address needs to exist in the kaportal user database to be able to
+        authenticate.
+    password: str
+        The password for the user specified in the email address to include
+        in the JWT login token.
+
+    Returns
+    -------
+    jwt_auth_token: str
+        The authentication token to include in the HTTP Authorization header
+        when verifying a user's credentials on katportal.
+    """
+    jwt_header_alg = base64.standard_b64encode(u'{"alg":"HS256","typ":"JWT"}')
+    jwt_header_email = base64.standard_b64encode(
+        u'{"email":"%s"}' % email).strip('=')
+    jwt_header = '.'.join([jwt_header_alg, jwt_header_email])
+
+    password_sha = hashlib.sha256(password).hexdigest()
+    dig = hmac.new(password_sha, msg=jwt_header,
+                   digestmod=hashlib.sha256).digest()
+    password_encrypted = base64.b64encode(dig).decode()
+    jwt_auth_token = '.'.join([jwt_header, password_encrypted])
+
+    return jwt_auth_token
+
+
 class SensorSample(namedtuple('SensorSample', 'timestamp, value, status')):
     """Class to represent all sensor samples.
 
@@ -62,6 +101,7 @@ class SensorSample(namedtuple('SensorSample', 'timestamp, value, status')):
             by the KATCP protocol. Examples: 'nominal', 'warn', 'failure', 'error',
             'critical', 'unreachable', 'unknown', etc.
     """
+
     def csv(self):
         """Returns sample in comma separated values format."""
         return '{},{},{}'.format(self.timestamp, self.value, self.status)
@@ -86,6 +126,7 @@ class SensorSampleValueTs(namedtuple(
             by the KATCP protocol. Examples: 'nominal', 'warn', 'failure', 'error',
             'critical', 'unreachable', 'unknown', etc.
     """
+
     def csv(self):
         """Returns sample in comma separated values format."""
         return '{},{},{},{}'.format(
@@ -131,6 +172,81 @@ class KATPortalClient(object):
         self._ws_jsonrpc_cache = []
         self._heart_beat_timer = PeriodicCallback(
             self._send_heart_beat, WS_HEART_BEAT_INTERVAL)
+        self._current_user_id = None
+
+    @tornado.gen.coroutine
+    def logout(self):
+        """ Logs user out of katportal. Katportal then deletes the cached
+        session_id for this client. In order to call HTTP requests that
+        requires authentication, the user will need to login again.
+        """
+        try:
+            if self._session_id is not None:
+                url = self.sitemap['authorization'] + '/user/logout'
+                response = yield self.authorized_fetch(
+                    url=url, auth_token=self._session_id, method='POST', body='{}')
+                self._logger.info("Logout result: %s", response.body)
+        finally:
+            # Clear the local session_id, no matter what katportal says
+            self._session_id = None
+            self._current_user_id = None
+
+    @tornado.gen.coroutine
+    def login(self, username, password, role='read_only'):
+        """
+        Logs the specified user into katportal and caches the session_id
+        created by katportal in this instance of KatportalClient.
+
+        Parameters
+        ----------
+        username: str
+            The registered username that exists on katportal. This is an
+            email address, like abc@ska.ac.za.
+
+        password: str
+            The password for the specified username as saved in the katportal
+            users database.
+
+        """
+        login_token = create_jwt_login_token(username, password)
+        url = self.sitemap['authorization'] + '/user/verify/' + role
+        response = yield self.authorized_fetch(url=url, auth_token=login_token)
+
+        try:
+            response_json = json.loads(response.body)
+            if not response_json.get('logged_in', False) or response_json.get('session_id'):
+                self._session_id = response_json.get('session_id')
+                self._current_user_id = response_json.get('user_id')
+
+                login_url = self.sitemap['authorization'] + '/user/login'
+                response = yield self.authorized_fetch(
+                    url=login_url, auth_token=self._session_id,
+                    method='POST', body='')
+
+                self._logger.info('Succesfully logged in as %s',
+                                  response_json.get('email'))
+            else:
+                self._session_id = None
+                self._current_user_id = None
+                self._logger.error('Error in logging see response %s',
+                                   response)
+        except Exception:
+            self._session_id = None
+            self._current_user_id = None
+            self._logger.exception('Error in response')
+
+    @tornado.gen.coroutine
+    def authorized_fetch(self, url, auth_token, **kwargs):
+        """
+        Wraps tornado.fetch to add the Authorization headers with
+        the locally cached session_id.
+        """
+        login_header = HTTPHeaders({
+            "Authorization": "CustomJWT {}".format(auth_token)})
+        request = HTTPRequest(
+            url, headers=login_header, **kwargs)
+        response = yield self._http_client.fetch(request)
+        raise tornado.gen.Return(response)
 
     def _get_sitemap(self, url):
         """
@@ -152,6 +268,7 @@ class KATPortalClient(object):
             Sitemap endpoints - see :meth:`.sitemap`.
         """
         result = {
+            'authorization': '',
             'websocket': '',
             'historic_sensor_values': '',
             'schedule_blocks': '',
@@ -285,16 +402,21 @@ class KATPortalClient(object):
         _websocket_message callback function with None as the message, where we realise
         that the websocket connection has failed.
         """
-        self._ws.write_message('PING')
+        if self._ws is not None:
+            self._ws.write_message('PING')
+        else:
+            self._logger.debug('Attempting to send a PING over a closed websocket!')
 
     def disconnect(self):
         """Disconnect from the connected websocket server."""
         if self._heart_beat_timer.is_running():
             self._heart_beat_timer.stop()
 
+        self._disconnect_issued = True
+        self._ws_jsonrpc_cache = []
+        self._logger.debug("Cleared JSONRPCRequests cache.")
+
         if self.is_connected:
-            self._disconnect_issued = True
-            self._ws_jsonrpc_cache = []
             self._ws.close()
             self._ws = None
             self._logger.debug("Disconnected client websocket.")
@@ -385,7 +507,8 @@ class KATPortalClient(object):
             if req.method == 'subscribe':
                 self._logger.info('Resending JSONRPCRequest %s', req)
                 result = yield self._send(req)
-                self._logger.info('Resent JSONRPCRequest, with result: %s', result)
+                self._logger.info(
+                    'Resent JSONRPCRequest, with result: %s', result)
 
     @tornado.gen.coroutine
     def _websocket_message(self, msg):
@@ -407,8 +530,9 @@ class KATPortalClient(object):
         if msg is None:
             self._logger.warn("Websocket server disconnected!")
             if not self._disconnect_issued:
-                self._ws.close()
-                self._ws = None
+                if self._ws is not None:
+                    self._ws.close()
+                    self._ws = None
                 yield self._connect(reconnecting=True)
             return
         try:
@@ -449,7 +573,8 @@ class KATPortalClient(object):
                 if (isinstance(msg_data, dict) and
                         'inform_type' in msg_data and
                         msg_data['inform_type'] == 'sample_history'):
-                    # inform message which provides synchronisation information.
+                    # inform message which provides synchronisation
+                    # information.
                     inform = msg_data['inform_data']
                     num_new_samples = inform['num_samples_to_be_published']
                     state['num_samples_pending'] += num_new_samples
@@ -465,23 +590,28 @@ class KATPortalClient(object):
                             #            1476164224429354L, u'5.07571614843',
                             #            u'anc_mean_wind_speed', u'nominal']
                             if state['include_value_ts']:
-                                # Requesting value_timestamp in addition to sample timestamp
+                                # Requesting value_timestamp in addition to
+                                # sample timestamp
                                 sensor_sample = SensorSampleValueTs(
-                                    timestamp=sample[0]/SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
-                                    value_timestamp=sample[1]/SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
+                                    timestamp=sample[
+                                        0] / SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
+                                    value_timestamp=sample[
+                                        1] / SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
                                     value=sample[3],
                                     status=sample[5])
                             else:
                                 # Only sample timestamp
                                 sensor_sample = SensorSample(
-                                    timestamp=sample[0]/SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
+                                    timestamp=sample[
+                                        0] / SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
                                     value=sample[3],
                                     status=sample[5])
                             state['samples'].append(sensor_sample)
                             num_received += 1
                     state['num_samples_pending'] -= num_received
                 else:
-                    self._logger.warn('Ignoring unexpected message: %s', msg_result)
+                    self._logger.warn(
+                        'Ignoring unexpected message: %s', msg_result)
                 processed = True
         if not processed:
             if self._on_update:
@@ -814,17 +944,29 @@ class KATPortalClient(object):
             Ordered list of future targets that was determined by the
             verification dry run.
             Example:
-            [{
-                'name': 'Moon',
-                'track_duration': 60.0,
-                'slew_time': 53.6153013706
-                'start_offset': 0.0,
-            },
-                'name': 'Sun',
-                'track_duration': 60.0,
-                'slew_time': 20.9873
-                'start_offset': 113.6153013706,
-            }, {..}]
+            [
+                {
+                    "track_start_offset":39.8941187859,
+                    "target":"PKS 0023-26 | J0025-2602 | OB-238, radec, "
+                             "0:25:49.16, -26:02:12.6, "
+                             "(1410.0 8400.0 -1.694 2.107 -0.4043)",
+                    "track_duration":20.0
+                },
+                {
+                    "track_start_offset":72.5947952271,
+                    "target":"PKS 0043-42 | J0046-4207, radec, "
+                             "0:46:17.75, -42:07:51.5, "
+                             "(400.0 2000.0 3.12 -0.7)",
+                    "track_duration":20.0
+                },
+                {
+                    "track_start_offset":114.597304821,
+                    "target":"PKS 0408-65 | J0408-6545, radec, "
+                             "4:08:20.38, -65:45:09.1, "
+                             "(1410.0 8400.0 -3.708 3.807 -0.7202)",
+                    "track_duration":20.0
+                }
+            ]
         Raises
         ------
         ScheduleBlockTargetsParsingError:
@@ -843,230 +985,6 @@ class KATPortalClient(object):
                     'There was an error parsing the schedule block (%s) '
                     'targets attribute: %s', id_code, sb_targets)
         raise tornado.gen.Return(targets_list)
-
-    @tornado.gen.coroutine
-    def future_targets_detail(self, id_code):
-        """
-        Return a detailed list of future targets as determined by the dry run
-        of the schedule block. This method requires that you have set the
-        reference observer before calling it, using the
-        set_reference_observer_config method in this class.
-
-        The schedule block will only have future targets (in the targets
-        attribute) if the schedule block has been through a dry run and
-        has the verification_state of VERIFIED. The future targets are
-        only applicable to schedule blocks of the OBSERVATION type.
-
-        Parameters
-        ----------
-        id_code: str
-            Schedule block identifier. For example: ``20160908-0010``.
-
-        Returns
-        -------
-        list:
-            Ordered list of future targets that was determined by the
-            verification dry run with pointing details calculated by using
-            the reference observer set by set_reference_observer_config
-            Example:
-            [{
-                'name': 'Moon',
-                'body_type': 'special',
-                'description': 'Moon,special',
-                'track_duration': 60.0,
-                'slew_time': 53.6153013706
-                'start_offset': 0.0,
-                'azel': [3.6399178505, 1.3919397593],
-                'astrometric_radec': [0.180696943, 0.0180189191],
-                'apparent_radec': [0.1830730793, 0.0169845125],
-                'tags': ['special'],
-                'galactic': [2.0531028499, -1.0774995277],
-                'parallactic_angle': 0.49015412010000003,
-                'uvw_basis': [[0.996376853, -0.0150540303, 0.0837050956],
-                              [..], [..]]
-            }, {..}]
-
-            Example for a target that is not found in the catalogue:
-            [{..}, {
-                'name': 'FAKETARGET',
-                'slew_time': 41.6139953136,
-                'track_duration': 21.0,
-                'error': 'Target not in catalogues!',
-                'start_offset': 137.8720090389},
-            }, {..}]
-
-        Raises
-        ------
-        ReferenceObserverConfigNotSet:
-            If the reference observer config has not been set before
-            calling this method.
-        ScheduleBlockTargetsParsingError:
-            If there is an error parsing the schedule block's targets string.
-        ScheduleBlockNotFoundError:
-            If no information was available for the requested schedule block.
-        ValueError:
-            If the returned target description value is not a list. This
-            could happen when there is an exception on katportal loading
-            the target details from the catalogues.
-        """
-        if self._reference_observer_config is None:
-            raise ReferenceObserverConfigNotSet(
-                'Reference Observer config not set. '
-                'Please set the reference observer config using '
-                'the set_reference_observer_config method.')
-        sb = yield self.schedule_block_detail(id_code)
-        targets_list = []
-        sb_targets = sb.get('targets')
-        if sb_targets is not None:
-            try:
-                targets_list = json.loads(sb_targets)
-            except Exception:
-                raise ScheduleBlockTargetsParsingError(
-                    'There was an error parsing the schedule block (%s) '
-                    'targets attribute: %s', id_code, sb_targets)
-            config_label = yield self.config_label_for_subarray(
-                int(self.sitemap['sub_nr']))
-            target_names = [target.get('name') for target in targets_list]
-            targets_csv = ','.join(target_names)
-            target_descriptions = yield self._get_target_descriptions(
-                targets=targets_csv,
-                longitude=self._reference_observer_config['longitude'],
-                latitude=self._reference_observer_config['latitude'],
-                altitude=self._reference_observer_config['altitude'],
-                timestamp=self._reference_observer_config['timestamp'],
-                config_label=config_label)
-            if isinstance(target_descriptions, list):
-                for target_desc in target_descriptions:
-                    targets_list_index = targets_list.index(
-                        filter(lambda n: n.get('name') == target_desc.get('name'),
-                               targets_list)[0])
-                    targets_list[targets_list_index].update(target_desc)
-            else:
-                raise ValueError(
-                    'The returned target descriptions is not a list of '
-                    'targets, it is instead: %s' % target_descriptions)
-
-        raise tornado.gen.Return(targets_list)
-
-    def set_reference_observer_config(
-            self, longitude=None, latitude=None, altitude=None, timestamp=None):
-        """
-        Set the reference observer config to be used when retrieving
-        the future target list from a schedule block.
-
-        .. note::
-
-            If longitude, latitude or altitude is None then katpoint will use
-            the array's default reference observer. If timestamp is None,
-            katpoint will use the current utc time to calculate the pointing
-            details.
-
-        Parameters
-        ----------
-        longitude: float
-            Unit: degrees
-            The longitude of the reference observer used in calculating the
-            pointing details.
-            Default: None, if longitude, latitude or altitude is None then
-            katpoint will use the array's
-        latitude: float
-            Unit: degrees
-            The latitude of the reference observer used in calculating the
-            pointing details.
-            Default: None, if this is None katpoint will use the array's
-            default reference observer
-        altitude: float
-            Unit: meters
-            The altitude of the reference observer used in calculating the
-            pointing details.
-            Default: None, if this is None katpoint will use the array's
-            default reference observer
-        timestamp: float
-            Unit: seconds after the unix epoch
-            The unix timestamp (UTC) of the time of the reference observer
-            used to calculate the pointing details.
-            Default: None, katpoint uses current utc time to calculate
-            pointing details.
-        """
-        if self._reference_observer_config is None:
-            self._reference_observer_config = {}
-        self._reference_observer_config['longitude'] = longitude
-        self._reference_observer_config['latitude'] = latitude
-        self._reference_observer_config['altitude'] = altitude
-        self._reference_observer_config['timestamp'] = timestamp
-
-    @tornado.gen.coroutine
-    def config_label_for_subarray(self, sub_nr):
-        """Get the config label for the specified sub_nr. Returns None if
-        the subarray has an empty config_label. An active subarray will
-        always have a config_label.
-
-        Parameters
-        ----------
-        sub_nr: int
-            The subarray's config label to get, can be 1,2,3,4
-
-        Returns
-        -------
-        str:
-            A csv string that is used as a config_label in the CAM system.
-            The config_label is used to select the version of the catalogue
-            files when calculating the pointing details.
-        """
-        url = self.sitemap['subarray_sensor_values'] + '/config_label'
-        response = yield self._http_client.fetch(url)
-        config_label_sensor_result = json.loads(response.body)[0]
-        raise tornado.gen.Return(config_label_sensor_result.get('value'))
-
-    @tornado.gen.coroutine
-    def _get_target_descriptions(
-            self, targets, longitude, latitude, altitude,
-            timestamp, config_label):
-        """
-        Return a list of targets with their pointing information calculated
-        by using the longitude, latitude, altitude as the reference observer
-        and timestamp as the time of the reference observer.
-        Using the config_label to select a specific version of the catalogues
-        files.
-
-        Parameters
-        ----------
-        targets: str
-            A CSV list of target names to retrieve the pointing details.
-        longitude: float
-            The longitude of the reference observer used in calculating the
-            pointing details.
-        latitude: float
-            The latitude of the reference observer used in calculating the
-            pointing details.
-        altitude: float
-            The altitude of the reference observer used in calculating the
-            pointing details.
-        timestamp: float
-            The unix timestamp (UTC) of the time of the reference observer
-            used to calculate the pointing details.
-        config_label: str
-            The config_label to use to select the version of the catalogue
-            files when calculating the pointing details.
-
-        Returns
-        -------
-        list:
-            A list of dictionaries containing pointing information calculated
-            taking the reference observer into account.
-        """
-        url = self.sitemap['target_descriptions']
-        request_data = {
-            'targets': targets,
-            'longitude': longitude,
-            'latitude': latitude,
-            'altitude': altitude,
-            'timestamp': timestamp,
-            'config_label': config_label
-        }
-        request_body = urlencode(request_data)
-        response = yield self._http_client.fetch(url, method='POST', body=request_body)
-        raise tornado.gen.Return(json.loads(response.body))
 
     @tornado.gen.coroutine
     def schedule_block_detail(self, id_code):
@@ -1137,7 +1055,8 @@ class KATPortalClient(object):
         response = json.loads(response.body)
         schedule_block = response['result']
         if not schedule_block:
-            raise ScheduleBlockNotFoundError("Invalid schedule block ID: " + id_code)
+            raise ScheduleBlockNotFoundError(
+                "Invalid schedule block ID: " + id_code)
         raise tornado.gen.Return(schedule_block)
 
     def _extract_sensors_details(self, json_text):
@@ -1147,7 +1066,8 @@ class KATPortalClient(object):
         # Errors are returned in dict, while valid data is returned in a list.
         if isinstance(sensors, dict):
             if 'error' in sensors:
-                raise SensorNotFoundError("Invalid sensor request: " + sensors['error'])
+                raise SensorNotFoundError(
+                    "Invalid sensor request: " + sensors['error'])
         else:
             for sensor in sensors:
                 sensor_info = {}
@@ -1262,7 +1182,8 @@ class KATPortalClient(object):
             raise tornado.gen.Return(results[0])
 
     @tornado.gen.coroutine
-    def sensor_history(self, sensor_name, start_time_sec, end_time_sec, include_value_ts=False, timeout_sec=300):
+    def sensor_history(self, sensor_name, start_time_sec, end_time_sec,
+                       include_value_ts=False, timeout_sec=300):
         """Return time history of sample measurements for a sensor.
 
         For a list of sensor names, see :meth:`.sensors_list`.
@@ -1277,11 +1198,12 @@ class KATPortalClient(object):
         end_time_sec: float
             End time for sample history query, in seconds since the UNIX epoch.
         include_value_ts: bool
-            Flag to also include value timestamp in addition to time series sample timestamp in the result.
+            Flag to also include value timestamp in addition to time series
+            sample timestamp in the result.
             Default: False.
         timeout_sec: float
-            Maximum time (in sec) to wait for the history to be retrieved.  An exception will
-            be raised if the request times out. (default:300)
+            Maximum time (in sec) to wait for the history to be retrieved.
+            An exception will be raised if the request times out. (default:300)
 
         Returns
         -------
@@ -1325,7 +1247,8 @@ class KATPortalClient(object):
             'chunk_size': SAMPLE_HISTORY_CHUNK_SIZE,
             'limit': MAX_SAMPLES_PER_HISTORY_QUERY
         }
-        url = url_concat(self.sitemap['historic_sensor_values'] + '/samples', params)
+        url = url_concat(
+            self.sitemap['historic_sensor_values'] + '/samples', params)
         self._logger.debug("Sensor history request: %s", url)
         response = yield self._http_client.fetch(url)
         data = json.loads(response.body)
@@ -1333,7 +1256,8 @@ class KATPortalClient(object):
             download_start_sec = time.time()
             # Query accepted by portal - data will be returned via websocket, but
             # we need to wait until it has arrived.  For synchronisation, we wait
-            # for a 'done_event'. This event is updated in _process_redis_message().
+            # for a 'done_event'. This event is updated in
+            # _process_redis_message().
             try:
                 timeout_delta = timedelta(seconds=timeout_sec)
                 yield state['done_event'].wait(timeout=timeout_delta)
@@ -1342,7 +1266,8 @@ class KATPortalClient(object):
                     time.time() - download_start_sec,
                     len(state['samples'])))
             except tornado.gen.TimeoutError:
-                raise SensorHistoryRequestError("Sensor history request timed out")
+                raise SensorHistoryRequestError(
+                    "Sensor history request timed out")
 
         else:
             raise SensorHistoryRequestError("Error requesting sensor history: {}"
@@ -1367,7 +1292,8 @@ class KATPortalClient(object):
         raise tornado.gen.Return(result)
 
     @tornado.gen.coroutine
-    def sensors_histories(self, filters, start_time_sec, end_time_sec, include_value_ts=False, timeout_sec=300):
+    def sensors_histories(self, filters, start_time_sec, end_time_sec,
+                          include_value_ts=False, timeout_sec=300):
         """Return time histories of sample measurements for multiple sensors.
 
         Finds the list of available sensors in the system that match the
@@ -1386,7 +1312,8 @@ class KATPortalClient(object):
         end_time_sec: float
             End time for sample history query, in seconds since the UNIX epoch.
         include_value_ts: bool
-            Flag to also include value timestamp in addition to time series sample timestamp in the result.
+            Flag to also include value timestamp in addition to time series
+            sample timestamp in the result.
             Default: False.
         timeout_sec: float
             Maximum time to wait for all sensors' histories to be retrieved.
@@ -1395,12 +1322,12 @@ class KATPortalClient(object):
         Returns
         -------
         dict:
-            Dictonary of lists.  The keys are the full sensor names.
+            Dictionary of lists.  The keys are the full sensor names.
             The values are lists of :class:`.SensorSample` namedtuples,
             (one per sample, with fields timestamp, value and status)
             or, if include_value_ts was set, then
-            list of :class:`.SensorSampleValueTs` namedtuples (one per sample, with fields
-            timestamp, value_timestamp, value and status).
+            list of :class:`.SensorSampleValueTs` namedtuples (one per sample,
+            with fields timestamp, value_timestamp, value and status).
             See :class:`.SensorSample` and :class:`.SensorSampleValueTs` for details.
 
         Raises
@@ -1421,6 +1348,262 @@ class KATPortalClient(object):
                 sensor, start_time_sec, end_time_sec, timeout_left_sec)
         raise tornado.gen.Return(histories)
 
+    @tornado.gen.coroutine
+    def userlog_tags(self):
+        """Return all userlog tags in the database.
+
+        Returns
+        -------
+        list:
+            List of userlog tags in the database. Example:
+
+            [{
+                'activated': True,
+                'slug': '',
+                'name': 'm047',
+                'id': 1
+            },
+            {
+                'activated': True,
+                'slug': '',
+                'name': 'm046',
+                'id': 2
+            },
+            {
+                'activated': True,
+                'slug': '',
+                'name': 'm045',
+                'id': 3},
+            {..}]
+
+        """
+        url = self.sitemap['userlogs'] + '/tags'
+        response = yield self._http_client.fetch(url)
+        raise tornado.gen.Return(json.loads(response.body))
+
+    @tornado.gen.coroutine
+    def userlogs(self, start_time=None, end_time=None):
+        """
+        Return a list of userlogs in the database that has an start_time
+        and end_time combination that intersects with the given start_time
+        and end_time. For example of an userlog has a start_time before the
+        given start_time and an end time after the given end_time, the time
+        window of that userlog intersects with the time window of the given
+        start_time and end_time.
+
+        If an userlog has no end_time, an end_time of infinity is assumed.
+        For example, if the given end_time is after the userlog's start time,
+        there is an intersection of the two time windows.
+
+        Here are some visual representations of the time window intersections:
+
+                                Start       End
+        Userlog:                  [----------]
+        Search params:                 [-----------------]
+                                      Start              End
+
+                                              Start       End
+        Userlog:                                [----------]
+        Search params:              [-----------------]
+                                  Start              End
+
+                                 Start                End
+        Userlog:                  [--------------------]
+        Search params:                 [---------]
+                                     Start      End
+
+                                 Start     End
+        Userlog:                  [---------]
+        Search params:     [-------------------------]
+                         Start                      End
+
+                                              Start
+        Userlog:                                [-------------------*
+        Search params:              [-----------------]
+                                  Start              End
+
+                                                    End
+        Userlog:             *-----------------------]
+        Search params:                      [-----------------]
+                                          Start              End
+
+        Userlog:            *--------------------------------------*
+        Search params:              [-----------------]
+                                  Start              End
+        Parameters
+        ----------
+        start_time: str
+            A formatted UTC datetime string used as the start of the time window
+            to query. Format: %Y-%m-%d %H:%M:%S.
+            Default: Today at %Y-%m-%d 00:00:00 (The day of year is selected from local
+                     time but the time portion is in UTC. Example if you are at SAST, and
+                     you call this method at 2017-01-01 01:00:00 AM SAST, the date portion
+                     of start_time will be selected from local time: 2017-01-01.
+                     The start_time is, however, saved as UTC, so this default will be
+                     2017-01-01 00:00:00 AM UTC and NOT 2016-12-31 00:00:00 AM UTC)
+        end_time: str
+            A formatted UTC datetime string used as the end of the time window
+            to query. Format: %Y-%m-%d %H:%M:%S.
+            Default: Today at %Y-%m-%d 23:59:59 (The day of year is selected from local
+                     time but the time portion is in UTC. Example if you are at SAST, and
+                     you call this method at 2017-01-01 01:00:00 AM SAST, the date portion
+                     of end_time will be selected from local time: 2017-01-01.
+                     The end_time is, however, saved as UTC, so this default will be
+                     2017-01-01 23:59:59 UTC and NOT 2016-12-31 23:59:59 UTC)
+
+        Returns
+        -------
+        list:
+            List of userlog that intersects with the give start_time and
+            end_time. Example:
+
+            [{
+                'other_metadata': [],
+                'user_id': 1,
+                'attachments': [],
+                'tags': '[]',
+                'timestamp': '2017-02-07 08:47:22',
+                'start_time': '2017-02-07 00:00:00',
+                'modified': '',
+                'content': 'katportalclient userlog creation content!',
+                'parent_id': '',
+                'user': {'email': 'cam@ska.ac.za', 'id': 1, 'name': 'CAM'},
+                'attachment_count': 0,
+                'id': 40,
+                'end_time': '2017-02-07 23:59:59'
+             }, {..}]
+        """
+        url = self.sitemap['userlogs'] + '/query?'
+        if start_time is None:
+            start_time = time.strftime('%Y-%m-%d 00:00:00')
+        if end_time is None:
+            end_time = time.strftime('%Y-%m-%d 23:59:59')
+        request_params = {
+            'start_time': start_time,
+            'end_time': end_time
+        }
+        query_string = urlencode(request_params)
+        response = yield self.authorized_fetch(
+            url='{}{}'.format(url, query_string), auth_token=self._session_id)
+        raise tornado.gen.Return(json.loads(response.body))
+
+    @tornado.gen.coroutine
+    def create_userlog(self, content, tag_ids=None, start_time=None,
+                       end_time=None):
+        """
+        Create a userlog with specified linked tags and content, start_time
+        and end_time.
+
+        Parameters
+        ----------
+        content: str
+            The content of the userlog, could be any text. Required.
+
+        tag_ids: list
+            A list of tag id's to link to this userlog.
+            Example: [1, 2, 3, ..]
+            Default: None
+
+        start_time: str
+            A formatted datetime string used as the start time of the userlog in UTC.
+            Format: %Y-%m-%d %H:%M:%S.
+            Default: None
+
+        end_time: str
+            A formatted datetime string used as the end time of the userlog in UTC.
+            Format: %Y-%m-%d %H:%M:%S.
+            Default: None
+
+        Returns
+        -------
+        userlog: dict
+            The userlog that was created. Example:
+            {
+                'other_metadata': [],
+                'user_id': 1,
+                'attachments': [],
+                'tags': '[]',
+                'timestamp': '2017-02-07 08:47:22',
+                'start_time': '2017-02-07 00:00:00',
+                'modified': '',
+                'content': 'katportalclient userlog creation content!',
+                'parent_id': '',
+                'user': {'email': 'cam@ska.ac.za', 'id': 1, 'name': 'CAM'},
+                'attachment_count': 0,
+                'id': 40,
+                'end_time': '2017-02-07 23:59:59'
+             }
+        """
+        url = self.sitemap['userlogs']
+        new_userlog = {
+            'user': self._current_user_id,
+            'content': content
+        }
+        if start_time is not None:
+            new_userlog['start_time'] = start_time
+        if end_time is not None:
+            new_userlog['end_time'] = end_time
+        if tag_ids is not None:
+            new_userlog['tag_ids'] = tag_ids
+
+        response = yield self.authorized_fetch(
+            url=url, auth_token=self._session_id,
+            method='POST', body=json.dumps(new_userlog))
+        raise tornado.gen.Return(json.loads(response.body))
+
+    @tornado.gen.coroutine
+    def modify_userlog(self, userlog, tag_ids=None):
+        """
+        Modify an existing userlog using the dictionary provided as the
+        modified attributes of the userlog.
+
+        Parameters
+        ----------
+        userlog: dict
+            The userlog with the new values to be modified.
+
+        tag_ids: list
+            A list of tag id's to link to this userlog. Optional, if this is
+            not specified, the tags attribute of the given userlog will be
+            used.
+            Example: [1, 2, 3, ..]
+
+        Returns
+        -------
+        userlog: dict
+            The userlog that was modified. Example:
+            {
+                'other_metadata': [],
+                'user_id': 1,
+                'attachments': [],
+                'tags': '[]',
+                'timestamp': '2017-02-07 08:47:22',
+                'start_time': '2017-02-07 00:00:00',
+                'modified': '',
+                'content': 'katportalclient userlog modified content!',
+                'parent_id': '',
+                'user': {'email': 'cam@ska.ac.za', 'id': 1, 'name': 'CAM'},
+                'attachment_count': 0,
+                'id': 40,
+                'end_time': '2017-02-07 23:59:59'
+             }
+        """
+        if tag_ids is None and 'tags' in userlog:
+            try:
+                userlog['tag_ids'] = [
+                    tag_id for tag_id in json.loads(userlog['tags'])]
+            except Exception:
+                self._logger.exception(
+                    'Could not parse the tags field of the userlog: %s', userlog)
+                raise
+        else:
+            userlog['tag_ids'] = tag_ids
+        url = '{}/{}'.format(self.sitemap['userlogs'], userlog['id'])
+        response = yield self.authorized_fetch(
+            url=url, auth_token=self._session_id,
+            method='POST', body=json.dumps(userlog))
+        raise tornado.gen.Return(json.loads(response.body))
+
 
 class ScheduleBlockNotFoundError(Exception):
     """Raise if requested schedule block is not found."""
@@ -1432,10 +1615,6 @@ class SensorNotFoundError(Exception):
 
 class SensorHistoryRequestError(Exception):
     """Raise if error requesting sensor sample history."""
-
-
-class ReferenceObserverConfigNotSet(Exception):
-    """Raise if reference observer config has not been set."""
 
 
 class ScheduleBlockTargetsParsingError(Exception):
