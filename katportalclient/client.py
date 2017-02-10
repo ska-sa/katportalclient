@@ -178,13 +178,14 @@ class KATPortalClient(object):
     def logout(self):
         """ Logs user out of katportal. Katportal then deletes the cached
         session_id for this client. In order to call HTTP requests that
-        requires authentication, the user will need to login in again.
+        requires authentication, the user will need to login again.
         """
         try:
-            url = self.sitemap['authorization'] + '/user/logout'
-            response = yield self.authorized_fetch(
-                url=url, auth_token=self._session_id, method='POST', body='{}')
-            self._logger.info("Logout result: %s", response.body)
+            if self._session_id is not None:
+                url = self.sitemap['authorization'] + '/user/logout'
+                response = yield self.authorized_fetch(
+                    url=url, auth_token=self._session_id, method='POST', body='{}')
+                self._logger.info("Logout result: %s", response.body)
         finally:
             # Clear the local session_id, no matter what katportal says
             self._session_id = None
@@ -230,6 +231,8 @@ class KATPortalClient(object):
                 self._logger.error('Error in logging see response %s',
                                    response)
         except Exception:
+            self._session_id = None
+            self._current_user_id = None
             self._logger.exception('Error in response')
 
     @tornado.gen.coroutine
@@ -458,7 +461,7 @@ class KATPortalClient(object):
                     requests_to_remove.append(req)
         elif (jsonrpc_request.method.startswith('set_sampling_strat') and
               jsonrpc_request.params[2] == 'none'):
-            # index 1 of params is always the sampling strategy
+            # index 2 of params is always the sampling strategy
             for req in self._ws_jsonrpc_cache:
                 # match the namespace and sensor/filter combination
                 # namespace is always at index 0 of params and sensor/filter
@@ -531,7 +534,7 @@ class KATPortalClient(object):
                     self._ws.close()
                     self._ws = None
                 yield self._connect(reconnecting=True)
-            raise tornado.gen.Return()
+            return
         try:
             msg = json.loads(msg)
             self._logger.debug("Message received: %s", msg)
@@ -1430,13 +1433,23 @@ class KATPortalClient(object):
         Parameters
         ----------
         start_time: str
-            A formatted datetime string used as the start of the time window
-            to query. Format: %Y-%m-%d %H:%m:%s.
-            Default: Today (local time) at %Y-%m-%d 00:00:00
+            A formatted UTC datetime string used as the start of the time window
+            to query. Format: %Y-%m-%d %H:%M:%S.
+            Default: Today at %Y-%m-%d 00:00:00 (The day of year is selected from local
+                     time but the time portion is in UTC. Example if you are at SAST, and
+                     you call this method at 2017-01-01 01:00:00 AM SAST, the date portion
+                     of start_time will be selected from local time: 2017-01-01.
+                     The start_time is, however, saved as UTC, so this default will be
+                     2017-01-01 00:00:00 AM UTC and NOT 2016-12-31 00:00:00 AM UTC)
         end_time: str
-            A formatted datetime string used as the end of the time window
-            to query. Format: %Y-%m-%d %H:%m:%s.
-            Default: Today (local time) at %Y-%m-%d 23:59:59
+            A formatted UTC datetime string used as the end of the time window
+            to query. Format: %Y-%m-%d %H:%M:%S.
+            Default: Today at %Y-%m-%d 23:59:59 (The day of year is selected from local
+                     time but the time portion is in UTC. Example if you are at SAST, and
+                     you call this method at 2017-01-01 01:00:00 AM SAST, the date portion
+                     of end_time will be selected from local time: 2017-01-01.
+                     The end_time is, however, saved as UTC, so this default will be
+                     2017-01-01 23:59:59 UTC and NOT 2016-12-31 23:59:59 UTC)
 
         Returns
         -------
@@ -1487,16 +1500,19 @@ class KATPortalClient(object):
             The content of the userlog, could be any text. Required.
 
         tag_ids: list
-            A list of tag id's to link to this userlog. Optional.
+            A list of tag id's to link to this userlog.
             Example: [1, 2, 3, ..]
+            Default: None
 
         start_time: str
-            A formatted datetime string used as the start time of the userlog.
-            Format: %Y-%m-%d %H:%m:%s. Optional.
+            A formatted datetime string used as the start time of the userlog in UTC.
+            Format: %Y-%m-%d %H:%M:%S.
+            Default: None
 
         end_time: str
-            A formatted datetime string used as the end time of the userlog.
-            Format: %Y-%m-%d %H:%m:%s. Optional.
+            A formatted datetime string used as the end time of the userlog in UTC.
+            Format: %Y-%m-%d %H:%M:%S.
+            Default: None
 
         Returns
         -------

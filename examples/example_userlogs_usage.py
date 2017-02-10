@@ -50,6 +50,7 @@ def main():
     userlog_tags_to_add = [tags[0].get('id'), tags[1].get('id')]
     userlog_content = "This is where you would put the content of the userlog!"
     # Start time and end times needs to be in this format 'YYYY-MM-DD HH:mm:ss'
+    # All times are in UTC
     start_time = time.strftime('%Y-%m-%d 00:00:00')
     end_time = time.strftime('%Y-%m-%d 23:59:59')
 
@@ -64,15 +65,14 @@ def main():
     print userlog_created
     print "=============================="
 
-    # To edit an existing userlog, user edit_userlog with the modified userlog
-    userlog_to_edit = userlogs[-1] if userlogs else None
-    if userlog_to_edit:
-        userlog_to_edit['content'] = 'This content is edited by katportalclient!'
-        userlog_to_edit['end_time'] = userlog_to_edit['start_time']
-        result = yield portal_client.modify_userlog(userlog_to_edit)
-        print "=============================="
-        print "Edited userlog! Result: "
-        print result
+    # To edit an existing userlog, user modify_userlog with the modified userlog
+    # Here we are modifying the userlog we created using create_userlog
+    userlog_created['content'] = 'This content is edited by katportalclient!'
+    userlog_created['end_time'] = userlog_created['start_time']
+    result = yield portal_client.modify_userlog(userlog_created)
+    print "=============================="
+    print "Edited userlog! Result: "
+    print result
 
     # Remember to logout when you are done!
     print "=============================="

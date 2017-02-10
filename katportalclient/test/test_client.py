@@ -263,7 +263,8 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         yield self._portal_client._websocket_message(None)
         self._portal_client._resend_subscriptions_and_strategies.assert_called_once()
 
-        # test another reconnect if resending the strategies did not work on a reconnect
+        # test another reconnect if resending the strategies did not work on a
+        # reconnect
         resend_future2 = gen.Future()
         resend_future2.set_result(None)
         self._portal_client._resend_subscriptions_and_strategies = mock.MagicMock(
@@ -323,7 +324,8 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             JSONRPCRequest(method='subscribe', params='test params2'),
             JSONRPCRequest(method='not_subscribe', params='test params3'),
             JSONRPCRequest(method='unsubscribe', params='test params4'),
-            JSONRPCRequest(method='set_sampling_strategy', params='test params5'),
+            JSONRPCRequest(method='set_sampling_strategy',
+                           params='test params5'),
             JSONRPCRequest(method='set_sampling_strategies', params='test params6')]
         yield self._portal_client._resend_subscriptions_and_strategies()
         self.assertEquals(self._portal_client._send.call_count, 6)
@@ -399,7 +401,8 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         self.assertEquals(len(self._portal_client._ws_jsonrpc_cache), 4)
         self.assertEquals(self._portal_client._ws_jsonrpc_cache[2].id, req5.id)
         self.assertEquals(self._portal_client._ws_jsonrpc_cache[3].id, req7.id)
-        # test set_sampling_strategy and set_sampling_strategies are not duplicated
+        # test set_sampling_strategy and set_sampling_strategies are not
+        # duplicated
         self._portal_client._cache_jsonrpc_request(req5)
         self._portal_client._cache_jsonrpc_request(req7)
         self.assertEquals(len(self._portal_client._ws_jsonrpc_cache), 4)
@@ -988,6 +991,8 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         """Test that our jwt encoding works as expected"""
         test_token = create_jwt_login_token(
             email='test@test.test', password='testpassword')
+        # test tokens for this test is generated using a the email, password combination
+        # and the standard JWT standard RFC 7519, see http://jwt.io
         self.assertEquals(
             test_token,
             'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InRlc3RAdGVzdC'
@@ -1037,6 +1042,8 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         authorized_fetch_fail_future.set_result(auth_fetch_fail_result)
         self._portal_client.authorized_fetch.set_result(auth_fetch_fail_result)
         yield self._portal_client.login('fail username', 'fail pass')
+        # test tokens for this test is generated using a the email, password combination
+        # and the standard JWT standard RFC 7519, see http://jwt.io
         self._portal_client.authorized_fetch.assert_called_with(
             auth_token='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImZ'
                        'haWwgdXNlcm5hbWUifQ.IWU7Asuevn8Skm+qU7GJPuhLFoCvG47A'
@@ -1208,6 +1215,17 @@ class TestKATPortalClient(WebSocketBaseTestCase):
              u'attachment_count': u'0', u'id': u'40',
              u'end_time': u'2017-02-07 23:59:59'})
 
+        self._portal_client.authorized_fetch.assert_called_once_with(
+            auth_token='some token',
+            body=json.dumps(
+                {"content": "test content",
+                 "tag_ids": [1, 2, 3],
+                 "start_time": "2017-02-07 08:47:22",
+                 "user": self._portal_client._current_user_id,
+                 "end_time": "2017-02-07 08:47:22"}),
+            method='POST',
+            url=self._portal_client.sitemap['userlogs'])
+
     @gen_test
     def test_modify_userlog(self):
         """Test userlog creation"""
@@ -1217,10 +1235,10 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         # then list userlogs
 
         userlogs_base_url = self._portal_client.sitemap['userlogs']
-        authorized_fetch_future = gen.Future()
+        userlog_fetch_future = gen.Future()
         self._portal_client.authorized_fetch = mock.MagicMock(
-            return_value=authorized_fetch_future)
-        auth_fetch_result = HTTPResponse(
+            return_value=userlog_fetch_future)
+        fetch_result = HTTPResponse(
             HTTPRequest(userlogs_base_url), 200,
             buffer=StringIO.StringIO(
                 r"""
@@ -1240,7 +1258,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
                     "end_time": "2017-02-07 23:59:59"
                 }
                 """))
-        authorized_fetch_future.set_result(auth_fetch_result)
+        userlog_fetch_future.set_result(fetch_result)
 
         userlog_to_modify = {
             'other_metadata': [],
@@ -1257,7 +1275,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             'id': 40,
             'end_time': '2017-02-07 23:59:59'
         }
-        userlog = yield self._portal_client.modify_userlog(userlog_to_modify, [1,2,3])
+        userlog = yield self._portal_client.modify_userlog(userlog_to_modify, [1, 2, 3])
         self.assertEquals(
             userlog,
             {u'other_metadata': u'[]', u'user_id': u'1', u'attachments': u'[]',
@@ -1268,6 +1286,13 @@ class TestKATPortalClient(WebSocketBaseTestCase):
              u'user': {u'email': u'cam@ska.ac.za', u'name': u'CAM', u'id': 1},
              u'attachment_count': u'0', u'id': u'40',
              u'end_time': u'2017-02-07 23:59:59'})
+
+        self._portal_client.authorized_fetch.assert_called_once_with(
+            auth_token='some token',
+            body=json.dumps(userlog_to_modify),
+            method='POST',
+            url='{}/{}'.format(
+                self._portal_client.sitemap['userlogs'], userlog_to_modify['id']))
 
         # Test bad tags attribute
         with self.assertRaises(json.JSONError):
