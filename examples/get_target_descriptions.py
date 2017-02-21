@@ -46,7 +46,6 @@ def main():
     #         "track_duration":20.0
     #     },
     #     {
-    # input type:
     #         "track_start_offset":72.5947952271,
     #         "target":"PKS 0043-42 | J0046-4207, radec, 0:46:17.75, -42:07:51.5, (400.0 2000.0 3.12 -0.7)",
     #         "track_duration":20.0
