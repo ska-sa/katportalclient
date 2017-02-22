@@ -86,16 +86,13 @@ def main():
     #         illumination pattern, and ranges from 1.03 for a uniformly illuminated
     #         circular dish to 1.22 for a Gaussian-tapered circular dish (the
     #         default).
-    antenna = katpoint.Antenna(name='Custom Reference Observer Antenna Name',
-                               latitude=20.0,
-                               longitude=20.0,
-                               altitude=10.0)
-    # The timestamp_for_calcs is used to calculate the coordinates for targets
-    # at a certain time of day. This can be any date and time, meaning that
-    # you can calculate future and past target coordinates
-    # input type: float, string, :class:`ephem.Date` object or None
-    #          Timestamp, in various formats (if None, defaults to now)
-    timestamp_for_calcs = katpoint.Timestamp(timestamp=time.time())
+
+    # Antenna description string has format "name, latitude, longitude, altitude"
+    antenna = katpoint.Antenna("MeerKAT, -30:42:39.8, 21:26:38.0, 1035")
+
+    # The default timestamp is "now", otherwise pass in a Unix timestamp as a float, or
+    # a string of the form "YYYY-MM-DD HH:MM:SS.SSS" or "YYYY/MM/DD HH:MM:SS.SSS"
+    timestamp_for_calcs = katpoint.Timestamp()
 
     for future_target in results:
         # Create the katpoint.Target object
