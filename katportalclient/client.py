@@ -1176,8 +1176,16 @@ class KATPortalClient(object):
         if len(results) == 0:
             raise SensorNotFoundError("Sensor name not found: " + sensor_name)
         elif len(results) > 1:
-            raise SensorNotFoundError("Multiple sensors found - specify a single sensor "
-                                      "not a pattern like: " + sensor_name)
+            # check for exact match, before giving up
+            for result in results:
+                if result['name'] == sensor_name:
+                    raise tornado.gen.Return(result)
+            raise SensorNotFoundError(
+                "Multiple sensors ({}) found - specify a single sensor "
+                "name not a pattern like: '{}'.  (Some matches: {})."
+                .format(len(results),
+                        sensor_name,
+                        [result['name'] for result in results[0:5]]))
         else:
             raise tornado.gen.Return(results[0])
 
