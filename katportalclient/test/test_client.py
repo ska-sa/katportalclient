@@ -61,6 +61,15 @@ sensor_json = {
                                 "units":"m\/s",
                                 "type":"float"}]""",
 
+    "anc_gust_wind_speed2": """["anc_gust_wind_speed2","anc",
+                               {"description":"Gust wind speed2",
+                                "systype":"mkat",
+                                "site":"deva",
+                                "katcp_name":"anc.gust-wind-speed2",
+                                "params":"[0.0, 72.0]",
+                                "units":"m\/s",
+                                "type":"float"}]""",
+
     "anc_wind_device_status": """["anc_wind_device_status","anc",
                                   {"description":"Overall status of wind system",
                                    "systype":"mkat",
@@ -690,6 +699,29 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         self.assertTrue(sensor_detail['component'] == "anc")
         self.assertTrue(sensor_detail['katcp_name']
                         == "anc.weather.wind-speed")
+
+    @gen_test
+    def test_sensor_detail_for_multiple_sensors_but_exact_match(self):
+        """Test sensor detail request with many matches, but one exact match.
+
+        In this case, there is a sensor name that also happens to be a prefix
+        for other sensor names.  E.g. if we have "sensor_foo", and "sensor_foo2",
+        the details of "sensor_foo" must be available, even though there are
+        multiple sensors that match that pattern.
+        """
+        history_base_url = self._portal_client.sitemap[
+            'historic_sensor_values']
+        sensor_name_filter = 'anc_gust_wind_speed'
+
+        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+            valid_response='[{}, {}]'.format(sensor_json['anc_gust_wind_speed2'],
+                                             sensor_json['anc_gust_wind_speed']),
+            invalid_response="[]",
+            starts_with=history_base_url,
+            contains=sensor_name_filter)
+
+        sensor_detail = yield self._portal_client.sensor_detail('anc_gust_wind_speed')
+        self.assertTrue(sensor_detail['name'] == 'anc_gust_wind_speed')
 
     @gen_test
     def test_sensor_detail_exception_for_multiple_sensors(self):
