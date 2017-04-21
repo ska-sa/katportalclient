@@ -39,7 +39,7 @@ def main():
         sub_nr=lookup_args['sub_nr'],
         component=lookup_args['component'],
         sensor=lookup_args['sensor'],
-        katcp_name=lookup_args['katcp_name'].lower() in ['true', '1'])
+        return_katcp_name=lookup_args['return_katcp_name'].lower() in ['true', '1'])
     print results
 
 
@@ -64,9 +64,9 @@ if __name__ == '__main__':
         dest='sensor',
         help="The sensor to be looked up.")
     parser.add_argument(
-        '-k', '--katcp-name',
+        '-k', '--return_katcp-name',
         default='False',
-        dest='katcp_name',
+        dest='return_katcp_name',
         help="Whether to return the katcp name or the python normalised name.")
     parser.add_argument(
         '-v', '--verbose',

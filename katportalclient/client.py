@@ -1655,7 +1655,7 @@ class KATPortalClient(object):
         response = yield self._http_client.fetch(url.format(
             sitemap_url=self.sitemap['sensor-lookup'],
             sub_nr=sub_nr, component=component, sensor=sensor,
-            katcp_name=1 if katcp_name else 0))
+            return_katcp_name=1 if return_katcp_name else 0))
         # 1 or 0 because katportal expects that instead of a boolean value
         raise tornado.gen.Return(response.body)
 
