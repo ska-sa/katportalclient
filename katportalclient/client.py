@@ -1612,6 +1612,53 @@ class KATPortalClient(object):
             method='POST', body=json.dumps(userlog))
         raise tornado.gen.Return(json.loads(response.body))
 
+    @tornado.gen.coroutine
+    def sensor_subarray_lookup(self, sub_nr, component, sensor,
+                               katcp_name=False):
+        """Return the full sensor name based on a generic component and sensor
+        name, for the given subarray.
+
+        This method gets the full sensor name based on a generic component and
+        sensor name, for a given subarray. This method will return a failed
+        katcp response if the given subarray is not in the 'active' or
+        'initialising' state.
+
+
+        .. note::
+
+            The websocket is not used for this request - it does not need
+            to be connected.
+
+        Parameters
+        ----------
+        sub_nr: int
+            The sub_nr on which to do the sensor lookup. The given component
+            must be assigned to this subarray for a successful lookup.
+
+        component: str
+            The component that has the sensor to look up.
+
+        sensor: str
+            The generic sensor to look up.
+
+        katcp_name: bool
+            True to return the katcp name, False to return the fully qualified
+            python sensor name. Default is False.
+
+        Returns
+        -------
+        str:
+            The full sensor name based on the given component and subarray.
+
+        """
+        url = "{sitemap_url}/{sub_nr}/sensor-lookup/{component}/{sensor}/{katcp_name}"
+        response = yield self._http_client.fetch(url.format(
+            sitemap_url=self.sitemap['sensor-lookup'],
+            sub_nr=sub_nr, component=component, sensor=sensor,
+            katcp_name=1 if katcp_name else 0))
+        # 1 or 0 because katportal expects that instead of a boolean value
+        raise tornado.gen.Return(response.body)
+
 
 class ScheduleBlockNotFoundError(Exception):
     """Raise if requested schedule block is not found."""
