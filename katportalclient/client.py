@@ -1614,7 +1614,7 @@ class KATPortalClient(object):
 
     @tornado.gen.coroutine
     def sensor_subarray_lookup(self, sub_nr, component, sensor,
-                               katcp_name=False):
+                               return_katcp_name=False):
         """Return the full sensor name based on a generic component and sensor
         name, for the given subarray.
 
@@ -1651,7 +1651,7 @@ class KATPortalClient(object):
             The full sensor name based on the given component and subarray.
 
         """
-        url = "{sitemap_url}/{sub_nr}/sensor-lookup/{component}/{sensor}/{katcp_name}"
+        url = "{sitemap_url}/{sub_nr}/{component}/{sensor}/{katcp_name}"
         response = yield self._http_client.fetch(url.format(
             sitemap_url=self.sitemap['sensor-lookup'],
             sub_nr=sub_nr, component=component, sensor=sensor,

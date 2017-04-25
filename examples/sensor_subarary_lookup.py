@@ -45,8 +45,7 @@ def main():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-        description="Gets the target list and target pointing descriptions "
-                    "from katportal catalogues.")
+        description="Returns a full sensor name based on a generic component and sensor.")
     parser.add_argument(
         '--host',
         default='127.0.0.1',
@@ -67,7 +66,7 @@ if __name__ == '__main__':
         '-k', '--return_katcp-name',
         default='False',
         dest='return_katcp_name',
-        help="Whether to return the katcp name or the python normalised name.")
+        help="Whether to return the katcp name or the Python normalised name.")
     parser.add_argument(
         '-v', '--verbose',
         dest='verbose', action="store_true",
