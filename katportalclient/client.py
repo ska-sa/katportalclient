@@ -704,7 +704,7 @@ class KATPortalClient(object):
         Examples of KATCP sensor subscription strings:
         ----------------------------------------------
             Here the channels are the normalised KATCP sensor names
-            (i.e. underscores python identifiers).
+            (i.e. underscores Python identifiers).
 
             - Single sensor in the general namespace
 
@@ -1613,8 +1613,8 @@ class KATPortalClient(object):
         raise tornado.gen.Return(json.loads(response.body))
 
     @tornado.gen.coroutine
-    def sensor_subarray_lookup(self, sub_nr, component, sensor,
-                               return_katcp_name=False):
+    def sensor_subarray_lookup(self, component, sensor, return_katcp_name=False,
+                               sub_nr=None):
         """Return the full sensor name based on a generic component and sensor
         name, for the given subarray.
 
@@ -1643,7 +1643,7 @@ class KATPortalClient(object):
 
         katcp_name: bool
             True to return the katcp name, False to return the fully qualified
-            python sensor name. Default is False.
+            Python sensor name. Default is False.
 
         Returns
         -------
@@ -1651,9 +1651,10 @@ class KATPortalClient(object):
             The full sensor name based on the given component and subarray.
 
         """
+        sub_nr = int(self.sitemap['sub_nr'])
         url = "{sitemap_url}/{sub_nr}/{component}/{sensor}/{katcp_name}"
         response = yield self._http_client.fetch(url.format(
-            sitemap_url=self.sitemap['sensor-lookup'],
+            sitemap_url=self.sitemap['sensor_lookup'],
             sub_nr=sub_nr, component=component, sensor=sensor,
             return_katcp_name=1 if return_katcp_name else 0))
         # 1 or 0 because katportal expects that instead of a boolean value
