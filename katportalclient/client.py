@@ -1631,9 +1631,6 @@ class KATPortalClient(object):
 
         Parameters
         ----------
-        sub_nr: int
-            The sub_nr on which to do the sensor lookup. The given component
-            must be assigned to this subarray for a successful lookup.
 
         component: str
             The component that has the sensor to look up.
@@ -1645,13 +1642,20 @@ class KATPortalClient(object):
             True to return the katcp name, False to return the fully qualified
             Python sensor name. Default is False.
 
+        sub_nr: int
+            The sub_nr on which to do the sensor lookup. The given component
+            must be assigned to this subarray for a successful lookup.
+
         Returns
         -------
         str:
             The full sensor name based on the given component and subarray.
 
         """
-        sub_nr = int(self.sitemap['sub_nr'])
+        if sub_nr = None:
+            sub_nr = int(self.sitemap['sub_nr'])
+        if not sub_nr:
+            raise SubarrayNumberUnknown()
         url = "{sitemap_url}/{sub_nr}/{component}/{sensor}/{katcp_name}"
         response = yield self._http_client.fetch(url.format(
             sitemap_url=self.sitemap['sensor_lookup'],
@@ -1676,3 +1680,12 @@ class SensorHistoryRequestError(Exception):
 class ScheduleBlockTargetsParsingError(Exception):
     """Raise if there was an error parsing the targets attribute of the
     ScheduleBlock"""
+
+class SubarrayNumberUnknown(Exception):
+    """Raised when subarray number is unknown"""
+
+    def __init__(self, method_name):
+        _message = ("Unknown subarray number when calling method {}"
+                    .format(method_name))
+        super(SelectBandError, self).__init__(_message)
+
