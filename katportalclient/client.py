@@ -1638,7 +1638,7 @@ class KATPortalClient(object):
         sensor: str
             The generic sensor to look up.
 
-        katcp_name: bool
+        katcp_name: bool (optional)
             True to return the katcp name, False to return the fully qualified
             Python sensor name. Default is False.
 
