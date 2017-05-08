@@ -1652,13 +1652,13 @@ class KATPortalClient(object):
             The full sensor name based on the given component and subarray.
 
         """
-        if sub_nr = None:
+        if sub_nr == None:
             sub_nr = int(self.sitemap['sub_nr'])
         if not sub_nr:
             raise SubarrayNumberUnknown()
-        url = "{sitemap_url}/{sub_nr}/{component}/{sensor}/{katcp_name}"
+        url = "{base_url}/{sub_nr}/{component}/{sensor}/{katcp_name}"
         response = yield self._http_client.fetch(url.format(
-            sitemap_url=self.sitemap['sensor_lookup'],
+            base_url=self.sitemap['sensor_lookup'],
             sub_nr=sub_nr, component=component, sensor=sensor,
             return_katcp_name=1 if return_katcp_name else 0))
         # 1 or 0 because katportal expects that instead of a boolean value

@@ -65,7 +65,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '-k', '--return_katcp-name',
         default='False',
-        dest='return_katcp_name',
+        dest='return_katcp_name', action='store_true',
         help="Whether to return the katcp name or the Python normalised name.")
     parser.add_argument(
         '-v', '--verbose',
