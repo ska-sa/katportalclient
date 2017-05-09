@@ -704,7 +704,7 @@ class KATPortalClient(object):
         Examples of KATCP sensor subscription strings:
         ----------------------------------------------
             Here the channels are the normalised KATCP sensor names
-            (i.e. underscores python identifiers).
+            (i.e. underscores Python identifiers).
 
             - Single sensor in the general namespace
 
@@ -1612,6 +1612,58 @@ class KATPortalClient(object):
             method='POST', body=json.dumps(userlog))
         raise tornado.gen.Return(json.loads(response.body))
 
+    @tornado.gen.coroutine
+    def sensor_subarray_lookup(self, component, sensor, return_katcp_name=False,
+                               sub_nr=None):
+        """Return the full sensor name based on a generic component and sensor
+        name, for the given subarray.
+
+        This method gets the full sensor name based on a generic component and
+        sensor name, for a given subarray. This method will return a failed
+        katcp response if the given subarray is not in the 'active' or
+        'initialising' state.
+
+
+        .. note::
+
+            The websocket is not used for this request - it does not need
+            to be connected.
+
+        Parameters
+        ----------
+
+        component: str
+            The component that has the sensor to look up.
+
+        sensor: str
+            The generic sensor to look up.
+
+        katcp_name: bool (optional)
+            True to return the katcp name, False to return the fully qualified
+            Python sensor name. Default is False.
+
+        sub_nr: int
+            The sub_nr on which to do the sensor lookup. The given component
+            must be assigned to this subarray for a successful lookup.
+
+        Returns
+        -------
+        str:
+            The full sensor name based on the given component and subarray.
+
+        """
+        if sub_nr == None:
+            sub_nr = int(self.sitemap['sub_nr'])
+        if not sub_nr:
+            raise SubarrayNumberUnknown()
+        url = "{base_url}/{sub_nr}/{component}/{sensor}/{katcp_name}"
+        response = yield self._http_client.fetch(url.format(
+            base_url=self.sitemap['sensor_lookup'],
+            sub_nr=sub_nr, component=component, sensor=sensor,
+            return_katcp_name=1 if return_katcp_name else 0))
+        # 1 or 0 because katportal expects that instead of a boolean value
+        raise tornado.gen.Return(response.body)
+
 
 class ScheduleBlockNotFoundError(Exception):
     """Raise if requested schedule block is not found."""
@@ -1628,3 +1680,12 @@ class SensorHistoryRequestError(Exception):
 class ScheduleBlockTargetsParsingError(Exception):
     """Raise if there was an error parsing the targets attribute of the
     ScheduleBlock"""
+
+class SubarrayNumberUnknown(Exception):
+    """Raised when subarray number is unknown"""
+
+    def __init__(self, method_name):
+        _message = ("Unknown subarray number when calling method {}"
+                    .format(method_name))
+        super(SelectBandError, self).__init__(_message)
+
