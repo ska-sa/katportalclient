@@ -21,7 +21,7 @@ import argparse
 
 import tornado.gen
 
-from katportalclient import KATPortalClient
+from katportalclient import KATPortalClient, SensorLookupError
 
 logger = logging.getLogger('katportalclient.example')
 logger.setLevel(logging.INFO)
@@ -33,17 +33,19 @@ def main():
     # Note: if on_update_callback is set to None, then we cannot use the
     #       KATPortalClient.connect() method (i.e. no websocket access).
     portal_client = KATPortalClient(
-        'http://{host}/api/client/1'.format(**vars(args)),
+        'http://{host}/api/client/{sub_nr}'.format(**vars(args)),
         on_update_callback=None,
         logger=logger)
 
     lookup_args = vars(args)
-    results = yield portal_client.sensor_subarray_lookup(
-        sub_nr=lookup_args['sub_nr'],
-        component=lookup_args['component'],
-        sensor=lookup_args['sensor'],
-        return_katcp_name=lookup_args['return_katcp_name'])
-    print results
+    try:
+        name = yield portal_client.sensor_subarray_lookup(
+            component=lookup_args['component'],
+            sensor=lookup_args['sensor'],
+            return_katcp_name=lookup_args['return_katcp_name'])
+        print "Lookup result: ", name
+    except SensorLookupError as exc:
+        print "Lookup failed!", exc
 
 
 if __name__ == '__main__':
@@ -58,6 +60,7 @@ if __name__ == '__main__':
         '-n',
         '--sub-nr',
         dest='sub_nr',
+        default='1',
         help="The subarray that the component is assigned to.")
     parser.add_argument(
         '-c',

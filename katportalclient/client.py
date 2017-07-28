@@ -269,12 +269,14 @@ class KATPortalClient(object):
         """
         result = {
             'authorization': '',
-            'websocket': '',
             'historic_sensor_values': '',
+            'program_blocks': '',
             'schedule_blocks': '',
             'sub_nr': '',
-            'subarray_sensor_values': '',
-            'target_descriptions': ''
+            'subarray': '',
+            'target_descriptions': '',
+            'userlogs': '',
+            'websocket': '',
         }
         if (url.lower().startswith('http://') or
                 url.lower().startswith('https://')):
@@ -337,6 +339,31 @@ class KATPortalClient(object):
             self._sitemap = self._get_sitemap(self._url)
             self._logger.debug("Sitemap: %s.", self._sitemap)
         return self._sitemap
+
+    @property
+    def sub_nr(self):
+        """Returns subarray number, if available.
+
+        This number is based on the URL used to connect to
+        katportal, provided during instantiation.
+
+        Returns
+        -------
+        sub_nr: int
+            Subarray number.
+
+        Raises
+        ------
+        SubarrayNumberUnknown:
+            - If the subarray number could not be determined.
+        """
+        try:
+            sub_nr = int(self.sitemap['sub_nr'])
+        except ValueError:
+            raise SubarrayNumberUnknown(
+                "Connection URL is not subarray-specific - sitemap sub_nr: '{}'"
+                .format(self.sitemap['sub_nr']))
+        return sub_nr
 
     @property
     def is_connected(self):
@@ -915,11 +942,14 @@ class KATPortalClient(object):
             List of scheduled block ID strings.  Ordered according to
             priority of the schedule blocks (first has hightest priority).
 
+        Raises
+        ------
+        SubarrayNumberUnknown:
+            - If a subarray number could not be determined.
         """
         url = self.sitemap['schedule_blocks'] + '/scheduled'
         response = yield self._http_client.fetch(url)
-        results = self._extract_schedule_blocks(response.body,
-                                                int(self.sitemap['sub_nr']))
+        results = self._extract_schedule_blocks(response.body, self.sub_nr)
         raise tornado.gen.Return(results)
 
     @tornado.gen.coroutine
@@ -1613,16 +1643,13 @@ class KATPortalClient(object):
         raise tornado.gen.Return(json.loads(response.body))
 
     @tornado.gen.coroutine
-    def sensor_subarray_lookup(self, component, sensor, return_katcp_name=False,
-                               sub_nr=None):
-        """Return the full sensor name based on a generic component and sensor
-        name, for the given subarray.
+    def sensor_subarray_lookup(self, component, sensor, return_katcp_name=False):
+        """Return full sensor name for generic component and sensor names.
 
         This method gets the full sensor name based on a generic component and
-        sensor name, for a given subarray. This method will return a failed
-        katcp response if the given subarray is not in the 'active' or
-        'initialising' state.
-
+        sensor name, for a subarray.  The subarray queried is determined by
+        the URL used during instantiation.  This method will raise an exception
+        if the subarray is not in the 'active' or 'initialising' states.
 
         .. note::
 
@@ -1635,34 +1662,43 @@ class KATPortalClient(object):
         component: str
             The component that has the sensor to look up.
 
-        sensor: str
-            The generic sensor to look up.
+        sensor: str or None
+            The generic sensor to look up.  Can be empty or None, in
+            which case just the component is looked up.
 
         katcp_name: bool (optional)
             True to return the katcp name, False to return the fully qualified
             Python sensor name. Default is False.
 
-        sub_nr: int
-            The sub_nr on which to do the sensor lookup. The given component
-            must be assigned to this subarray for a successful lookup.
-
         Returns
         -------
         str:
-            The full sensor name based on the given component and subarray.
+            The full sensor name based on the given component and subarray,
+            or just full component name, if no sensor was given.
 
+        Raises
+        ------
+        SensorLookupError:
+            - If the requested parameters could not be looked up.
+        SubarrayNumberUnknown:
+            - If a subarray number could not be determined.
         """
-        if sub_nr == None:
-            sub_nr = int(self.sitemap['sub_nr'])
-        if not sub_nr:
-            raise SubarrayNumberUnknown()
-        url = "{base_url}/{sub_nr}/{component}/{sensor}/{katcp_name}"
-        response = yield self._http_client.fetch(url.format(
-            base_url=self.sitemap['sensor_lookup'],
-            sub_nr=sub_nr, component=component, sensor=sensor,
-            return_katcp_name=1 if return_katcp_name else 0))
-        # 1 or 0 because katportal expects that instead of a boolean value
-        raise tornado.gen.Return(response.body)
+        if sensor is None or len(sensor.strip()) == 0:
+            sensor = r'%20'  # use single space for component-only lookup
+        url = (
+            "{base_url}/{sub_nr}/sensor-lookup/{component}/{sensor}/{katcp_format}"
+            .format(
+                base_url=self.sitemap['subarray'],
+                sub_nr=self.sub_nr,
+                component=component,
+                sensor=sensor,
+                katcp_format=1 if return_katcp_name else 0))
+        response = yield self._http_client.fetch(url)
+        data = json.loads(response.body)
+        if 'error' in data:
+            raise SensorLookupError(data['error'])
+        else:
+            raise tornado.gen.Return(data['result'])
 
 
 class ScheduleBlockNotFoundError(Exception):
@@ -1681,11 +1717,10 @@ class ScheduleBlockTargetsParsingError(Exception):
     """Raise if there was an error parsing the targets attribute of the
     ScheduleBlock"""
 
+
 class SubarrayNumberUnknown(Exception):
     """Raised when subarray number is unknown"""
 
-    def __init__(self, method_name):
-        _message = ("Unknown subarray number when calling method {}"
-                    .format(method_name))
-        super(SelectBandError, self).__init__(_message)
 
+class SensorLookupError(Exception):
+    """Raise if requested sensor lookup failed."""
