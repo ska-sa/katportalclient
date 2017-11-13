@@ -1331,6 +1331,30 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             userlog_to_modify['tags'] = 'random nonsense'
             userlog = yield self._portal_client.modify_userlog(userlog_to_modify)
 
+    @gen_test
+    def test_sensor_subarray_lookup(self):
+        """Test sensor subarray lookup is correctly extracted."""
+        history_base_url = self._portal_client.sitemap['subarray'] + '/1/sensor-lookup/cbf/device_status'
+        sensor_name_filter = 'cbf_1_device_status'
+
+        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+            valid_response='[{"cbf_1_device_status"}]',
+            invalid_response='[]',
+            contains=sensor_name_filter)
+        self.assertTrue(valid_response[0] == sensor_name_filter)
+
+    @gen_test
+    def test_sensor_subarray_invalid_sensor_lookup(self):
+        """Test that sensor subarray lookup can correctly handle an invalid sensor name."""
+        history_base_url = self._portal_client.sitemap['sensor-lookup']
+        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+                valid_response=sensor_json['regex_error'],
+                invalid_response='[]',
+                starts_with=history_base_url)
+        with self.assertRaises(SensorNotFoundError):
+            yield
+            self._portal_client.sensor_names('*bad')
+
 
 def mock_async_fetchers(valid_responses, invalid_responses, starts_withs=None,
                         ends_withs=None, containses=None, publish_raw_messageses=None,
