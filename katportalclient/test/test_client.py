@@ -25,8 +25,9 @@ from tornado.test.websocket_test import (
     WebSocketBaseTestCase, TestWebSocketHandler)
 
 from katportalclient import (
-    KATPortalClient, JSONRPCRequest, ScheduleBlockNotFoundError, SensorNotFoundError,
-    SensorHistoryRequestError, ScheduleBlockTargetsParsingError, create_jwt_login_token)
+    KATPortalClient, JSONRPCRequest, ScheduleBlockNotFoundError,
+    SensorNotFoundError, SensorLookupError, SensorHistoryRequestError,
+    ScheduleBlockTargetsParsingError, create_jwt_login_token)
 
 
 LOGGER_NAME = 'test_portalclient'
@@ -199,6 +200,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
                         'sub_nr': '3',
                         'authorization': r"http://0.0.0.0/katauth",
                         'userlogs': r"http://0.0.0.0/katcontrol/userlogs",
+                        'subarray': r"http:/0.0.0.0/katcontrol/subarray",
                         }
                        }
             body_buffer = StringIO.StringIO(json.dumps(sitemap))
@@ -1334,26 +1336,30 @@ class TestKATPortalClient(WebSocketBaseTestCase):
     @gen_test
     def test_sensor_subarray_lookup(self):
         """Test sensor subarray lookup is correctly extracted."""
-        history_base_url = self._portal_client.sitemap['subarray'] + '/1/sensor-lookup/cbf/device_status'
-        sensor_name_filter = 'cbf_1_device_status'
-
+        lookup_base_url = self._portal_client.sitemap['subarray'] + '/3/sensor-lookup/cbf/device_status/0'
+        sensor_name_filter = 'device_status'
+        expected_sensor_name = 'cbf_3_device_status'
+      
         self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
-            valid_response='[{"cbf_1_device_status"}]',
-            invalid_response='[]',
-            contains=sensor_name_filter)
-        self.assertTrue(valid_response[0] == sensor_name_filter)
+                valid_response='{"result":"cbf_3_device_status"}',
+                invalid_response=['error'],
+                starts_with=lookup_base_url,
+                contains=sensor_name_filter)
+        sensor = yield self._portal_client.sensor_subarray_lookup('cbf', sensor_name_filter, False)
+        self.assertTrue(sensor == expected_sensor_name)
 
     @gen_test
     def test_sensor_subarray_invalid_sensor_lookup(self):
         """Test that sensor subarray lookup can correctly handle an invalid sensor name."""
-        history_base_url = self._portal_client.sitemap['sensor-lookup']
+        lookup_base_url = self._portal_client.sitemap['subarray'] + '/3/sensor-lookup/anc/device_status/0'
+        sensor_name_filter = 'device_status'
         self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
-                valid_response=sensor_json['regex_error'],
+                valid_response='{"error":"SensorLookupError: Could not lookup the sensor on component. Could not determine component."}',
                 invalid_response='[]',
-                starts_with=history_base_url)
-        with self.assertRaises(SensorNotFoundError):
-            yield
-            self._portal_client.sensor_names('*bad')
+                starts_with=lookup_base_url,
+                contains=sensor_name_filter)
+        with self.assertRaises(SensorLookupError):
+            yield self._portal_client.sensor_subarray_lookup('anc', sensor_name_filter, False)
 
 
 def mock_async_fetchers(valid_responses, invalid_responses, starts_withs=None,
