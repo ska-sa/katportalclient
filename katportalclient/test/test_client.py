@@ -1349,6 +1349,22 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         self.assertTrue(sensor == expected_sensor_name)
 
     @gen_test
+    def test_sensor_subarray_katcp_name_lookup(self):
+        """Test sensor subarray lookup returns the correct katcp name."""
+        lookup_base_url = self._portal_client.sitemap['subarray'] + '/3/sensor-lookup/cbf/device-status/1'
+        sensor_name_filter = 'device-status'
+        expected_sensor_name = 'cbf_3.device-status'
+
+        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+                valid_response='{"result":"cbf_3.device-status"}',
+                invalid_response=['error'],
+                starts_with=lookup_base_url,
+                contains=sensor_name_filter)
+        sensor = yield self._portal_client.sensor_subarray_lookup('cbf', sensor_name_filter, True)
+        self.assertTrue(sensor == expected_sensor_name)
+
+
+    @gen_test
     def test_sensor_subarray_invalid_sensor_lookup(self):
         """Test that sensor subarray lookup can correctly handle an invalid sensor name."""
         lookup_base_url = self._portal_client.sitemap['subarray'] + '/3/sensor-lookup/anc/device_status/0'
