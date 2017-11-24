@@ -1336,7 +1336,8 @@ class TestKATPortalClient(WebSocketBaseTestCase):
     @gen_test
     def test_sensor_subarray_lookup(self):
         """Test sensor subarray lookup is correctly extracted."""
-        lookup_base_url = self._portal_client.sitemap['subarray'] + '/3/sensor-lookup/cbf/device_status/0'
+        lookup_base_url = (self._portal_client.sitemap['subarray'] + 
+        '/3/sensor-lookup/cbf/device_status/0')
         sensor_name_filter = 'device_status'
         expected_sensor_name = 'cbf_3_device_status'
       
@@ -1345,13 +1346,15 @@ class TestKATPortalClient(WebSocketBaseTestCase):
                 invalid_response=['error'],
                 starts_with=lookup_base_url,
                 contains=sensor_name_filter)
-        sensor = yield self._portal_client.sensor_subarray_lookup('cbf', sensor_name_filter, False)
+        sensor = yield self._portal_client.sensor_subarray_lookup(
+                'cbf', sensor_name_filter, False)
         self.assertTrue(sensor == expected_sensor_name)
 
     @gen_test
     def test_sensor_subarray_katcp_name_lookup(self):
         """Test sensor subarray lookup returns the correct katcp name."""
-        lookup_base_url = self._portal_client.sitemap['subarray'] + '/3/sensor-lookup/cbf/device-status/1'
+        lookup_base_url = (self._portal_client.sitemap['subarray'] + 
+        '/3/sensor-lookup/cbf/device-status/1')
         sensor_name_filter = 'device-status'
         expected_sensor_name = 'cbf_3.device-status'
 
@@ -1360,23 +1363,25 @@ class TestKATPortalClient(WebSocketBaseTestCase):
                 invalid_response=['error'],
                 starts_with=lookup_base_url,
                 contains=sensor_name_filter)
-        sensor = yield self._portal_client.sensor_subarray_lookup('cbf', sensor_name_filter, True)
+        sensor = yield self._portal_client.sensor_subarray_lookup(
+                'cbf', sensor_name_filter, True)
         self.assertTrue(sensor == expected_sensor_name)
-
 
     @gen_test
     def test_sensor_subarray_invalid_sensor_lookup(self):
         """Test that sensor subarray lookup can correctly handle an invalid sensor name."""
-        lookup_base_url = self._portal_client.sitemap['subarray'] + '/3/sensor-lookup/anc/device_status/0'
+        lookup_base_url = (self._portal_client.sitemap['subarray'] + 
+        '/3/sensor-lookup/anc/device_status/0')
         sensor_name_filter = 'device_status'
         self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
-                valid_response='{"error":"SensorLookupError: Could not lookup the sensor on component. Could not determine component."}',
+                valid_response='{"error":"SensorLookupError: Could not lookup the sensor '
+                'on component. Could not determine component."}',
                 invalid_response='[]',
                 starts_with=lookup_base_url,
                 contains=sensor_name_filter)
         with self.assertRaises(SensorLookupError):
-            yield self._portal_client.sensor_subarray_lookup('anc', sensor_name_filter, False)
-
+            yield self._portal_client.sensor_subarray_lookup(
+                    'anc', sensor_name_filter, False)
 
 def mock_async_fetchers(valid_responses, invalid_responses, starts_withs=None,
                         ends_withs=None, containses=None, publish_raw_messageses=None,
