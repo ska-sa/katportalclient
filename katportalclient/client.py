@@ -1092,13 +1092,8 @@ class KATPortalClient(object):
             if 'error' in sensors:
                 raise SensorNotFoundError(
                     "Invalid sensor request: " + sensors['error'])
-        else:
-            for sensor in sensors:
-                sensor_info = {}
-                sensor_info['name'] = sensor[0]
-                sensor_info['component'] = sensor[1]
-                sensor_info.update(sensor[2])
-                results.append(sensor_info)
+            elif 'data' in sensors:
+                results = sensors['data']
         return results
 
     @tornado.gen.coroutine
@@ -1194,7 +1189,7 @@ class KATPortalClient(object):
             - If no information was available for the requested sensor name.
             - If the sensor name was not a unique match for a single sensor.
         """
-        url = self.sitemap['historic_sensor_values'] + '/sensors'
+        url = self.sitemap['historic_sensor_values'] + '/api/sensors'
         response = yield self._http_client.fetch("{}?sensors={}".format(url, sensor_name))
         results = self._extract_sensors_details(response.body)
         if len(results) == 0:
