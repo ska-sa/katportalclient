@@ -1266,20 +1266,16 @@ class KATPortalClient(object):
 
         params = {
             'sensor': sensor_name,
-            'time_type': SAMPLE_HISTORY_REQUEST_TIME_TYPE,
-            'start': start_time_sec * SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
-            'end': end_time_sec * SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
-            'namespace': namespace,
-            'request_in_chunks': 1,
-            'chunk_size': SAMPLE_HISTORY_CHUNK_SIZE,
+            'start_time': start_time_sec * SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
+            'end_time': end_time_sec * SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
             'limit': MAX_SAMPLES_PER_HISTORY_QUERY
         }
         url = url_concat(
-            self.sitemap['historic_sensor_values'] + '/samples', params)
+            self.sitemap['historic_sensor_values'] + '/api/samples', params)
         self._logger.debug("Sensor history request: %s", url)
         response = yield self._http_client.fetch(url)
         data = json.loads(response.body)
-        if isinstance(data, dict) and data['result'] == 'success':
+        if isinstance(data, dict) and 'data' in data:
             download_start_sec = time.time()
             # Query accepted by portal - data will be returned via websocket, but
             # we need to wait until it has arrived.  For synchronisation, we wait
