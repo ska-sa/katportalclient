@@ -1249,20 +1249,6 @@ class KATPortalClient(object):
             - If there was an error submitting the request.
             - If the request timed out
         """
-        # create new namespace and state variables per query, to allow multiple
-        # request simultaneously
-        state = {
-            'sensor': sensor_name,
-            'done_event': tornado.locks.Event(),
-            'num_samples_pending': 0,
-            'include_value_ts': include_value_ts,
-            'samples': []
-        }
-        #self._sensor_history_states[namespace] = state
-        # ensure connected, and subscribed before sending request
-        #yield self.connect()
-        #yield self.subscribe(namespace, ['*'])
-
         params = {
             'sensor': sensor_name,
             'start_time': start_time_sec,
@@ -1277,13 +1263,8 @@ class KATPortalClient(object):
         data = json.loads(response.body)
         if isinstance(data, dict) and 'data' in data:
             download_start_sec = time.time()
-            # Query accepted by portal - data will be returned via websocket, but
-            # we need to wait until it has arrived.  For synchronisation, we wait
-            # for a 'done_event'. This event is updated in
-            # _process_redis_message().
             try:
                 timeout_delta = timedelta(seconds=timeout_sec)
-                #yield state['done_event'].wait(timeout=timeout_delta)
 
                 self._logger.debug('Done in %d seconds, fetched %s samples.' % (
                     time.time() - download_start_sec,
@@ -1291,26 +1272,19 @@ class KATPortalClient(object):
             except tornado.gen.TimeoutError:
                 raise SensorHistoryRequestError(
                     "Sensor history request timed out")
-
         else:
             raise SensorHistoryRequestError("Error requesting sensor history: {}"
                                             .format(response.body))
 
         def sort_by_timestamp(sample):
             return sample['sample_time']
+
         # return a sorted copy, as data may have arrived out of order
         result = sorted(data['data'], key=sort_by_timestamp)
-
         if len(result) >= MAX_SAMPLES_PER_HISTORY_QUERY:
             self._logger.warn(
                 'Maximum sample limit (%d) hit - there may be more data available.',
                 MAX_SAMPLES_PER_HISTORY_QUERY)
-
-        # Free the state variables that were only required for the duration of
-        # the download.  Do not disconnect - there may be websocket activity
-        # initiated by another call.
-        #yield self.unsubscribe(namespace, ['*'])
-        #del self._sensor_history_states[namespace]
 
         raise tornado.gen.Return(result)
 
