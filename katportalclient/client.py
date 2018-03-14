@@ -1258,20 +1258,20 @@ class KATPortalClient(object):
             'include_value_ts': include_value_ts,
             'samples': []
         }
-        namespace = str(uuid.uuid4())
-        self._sensor_history_states[namespace] = state
+        #self._sensor_history_states[namespace] = state
         # ensure connected, and subscribed before sending request
-        yield self.connect()
-        yield self.subscribe(namespace, ['*'])
+        #yield self.connect()
+        #yield self.subscribe(namespace, ['*'])
 
         params = {
             'sensor': sensor_name,
-            'start_time': start_time_sec * SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
-            'end_time': end_time_sec * SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
-            'limit': MAX_SAMPLES_PER_HISTORY_QUERY
+            'start_time': start_time_sec,
+            'end_time': end_time_sec,
+            'limit': MAX_SAMPLES_PER_HISTORY_QUERY,
+            'all_fields': True
         }
         url = url_concat(
-            self.sitemap['historic_sensor_values'] + '/api/samples', params)
+            self.sitemap['historic_sensor_values'] + '/api/query', params)
         self._logger.debug("Sensor history request: %s", url)
         response = yield self._http_client.fetch(url)
         data = json.loads(response.body)
@@ -1283,11 +1283,11 @@ class KATPortalClient(object):
             # _process_redis_message().
             try:
                 timeout_delta = timedelta(seconds=timeout_sec)
-                yield state['done_event'].wait(timeout=timeout_delta)
+                #yield state['done_event'].wait(timeout=timeout_delta)
 
                 self._logger.debug('Done in %d seconds, fetched %s samples.' % (
                     time.time() - download_start_sec,
-                    len(state['samples'])))
+                    len(data['data'])))
             except tornado.gen.TimeoutError:
                 raise SensorHistoryRequestError(
                     "Sensor history request timed out")
@@ -1297,9 +1297,9 @@ class KATPortalClient(object):
                                             .format(response.body))
 
         def sort_by_timestamp(sample):
-            return sample.timestamp
+            return sample['sample_time']
         # return a sorted copy, as data may have arrived out of order
-        result = sorted(state['samples'], key=sort_by_timestamp)
+        result = sorted(data['data'], key=sort_by_timestamp)
 
         if len(result) >= MAX_SAMPLES_PER_HISTORY_QUERY:
             self._logger.warn(
@@ -1309,8 +1309,8 @@ class KATPortalClient(object):
         # Free the state variables that were only required for the duration of
         # the download.  Do not disconnect - there may be websocket activity
         # initiated by another call.
-        yield self.unsubscribe(namespace, ['*'])
-        del self._sensor_history_states[namespace]
+        #yield self.unsubscribe(namespace, ['*'])
+        #del self._sensor_history_states[namespace]
 
         raise tornado.gen.Return(result)
 
