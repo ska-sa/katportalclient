@@ -1125,7 +1125,7 @@ class KATPortalClient(object):
         SensorNotFoundError:
             - If any of the filters were invalid regular expression patterns.
         """
-        url = self.sitemap['historic_sensor_values'] + '/sensors'
+        url = self.sitemap['historic_sensor_values'] + '/api/sensors'
         if isinstance(filters, str):
             filters = [filters]
         results = set()
