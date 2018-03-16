@@ -88,8 +88,9 @@ def main():
             print "History for: {} ({} samples)".format(sensor_name, num_samples)
             if num_samples > 0:
                 print "\tindex,timestamp,value,status"
-                for idx, item in enumerate(history):
-                    print "\t{},{},{},{}".format(idx, item['sample_time'], item['value'], item['status'])
+                for count in range(0, len(history), args.decimate):
+                    item = history[count]
+                    print "\t{},{},{},{}".format(count, item['sample_time'], item['value'], item['status'])
                     
     # Example: ./get_sensor_history.py -s 1476164224 -e 1476164229 anc_mean_wind_speed
     #
