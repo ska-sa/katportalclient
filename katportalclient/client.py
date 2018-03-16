@@ -30,12 +30,7 @@ from request import JSONRPCRequest
 
 # Limit for sensor history queries, in order to preserve memory on katportal.
 MAX_SAMPLES_PER_HISTORY_QUERY = 1000000
-# Pick a reasonable chunk size for sample downloads.  The samples are
-# published in blocks, so many at a time.
-# 43200 = 12 hour chunks if 1 sample every second
-SAMPLE_HISTORY_CHUNK_SIZE = 43200
 # Request sample times  in milliseconds for better precision
-SAMPLE_HISTORY_REQUEST_TIME_TYPE = 'ms'
 SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC = 1000.0
 
 # Websocket connect and reconnect timeouts
@@ -561,7 +556,7 @@ class KATPortalClient(object):
             self._logger.debug("Message received: %s", msg)
             msg_id = str(msg['id'])
             if msg_id.startswith('redis-pubsub'):
-                self._process_redis_message(msg, msg_id)
+                pass
             elif msg_id.startswith('redis-reconnect'):
                 # only resubscribe to namespaces, the server will still
                 # publish sensor value updates to redis because the client
@@ -579,67 +574,6 @@ class KATPortalClient(object):
                 self._logger.warn('Ignoring message (no on_update_callback): %s',
                                   msg)
 
-    @tornado.gen.coroutine
-    def _process_redis_message(self, msg, msg_id):
-        """Internal handler for Redis messages."""
-        msg_result = msg['result']
-        processed = False
-        if msg_id == 'redis-pubsub-init':
-            processed = True  # Nothing to do really.
-        elif 'msg_channel' in msg_result:
-            namespace = msg_result['msg_channel'].split(':', 1)[0]
-            if namespace in self._sensor_history_states:
-                state = self._sensor_history_states[namespace]
-                msg_data = msg_result['msg_data']
-                if (isinstance(msg_data, dict) and
-                        'inform_type' in msg_data and
-                        msg_data['inform_type'] == 'sample_history'):
-                    # inform message which provides synchronisation
-                    # information.
-                    inform = msg_data['inform_data']
-                    num_new_samples = inform['num_samples_to_be_published']
-                    state['num_samples_pending'] += num_new_samples
-                    if inform['done']:
-                        state['done_event'].set()
-                elif isinstance(msg_data, list):
-                    num_received = 0
-                    for sample in msg_data:
-                        if len(sample) == 6:
-                            # assume sample data message, extract fields of interest
-                            # (timestamp returned in milliseconds, so scale to seconds)
-                            # example:  [1476164224429L, 1476164223640L,
-                            #            1476164224429354L, u'5.07571614843',
-                            #            u'anc_mean_wind_speed', u'nominal']
-                            if state['include_value_ts']:
-                                # Requesting value_timestamp in addition to
-                                # sample timestamp
-                                sensor_sample = SensorSampleValueTs(
-                                    timestamp=sample[
-                                        0] / SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
-                                    value_timestamp=sample[
-                                        1] / SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
-                                    value=sample[3],
-                                    status=sample[5])
-                            else:
-                                # Only sample timestamp
-                                sensor_sample = SensorSample(
-                                    timestamp=sample[
-                                        0] / SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
-                                    value=sample[3],
-                                    status=sample[5])
-                            state['samples'].append(sensor_sample)
-                            num_received += 1
-                    state['num_samples_pending'] -= num_received
-                else:
-                    self._logger.warn(
-                        'Ignoring unexpected message: %s', msg_result)
-                processed = True
-        if not processed:
-            if self._on_update:
-                self._io_loop.add_callback(self._on_update, msg_result)
-            else:
-                self._logger.warn('Ignoring message (no on_update_callback): %s',
-                                  msg_result)
 
     @tornado.gen.coroutine
     def _process_json_rpc_message(self, msg, msg_id):
