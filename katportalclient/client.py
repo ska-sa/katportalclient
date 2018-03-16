@@ -1249,12 +1249,16 @@ class KATPortalClient(object):
             - If there was an error submitting the request.
             - If the request timed out
         """
+        state = {
+	    'include_value_ts': include_value_ts
+        }
         params = {
             'sensor': sensor_name,
             'start_time': start_time_sec,
             'end_time': end_time_sec,
             'limit': MAX_SAMPLES_PER_HISTORY_QUERY,
-            'all_fields': True
+            'all_fields': True,
+            'timeout' : timeout_sec
         }
         url = url_concat(
             self.sitemap['historic_sensor_values'] + '/api/query', params)
@@ -1277,15 +1281,26 @@ class KATPortalClient(object):
                                             .format(response.body))
 
         def sort_by_timestamp(sample):
-            return sample['sample_time']
+            return sample.timestamp
 
+        samples = []
+        for sample in data['data']:
+            if state['include_value_ts']:
+                # Requesting value_timestamp in addition to
+                # sample timestamp
+                sensor_sample = SensorSampleValueTs(timestamp=sample['sample_time'],
+            		                        value_timestamp=sample['value_time'],
+            	   	                        value=sample['value'],
+            		                        status=sample['sample'])
+            else:
+                # Only sample timestamp
+                sensor_sample = SensorSample(timestamp=sample['sample_time'],
+                                             value=sample['value'],
+                                             status=sample['status'])
+            samples.append(sensor_sample)
+ 
         # return a sorted copy, as data may have arrived out of order
-        result = sorted(data['data'], key=sort_by_timestamp)
-        if len(result) >= MAX_SAMPLES_PER_HISTORY_QUERY:
-            self._logger.warn(
-                'Maximum sample limit (%d) hit - there may be more data available.',
-                MAX_SAMPLES_PER_HISTORY_QUERY)
-
+        result = sorted(samples, key=sort_by_timestamp)
         raise tornado.gen.Return(result)
 
     @tornado.gen.coroutine
