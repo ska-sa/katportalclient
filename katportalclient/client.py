@@ -201,7 +201,8 @@ class KATPortalClient(object):
 
         try:
             response_json = json.loads(response.body)
-            if not response_json.get('logged_in', False) or response_json.get('session_id'):
+            if not response_json.get('logged_in', False) or 
+              response_json.get('session_id'):
                 self._session_id = response_json.get('session_id')
                 self._current_user_id = response_json.get('user_id')
 
@@ -1265,16 +1266,15 @@ class KATPortalClient(object):
                 # Requesting value_timestamp in addition to
                 # sample timestamp
                 sensor_sample = SensorSampleValueTs(timestamp=sample['sample_time'],
-            		                        value_timestamp=sample['value_time'],
-            	   	                        value=sample['value'],
-            		                        status=sample['status'])
+                        value_timestamp=sample['value_time'],
+                        value=sample['value'],
+                        status=sample['status'])
             else:
                 # Only sample timestamp
                 sensor_sample = SensorSample(timestamp=sample['sample_time'],
                                              value=sample['value'],
                                              status=sample['status'])
             samples.append(sensor_sample)
- 
         # return a sorted copy, as data may have arrived out of order
         result = sorted(samples, key=sort_by_timestamp)
         raise tornado.gen.Return(result)
