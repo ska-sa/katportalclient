@@ -30,6 +30,8 @@ from request import JSONRPCRequest
 
 # Limit for sensor history queries, in order to preserve memory on katportal.
 MAX_SAMPLES_PER_HISTORY_QUERY = 1000000
+# Request sample times  in milliseconds for better precision
+SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC = 1000.0
 
 # Websocket connect and reconnect timeouts
 WS_CONNECT_TIMEOUT = 10
