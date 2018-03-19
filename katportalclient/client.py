@@ -1255,7 +1255,7 @@ class KATPortalClient(object):
             'end_time': end_time_sec,
             'limit': MAX_SAMPLES_PER_HISTORY_QUERY,
             'all_fields': True,
-            'timeout' : timeout_sec
+            'timeout': timeout_sec
         }
         url = url_concat(
             self.sitemap['historic_sensor_values'] + '/query', params)
@@ -1263,11 +1263,8 @@ class KATPortalClient(object):
         response = yield self._http_client.fetch(url)
         data = json.loads(response.body)
         if 'data' not in data:
-           raise SensorHistoryRequestError("Error requesting sensor history: {}"
-                                           .format(response.body))
-
-         def sort_by_timestamp(sample):
-            return sample.timestamp
+            raise SensorHistoryRequestError("Error requesting sensor history: {}"
+                                            .format(response.body))
 
         samples = []
         for sample in data['data']:
@@ -1684,3 +1681,8 @@ class SubarrayNumberUnknown(Exception):
 
 class SensorLookupError(Exception):
     """Raise if requested sensor lookup failed."""
+
+def sort_by_timestamp(sample):
+    return sample.timestamp
+
+
