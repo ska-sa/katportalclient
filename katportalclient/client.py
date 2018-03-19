@@ -1264,7 +1264,7 @@ class KATPortalClient(object):
         data = json.loads(response.body)
         if 'data' not in data:
            raise SensorHistoryRequestError("Error requesting sensor history: {}"
-                                            .format(response.body))
+                                           .format(response.body))
 
          def sort_by_timestamp(sample):
             return sample.timestamp
