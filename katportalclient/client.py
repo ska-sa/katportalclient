@@ -201,8 +201,8 @@ class KATPortalClient(object):
 
         try:
             response_json = json.loads(response.body)
-            if not response_json.get('logged_in', 
-                    False) or response_json.get('session_id'):
+            if not response_json.get('logged_in',
+                                     False) or response_json.get('session_id'):
                 self._session_id = response_json.get('session_id')
                 self._current_user_id = response_json.get('user_id')
 
