@@ -9,10 +9,8 @@ import base64
 import hashlib
 import hmac
 import logging
-import uuid
 import time
 from urllib import urlencode
-from datetime import timedelta
 from collections import namedtuple
 
 import tornado.gen
@@ -30,12 +28,7 @@ from request import JSONRPCRequest
 
 # Limit for sensor history queries, in order to preserve memory on katportal.
 MAX_SAMPLES_PER_HISTORY_QUERY = 1000000
-# Pick a reasonable chunk size for sample downloads.  The samples are
-# published in blocks, so many at a time.
-# 43200 = 12 hour chunks if 1 sample every second
-SAMPLE_HISTORY_CHUNK_SIZE = 43200
 # Request sample times  in milliseconds for better precision
-SAMPLE_HISTORY_REQUEST_TIME_TYPE = 'ms'
 SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC = 1000.0
 
 # Websocket connect and reconnect timeouts
@@ -1682,7 +1675,6 @@ class SubarrayNumberUnknown(Exception):
 class SensorLookupError(Exception):
     """Raise if requested sensor lookup failed."""
 
+
 def sort_by_timestamp(sample):
     return sample.timestamp
-
-
