@@ -1277,7 +1277,7 @@ class KATPortalClient(object):
                 sensor_sample = SensorSampleValueTs(timestamp=sample['sample_time'],
             		                        value_timestamp=sample['value_time'],
             	   	                        value=sample['value'],
-            		                        status=sample['sample'])
+            		                        status=sample['status'])
             else:
                 # Only sample timestamp
                 sensor_sample = SensorSample(timestamp=sample['sample_time'],
