@@ -1249,9 +1249,6 @@ class KATPortalClient(object):
             - If there was an error submitting the request.
             - If the request timed out
         """
-        state = {
-	    'include_value_ts': include_value_ts
-        }
         params = {
             'sensor': sensor_name,
             'start_time': start_time_sec,
@@ -1265,27 +1262,16 @@ class KATPortalClient(object):
         self._logger.debug("Sensor history request: %s", url)
         response = yield self._http_client.fetch(url)
         data = json.loads(response.body)
-        if 'data' in data:
-            download_start_sec = time.time()
-            try:
-                timeout_delta = timedelta(seconds=timeout_sec)
-
-                self._logger.debug('Done in %d seconds, fetched %s samples.' % (
-                    time.time() - download_start_sec,
-                    len(data['data'])))
-            except tornado.gen.TimeoutError:
-                raise SensorHistoryRequestError(
-                    "Sensor history request timed out")
-        else:
-            raise SensorHistoryRequestError("Error requesting sensor history: {}"
+        if 'data' not in data:
+           raise SensorHistoryRequestError("Error requesting sensor history: {}"
                                             .format(response.body))
 
-        def sort_by_timestamp(sample):
+         def sort_by_timestamp(sample):
             return sample.timestamp
 
         samples = []
         for sample in data['data']:
-            if state['include_value_ts']:
+            if include_value_ts:
                 # Requesting value_timestamp in addition to
                 # sample timestamp
                 sensor_sample = SensorSampleValueTs(timestamp=sample['sample_time'],
