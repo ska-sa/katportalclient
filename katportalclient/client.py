@@ -9,10 +9,8 @@ import base64
 import hashlib
 import hmac
 import logging
-import uuid
 import time
 from urllib import urlencode
-from datetime import timedelta
 from collections import namedtuple
 
 import tornado.gen
@@ -30,12 +28,7 @@ from request import JSONRPCRequest
 
 # Limit for sensor history queries, in order to preserve memory on katportal.
 MAX_SAMPLES_PER_HISTORY_QUERY = 1000000
-# Pick a reasonable chunk size for sample downloads.  The samples are
-# published in blocks, so many at a time.
-# 43200 = 12 hour chunks if 1 sample every second
-SAMPLE_HISTORY_CHUNK_SIZE = 43200
 # Request sample times  in milliseconds for better precision
-SAMPLE_HISTORY_REQUEST_TIME_TYPE = 'ms'
 SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC = 1000.0
 
 # Websocket connect and reconnect timeouts
@@ -208,7 +201,8 @@ class KATPortalClient(object):
 
         try:
             response_json = json.loads(response.body)
-            if not response_json.get('logged_in', False) or response_json.get('session_id'):
+            if not response_json.get('logged_in',
+                                     False) or response_json.get('session_id'):
                 self._session_id = response_json.get('session_id')
                 self._current_user_id = response_json.get('user_id')
 
@@ -1207,7 +1201,7 @@ class KATPortalClient(object):
             'end_time': end_time_sec,
             'limit': MAX_SAMPLES_PER_HISTORY_QUERY,
             'all_fields': True,
-            'timeout' : timeout_sec
+            'timeout': timeout_sec
         }
         url = url_concat(
             self.sitemap['historic_sensor_values'] + '/query', params)
@@ -1215,11 +1209,8 @@ class KATPortalClient(object):
         response = yield self._http_client.fetch(url)
         data = json.loads(response.body)
         if 'data' not in data:
-           raise SensorHistoryRequestError("Error requesting sensor history: {}"
+            raise SensorHistoryRequestError("Error requesting sensor history: {}"
                                             .format(response.body))
-
-         def sort_by_timestamp(sample):
-            return sample.timestamp
 
         samples = []
         for sample in data['data']:
@@ -1227,16 +1218,15 @@ class KATPortalClient(object):
                 # Requesting value_timestamp in addition to
                 # sample timestamp
                 sensor_sample = SensorSampleValueTs(timestamp=sample['sample_time'],
-            		                        value_timestamp=sample['value_time'],
-            	   	                        value=sample['value'],
-            		                        status=sample['status'])
+                                                    value_timestamp=sample['value_time'],
+                                                    value=sample['value'],
+                                                    status=sample['status'])
             else:
                 # Only sample timestamp
                 sensor_sample = SensorSample(timestamp=sample['sample_time'],
                                              value=sample['value'],
                                              status=sample['status'])
             samples.append(sensor_sample)
- 
         # return a sorted copy, as data may have arrived out of order
         result = sorted(samples, key=sort_by_timestamp)
         raise tornado.gen.Return(result)
@@ -1636,3 +1626,7 @@ class SubarrayNumberUnknown(Exception):
 
 class SensorLookupError(Exception):
     """Raise if requested sensor lookup failed."""
+
+
+def sort_by_timestamp(sample):
+    return sample.timestamp
