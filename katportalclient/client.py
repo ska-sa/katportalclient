@@ -1265,7 +1265,7 @@ class KATPortalClient(object):
         self._logger.debug("Sensor history request: %s", url)
         response = yield self._http_client.fetch(url)
         data = json.loads(response.body)
-        if isinstance(data, dict) and 'data' in data:
+        if 'data' in data:
             download_start_sec = time.time()
             try:
                 timeout_delta = timedelta(seconds=timeout_sec)
