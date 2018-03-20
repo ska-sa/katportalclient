@@ -187,7 +187,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         def mock_fetch(url):
             sitemap = {'client':
                        {'websocket': self.websocket_url,
-                        'historic_sensor_values': r"http://0.0.0.0/history",
+                        'historic_sensor_values': r"http://0.0.0.0/sensors",
                         'schedule_blocks': r"http://0.0.0.0/sb",
                         'subarray_sensor_values': r"http://0.0.0.0/sensor-list",
                         'target_descriptions': r"http://0.0.0.0/sources",

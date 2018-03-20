@@ -1212,23 +1212,8 @@ class KATPortalClient(object):
             raise SensorHistoryRequestError("Error requesting sensor history: {}"
                                             .format(response.body))
 
-        samples = []
-        for sample in data['data']:
-            if include_value_ts:
-                # Requesting value_timestamp in addition to
-                # sample timestamp
-                sensor_sample = SensorSampleValueTs(timestamp=sample['sample_time'],
-                                                    value_timestamp=sample['value_time'],
-                                                    value=sample['value'],
-                                                    status=sample['status'])
-            else:
-                # Only sample timestamp
-                sensor_sample = SensorSample(timestamp=sample['sample_time'],
-                                             value=sample['value'],
-                                             status=sample['status'])
-            samples.append(sensor_sample)
-        # return a sorted copy, as data may have arrived out of order
-        result = sorted(samples, key=sort_by_timestamp)
+        data = data['data']
+        result = sorted(data, key=sort_by_timestamp)
         raise tornado.gen.Return(result)
 
     @tornado.gen.coroutine
@@ -1629,4 +1614,4 @@ class SensorLookupError(Exception):
 
 
 def sort_by_timestamp(sample):
-    return sample.timestamp
+    return float(sample['sample_time'])
