@@ -1157,7 +1157,7 @@ class KATPortalClient(object):
     @tornado.gen.coroutine
     def sensor_history(self, sensor_name, start_time_sec, end_time_sec,
                        include_value_ts=False, timeout_sec=300,
-                       additional_fields=None):
+                       additional_fields='status'):
         """Return time history of sample measurements for a sensor.
 
         For a list of sensor names, see :meth:`.sensors_list`.
@@ -1201,19 +1201,21 @@ class KATPortalClient(object):
             'start_time': start_time_sec,
             'end_time': end_time_sec,
             'limit': MAX_SAMPLES_PER_HISTORY_QUERY,
-            'additional_fields': additional_fields,
             'timeout': timeout_sec
         }
+        if additional_fields: 
+            params['additional_fields'] = additional_fields
         url = url_concat(
             self.sitemap['historic_sensor_values'] + '/query', params)
         self._logger.debug("Sensor history request: %s", url)
-        response = yield self._http_client.fetch(url)
+        response = yield self._http_client.fetch(url, request_timeout=timeout_sec, 
+                                                 connect_timeout=timeout_sec)
         data_json = json.loads(response.body)
         if 'data' not in data_json:
             raise SensorHistoryRequestError("Error requesting sensor history: {}"
                                             .format(response.body))
         data = []
-        for item in data:
+        for item in data_json['data']:
             if 'value_time' in item:
                 sensor = SensorSampleValueTs(item['sample_time'],
                                              item['value_time'],

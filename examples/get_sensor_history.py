@@ -74,7 +74,7 @@ def main():
             #    If value timestamp is also required, then add the additional argument:
             #        include_value_ts=True
             #    result is then timestmap, value_timestmap, value, status
-            additional_fields = args.additional_fields.split(',')
+            additional_fields = args.additional_fields
             history = yield portal_client.sensor_history(
                 sensor_names[0], args.start, args.end,
                 timeout_sec=args.timeout, additional_fields=additional_fields)
@@ -96,7 +96,7 @@ def main():
                     item = history[count]
                     if count == 0:
                         print("\tindex,{}".format(",".join(item._fields)))
-                    print "\t{},{}".format(count, ",".join(item.csv()))
+                    print "\t{},{}".format(count, item.csv())
 
     # Example: ./get_sensor_history.py -s 1476164224 -e 1476164229 anc_mean_wind_speed
     #
@@ -160,7 +160,7 @@ if __name__ == '__main__':
         help="provide extremely verbose output.")
     parser.add_argument(
         '--additional-fields',
-        default='',
+        default='status',
         help="Additional fields to be queried from katstore database")
 
     args = parser.parse_args()
