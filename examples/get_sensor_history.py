@@ -72,8 +72,10 @@ def main():
             # Request history for just a single sensor - result is timestamp, value, status
             #    If value timestamp is also required, then add the additional argument: include_value_ts=True
             #    result is then timestmap, value_timestmap, value, status
+            additional_fields = args.additional_fields.split(',')
             history = yield portal_client.sensor_history(
-                sensor_names[0], args.start, args.end, timeout_sec=args.timeout)
+                sensor_names[0], args.start, args.end,
+                timeout_sec=args.timeout, additional_fields=additional_fields)
             histories = {sensor_names[0]: history}
         else:
             # Request history for all the sensors - result is timestamp, value, status
@@ -90,9 +92,9 @@ def main():
                 for count in range(0, num_samples, args.decimate):
                     item = history[count]
                     if count == 0:
-                        print("\tindex,{}".format(",".join(item.keys())))
-                    print "\t{},{}".format(count, ",".join(item.values()))
-                    
+                        print("\tindex,{}".format(",".join(item._fields)))
+                    print "\t{},{}".format(count, ",".join(item.csv()))
+
     # Example: ./get_sensor_history.py -s 1476164224 -e 1476164229 anc_mean_wind_speed
     #
     # Matching sensor names: [u'anc_mean_wind_speed']
@@ -153,6 +155,11 @@ if __name__ == '__main__':
         dest='verbose', action="store_true",
         default=False,
         help="provide extremely verbose output.")
+    parser.add_argument(
+        '--additional-fields',
+        default='',
+        help="Additional fields to be queried from katstore database")
+
     args = parser.parse_args()
     if args.verbose:
         logger.setLevel(logging.DEBUG)

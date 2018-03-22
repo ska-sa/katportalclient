@@ -1156,7 +1156,8 @@ class KATPortalClient(object):
 
     @tornado.gen.coroutine
     def sensor_history(self, sensor_name, start_time_sec, end_time_sec,
-                       include_value_ts=False, timeout_sec=300):
+                       include_value_ts=False, timeout_sec=300,
+                       additional_fields=None):
         """Return time history of sample measurements for a sensor.
 
         For a list of sensor names, see :meth:`.sensors_list`.
@@ -1200,19 +1201,29 @@ class KATPortalClient(object):
             'start_time': start_time_sec,
             'end_time': end_time_sec,
             'limit': MAX_SAMPLES_PER_HISTORY_QUERY,
-            'all_fields': True,
+            'additional_fields': additional_fields,
             'timeout': timeout_sec
         }
         url = url_concat(
             self.sitemap['historic_sensor_values'] + '/query', params)
         self._logger.debug("Sensor history request: %s", url)
         response = yield self._http_client.fetch(url)
-        data = json.loads(response.body)
-        if 'data' not in data:
+        data_json = json.loads(response.body)
+        if 'data' not in data_json:
             raise SensorHistoryRequestError("Error requesting sensor history: {}"
                                             .format(response.body))
-
-        data = data['data']
+        data = []
+        for item in data:
+            if 'value_time' in item:
+                sensor = SensorSampleValueTs(item['sample_time'],
+                                             item['value_time'],
+                                             item['value'],
+                                             item['status'])
+            else:
+                sensor = SensorSample(item['sample_time'],
+                                      item['value'],
+                                      item['status'])
+            data.append(sensor)
         result = sorted(data, key=sort_by_timestamp)
         raise tornado.gen.Return(result)
 
@@ -1614,4 +1625,4 @@ class SensorLookupError(Exception):
 
 
 def sort_by_timestamp(sample):
-    return float(sample['sample_time'])
+    return float(sample.timestamp)
