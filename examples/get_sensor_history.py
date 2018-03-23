@@ -158,10 +158,6 @@ if __name__ == '__main__':
         dest='verbose', action="store_true",
         default=False,
         help="provide extremely verbose output.")
-    parser.add_argument(
-        '--additional-fields',
-        default='status',
-        help="Additional fields to be queried from katstore database")
 
     args = parser.parse_args()
     if args.verbose:

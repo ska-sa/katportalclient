@@ -1156,8 +1156,7 @@ class KATPortalClient(object):
 
     @tornado.gen.coroutine
     def sensor_history(self, sensor_name, start_time_sec, end_time_sec,
-                       include_value_ts=False, timeout_sec=300,
-                       additional_fields='status'):
+                       include_value_ts=False, timeout_sec=300):
         """Return time history of sample measurements for a sensor.
 
         For a list of sensor names, see :meth:`.sensors_list`.
@@ -1203,8 +1202,10 @@ class KATPortalClient(object):
             'limit': MAX_SAMPLES_PER_HISTORY_QUERY,
             'timeout': timeout_sec
         }
-        if additional_fields: 
-            params['additional_fields'] = additional_fields
+        if include_value_ts: 
+            additional_fields = 'status,value_time'
+        else:
+            additional_fields = 'status'
         url = url_concat(
             self.sitemap['historic_sensor_values'] + '/query', params)
         self._logger.debug("Sensor history request: %s", url)
@@ -1226,7 +1227,7 @@ class KATPortalClient(object):
                                       item['value'],
                                       item['status'])
             data.append(sensor)
-        result = sorted(data, key=sort_by_timestamp)
+        result = sorted(data, key=_sort_by_timestamp)
         raise tornado.gen.Return(result)
 
     @tornado.gen.coroutine
@@ -1626,5 +1627,5 @@ class SensorLookupError(Exception):
     """Raise if requested sensor lookup failed."""
 
 
-def sort_by_timestamp(sample):
+def _sort_by_timestamp(sample):
     return float(sample.timestamp)
