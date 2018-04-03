@@ -1200,10 +1200,11 @@ class KATPortalClient(object):
             'limit': MAX_SAMPLES_PER_HISTORY_QUERY,
             'timeout': timeout_sec
         }
-        if include_value_ts: 
+        if include_value_ts:
             additional_fields = 'status,value_time'
         else:
             additional_fields = 'status'
+        params['additional_fields'] = additional_fields
         url = url_concat(
             self.sitemap['historic_sensor_values'] + '/query', params)
         self._logger.debug("Sensor history request: %s", url)

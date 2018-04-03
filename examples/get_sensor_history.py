@@ -74,10 +74,10 @@ def main():
             #    If value timestamp is also required, then add the additional argument:
             #        include_value_ts=True
             #    result is then timestmap, value_timestmap, value, status
-            additional_fields = args.additional_fields
+            value_ts = args.include_value_ts
             history = yield portal_client.sensor_history(
                 sensor_names[0], args.start, args.end,
-                timeout_sec=args.timeout, additional_fields=additional_fields)
+                timeout_sec=args.timeout, include_value_ts=value_ts)
             histories = {sensor_names[0]: history}
         else:
             # Request history for all the sensors - result is timestamp, value, status
@@ -158,6 +158,11 @@ if __name__ == '__main__':
         dest='verbose', action="store_true",
         default=False,
         help="provide extremely verbose output.")
+    parser.add_argument(
+        '-i', '--include-value-ts',
+        type=bool,
+        default=False,
+        help="include value timestamp")
 
     args = parser.parse_args()
     if args.verbose:
