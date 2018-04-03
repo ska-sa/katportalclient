@@ -98,26 +98,26 @@ def main():
                         print("\tindex,{}".format(",".join(item._fields)))
                     print "\t{},{}".format(count, item.csv())
 
-    # Example: ./get_sensor_history.py -s 1476164224 -e 1476164229 anc_mean_wind_speed
-    #
-    # Matching sensor names: [u'anc_mean_wind_speed']
-    #
-    # Detail for sensor anc_mean_wind_speed:
-    # {'name': u'anc_mean_wind_speed', u'systype': u'mkat', 'component': u'anc',
-    #   u'site': u'deva', u'katcp_name': u'anc.mean_wind_speed', u'params': u'[]',
-    #   u'units': u'', u'type': u'float',
-    #   u'description': u"Mean of  ['wind.wind-speed', 'weather.wind-speed']
-    #                     in (600 * 1.0s) window"}
-    #
-    # Requesting history for 1 sensors, from 2016-10-11T05:37:04Z to 2016-10-11T05:37:09Z
+    # Example: ./get_sensor_history.py -s 1522756324 -e 1522759924 sys_watchdogs_sys
+    # Matching sensor names: [u'sys_watchdogs_sys']
+    # Detail for sensor sys_watchdogs_sys:
+    # attributes: {u'component': u'sys', u'original_name': u'sys.watchdogs.sys', u'params': u'[0, 4294967296]', u'description': u'Count of watchdogs received from component sys on 10.8.67.220:2025', u'type': u'integer'}
+    # component: sys
+    # name: sys_watchdogs_sys
+    # Requesting history for 1 sensors, from 2018-04-03T11:52:08Z to 2018-04-03T12:52:08Z
     # Found 1 sensors.
-    # History for: anc_mean_wind_speed (5 samples)
-    #    index,timestamp,value,status
-    #    0,1476164224.43,5.07571614843,nominal
-    #    1,1476164225.43,5.07574851017,nominal
-    #    2,1476164226.43,5.0753700255,nominal
-    #    3,1476164227.43,5.07593196431,nominal
-    #    4,1476164228.43,5.0758410904,nominal
+    # History for: sys_watchdogs_sys (360 samples)
+    #	index,timestamp,value,status
+    #	0,1522756329.5110459328,42108,nominal
+    #	1,1522756339.511122942,42109,nominal
+    #	2,1522756349.5113239288,42110,nominal
+    #	3,1522756359.5115270615,42111,nominal
+    #	4,1522756369.5126268864,42112,nominal
+    #	5,1522756379.5129699707,42113,nominal
+    #	6,1522756389.513215065,42114,nominal
+    #	7,1522756399.514425993,42115,nominal
+    #	8,1522756409.5146770477,42116,nominal
+    #	9,1522756419.5149009228,42117,nominal
 
 
 if __name__ == '__main__':
