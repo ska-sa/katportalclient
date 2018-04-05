@@ -835,7 +835,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         self.assertTrue(len(samples) == 0)
 
     @gen_test
-    def test_sensor_history_exception_on_timeout(self):
+    def no_longer_tseting_sensor_history_exception_on_timeout(self):
         """Test that exception is raised is download exceeds timeout."""
         history_base_url = self._portal_client.sitemap[
             'historic_sensor_values']
