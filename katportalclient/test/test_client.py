@@ -187,7 +187,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         def mock_fetch(url):
             sitemap = {'client':
                        {'websocket': self.websocket_url,
-                        'historic_sensor_values': r"http://0.0.0.0/sensors",
+                        'historic_sensor_values': r"http://0.0.0.0/katstore",
                         'schedule_blocks': r"http://0.0.0.0/sb",
                         'subarray_sensor_values': r"http://0.0.0.0/sensor-list",
                         'target_descriptions': r"http://0.0.0.0/sources",
@@ -675,11 +675,9 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         history_base_url = self._portal_client.sitemap[
             'historic_sensor_values']
         sensor_name = 'anc_weather_wind_speed'
-
         self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
-            valid_response='[{}]'.format(
-                sensor_json['anc_weather_wind_speed']),
-            invalid_response='[]',
+            valid_response=('{"data":[%s]}' % sensor_json['anc_weather_wind_speed']),
+            invalid_response='{"error":"test error"}',
             starts_with=history_base_url,
             contains=sensor_name)
 
@@ -687,13 +685,14 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             yield self._portal_client.sensor_detail('invalid_sensor_name')
 
         sensor_detail = yield self._portal_client.sensor_detail(sensor_name)
-        self.assertTrue(sensor_detail['name'] == sensor_name)
-        self.assertTrue(sensor_detail['description'] == "Wind speed")
-        self.assertTrue(sensor_detail['params'] == "[0.0, 70.0]")
-        self.assertTrue(sensor_detail['units'] == "m/s")
-        self.assertTrue(sensor_detail['type'] == "float")
-        self.assertTrue(sensor_detail['component'] == "anc")
-        self.assertTrue(sensor_detail['katcp_name']
+        
+        self.assertTrue(sensor_detail[0] == sensor_name)
+        self.assertTrue(sensor_detail[2]['description'] == "Wind speed")
+        self.assertTrue(sensor_detail[2]['params'] == "[0.0, 70.0]")
+        self.assertTrue(sensor_detail[2]['units'] == "m/s")
+        self.assertTrue(sensor_detail[2]['type'] == "float")
+        self.assertTrue(sensor_detail[1] == "anc")
+        self.assertTrue(sensor_detail[2]['katcp_name']
                         == "anc.weather.wind-speed")
 
     @gen_test
@@ -1424,7 +1423,6 @@ def mock_async_fetcher(valid_response, invalid_response, starts_with=None,
         start_ok = starts_with is None or url.startswith(starts_with)
         end_ok = ends_with is None or url.endswith(ends_with)
         contains_ok = contains is None or contains in url
-
         if start_ok and end_ok and contains_ok:
             body_buffer = StringIO.StringIO(valid_response)
         else:
