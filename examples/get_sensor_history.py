@@ -77,7 +77,7 @@ def main():
             value_ts = args.include_value_ts
             history = yield portal_client.sensor_history(
                 sensor_names[0], args.start, args.end,
-                timeout_sec=args.timeout, include_value_ts=value_ts)
+                include_value_ts=value_ts)
             histories = {sensor_names[0]: history}
         else:
             # Request history for all the sensors - result is timestamp, value, status
@@ -85,7 +85,7 @@ def main():
             #        include_value_ts=True
             #    result is then timestmap, value_timestmap, value, status
             histories = yield portal_client.sensors_histories(
-                sensor_names, args.start, args.end, timeout_sec=args.timeout, include_value_ts=value_ts)
+                sensor_names, args.start, args.end, include_value_ts=value_ts)
 
         print "Found {} sensors.".format(len(histories))
         for sensor_name, history in histories.items():
@@ -137,11 +137,6 @@ if __name__ == '__main__':
         type=int,
         default=time.time(),
         help="end time of sample query [sec since UNIX epoch] (default: now).")
-    parser.add_argument(
-        '-r', '--timeout',
-        type=int,
-        default=60,
-        help="maximum time allowed for query [sec] (default: %(default)s).")
     parser.add_argument(
         '-d', '--decimate',
         type=int,

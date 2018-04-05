@@ -1154,7 +1154,7 @@ class KATPortalClient(object):
 
     @tornado.gen.coroutine
     def sensor_history(self, sensor_name, start_time_sec, end_time_sec,
-                       include_value_ts=False, timeout_sec=300):
+                       include_value_ts=False):
         """Return time history of sample measurements for a sensor.
 
         For a list of sensor names, see :meth:`.sensors_list`.
@@ -1172,9 +1172,6 @@ class KATPortalClient(object):
             Flag to also include value timestamp in addition to time series
             sample timestamp in the result.
             Default: False.
-        timeout_sec: float
-            Maximum time (in sec) to wait for the history to be retrieved.
-            An exception will be raised if the request times out. (default:300)
 
         Returns
         -------
@@ -1197,8 +1194,7 @@ class KATPortalClient(object):
             'sensor': sensor_name,
             'start_time': start_time_sec,
             'end_time': end_time_sec,
-            'limit': MAX_SAMPLES_PER_HISTORY_QUERY,
-            'timeout': timeout_sec
+            'limit': MAX_SAMPLES_PER_HISTORY_QUERY
         }
         if include_value_ts:
             additional_fields = 'status,value_time'
@@ -1208,8 +1204,7 @@ class KATPortalClient(object):
         url = url_concat(
             self.sitemap['historic_sensor_values'] + '/query', params)
         self._logger.debug("Sensor history request: %s", url)
-        response = yield self._http_client.fetch(url, request_timeout=timeout_sec, 
-                                                 connect_timeout=timeout_sec)
+        response = yield self._http_client.fetch(url)
         data_json = json.loads(response.body)
         if 'data' not in data_json:
             raise SensorHistoryRequestError("Error requesting sensor history: {}"
@@ -1231,7 +1226,7 @@ class KATPortalClient(object):
 
     @tornado.gen.coroutine
     def sensors_histories(self, filters, start_time_sec, end_time_sec,
-                          include_value_ts=False, timeout_sec=300):
+                          include_value_ts=False):
         """Return time histories of sample measurements for multiple sensors.
 
         Finds the list of available sensors in the system that match the
@@ -1253,9 +1248,6 @@ class KATPortalClient(object):
             Flag to also include value timestamp in addition to time series
             sample timestamp in the result.
             Default: False.
-        timeout_sec: float
-            Maximum time to wait for all sensors' histories to be retrieved.
-            An exception will be raised if the request times out.
 
         Returns
         -------
@@ -1281,9 +1273,8 @@ class KATPortalClient(object):
         histories = {}
         for sensor in sensors:
             elapsed_time_sec = time.time() - request_start_sec
-            timeout_left_sec = timeout_sec - elapsed_time_sec
             histories[sensor] = yield self.sensor_history(
-                sensor, start_time_sec, end_time_sec, timeout_left_sec,
+                sensor, start_time_sec, end_time_sec,
                 include_value_ts=include_value_ts)
         raise tornado.gen.Return(histories)
 
