@@ -1217,15 +1217,15 @@ class KATPortalClient(object):
         data = []
         for item in data_json['data']:
             if 'value_time' in item:
-                sensor = SensorSampleValueTs(item['sample_time'],
+                sample = SensorSampleValueTs(item['sample_time'],
                                              item['value_time'],
                                              item['value'],
                                              item['status'])
             else:
-                sensor = SensorSample(item['sample_time'],
+                sample = SensorSample(item['sample_time'],
                                       item['value'],
                                       item['status'])
-            data.append(sensor)
+            data.append(sample)
         result = sorted(data, key=_sort_by_timestamp)
         raise tornado.gen.Return(result)
 

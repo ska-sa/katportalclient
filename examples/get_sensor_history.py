@@ -73,7 +73,7 @@ def main():
             # timestamp, value, status
             #    If value timestamp is also required, then add the additional argument:
             #        include_value_ts=True
-            #    result is then timestmap, value_timestmap, value, status
+            #    result is then timestamp, value_timestmap, value, status
             value_ts = args.include_value_ts
             history = yield portal_client.sensor_history(
                 sensor_names[0], args.start, args.end,
@@ -85,7 +85,7 @@ def main():
             #        include_value_ts=True
             #    result is then timestmap, value_timestmap, value, status
             histories = yield portal_client.sensors_histories(
-                sensor_names, args.start, args.end, timeout_sec=args.timeout)
+                sensor_names, args.start, args.end, timeout_sec=args.timeout, include_value_ts=value_ts)
 
         print "Found {} sensors.".format(len(histories))
         for sensor_name, history in histories.items():
