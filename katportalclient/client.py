@@ -1283,7 +1283,8 @@ class KATPortalClient(object):
             elapsed_time_sec = time.time() - request_start_sec
             timeout_left_sec = timeout_sec - elapsed_time_sec
             histories[sensor] = yield self.sensor_history(
-                sensor, start_time_sec, end_time_sec, timeout_left_sec)
+                sensor, start_time_sec, end_time_sec, timeout_left_sec,
+                include_value_ts=include_value_ts)
         raise tornado.gen.Return(histories)
 
     @tornado.gen.coroutine
