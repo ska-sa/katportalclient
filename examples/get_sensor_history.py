@@ -72,20 +72,20 @@ def main():
             # Request history for just a single sensor - result is
             # timestamp, value, status
             #    If value timestamp is also required, then add the additional argument:
-            #        include_value_ts=True
+            #        include_value_time=True
             #    result is then timestamp, value_timestmap, value, status
-            value_ts = args.include_value_ts
+            value_time = args.include_value_time
             history = yield portal_client.sensor_history(
                 sensor_names[0], args.start, args.end,
-                include_value_ts=value_ts)
+                include_value_time=value_time)
             histories = {sensor_names[0]: history}
         else:
             # Request history for all the sensors - result is timestamp, value, status
             #    If value timestamp is also required, then add the additional argument:
-            #        include_value_ts=True
+            #        include_value_time=True
             #    result is then timestmap, value_timestmap, value, status
             histories = yield portal_client.sensors_histories(
-                sensor_names, args.start, args.end, include_value_ts=value_ts)
+                sensor_names, args.start, args.end, include_value_time=value_time)
 
         print "Found {} sensors.".format(len(histories))
         for sensor_name, history in histories.items():
@@ -154,7 +154,7 @@ if __name__ == '__main__':
         default=False,
         help="provide extremely verbose output.")
     parser.add_argument(
-        '-i', '--include-value-ts',
+        '-i', '--include-value-time',
         type=bool,
         default=False,
         help="include value timestamp")

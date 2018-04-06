@@ -71,13 +71,13 @@ def create_jwt_login_token(email, password):
     return jwt_auth_token
 
 
-class SensorSample(namedtuple('SensorSample', 'timestamp, value, status')):
+class SensorSample(namedtuple('SensorSample', 'sample_time, value, status')):
     """Class to represent all sensor samples.
 
     Fields:
-        - timestamp:  float
-            The timestamp (UNIX epoch) the sample was received by CAM.
-            timestamp value is reported with millisecond precision.
+        - sample_time:  float
+            The sample_time (UNIX epoch) the sample was received by CAM.
+            sample_time value is reported with millisecond precision.
         - value:  str
             The value of the sensor when sampled.  The units depend on the
             sensor, see :meth:`.sensor_detail`.
@@ -89,20 +89,20 @@ class SensorSample(namedtuple('SensorSample', 'timestamp, value, status')):
 
     def csv(self):
         """Returns sample in comma separated values format."""
-        return '{},{},{}'.format(self.timestamp, self.value, self.status)
+        return '{},{},{}'.format(self.sample_time, self.value, self.status)
 
 
-class SensorSampleValueTs(namedtuple(
-        'SensorSampleValueTs', 'timestamp, value_timestamp, value, status')):
-    """Class to represent sensor samples, including the value_timestamp.
+class SensorSampleValueTime(namedtuple(
+        'SensorSampleValueTs', 'sample_time, value_time, value, status')):
+    """Class to represent sensor samples, including the value_time.
 
     Fields:
-        - timestamp:  float
-            The timestamp (UNIX epoch) the sample was received by CAM.
-            Timestamp value is reported with millisecond precision.
-        - value_timestamp:  float
-            The timestamp (UNIX epoch) the sample was read at the lowest level sensor.
-            value_timestamp value is reported with millisecond precision.
+        - sample_time:  float
+            The sample_time (UNIX epoch) the sample was received by CAM.
+            sample_time value is reported with millisecond precision.
+        - value_time:  float
+            The sample_time (UNIX epoch) the sample was read at the lowest level sensor.
+            value_time value is reported with millisecond precision.
         - value:  str
             The value of the sensor when sampled.  The units depend on the
             sensor, see :meth:`.sensor_detail`.
@@ -115,7 +115,7 @@ class SensorSampleValueTs(namedtuple(
     def csv(self):
         """Returns sample in comma separated values format."""
         return '{},{},{},{}'.format(
-            self.timestamp, self.value_timestamp, self.value, self.status)
+            self.sample_time, self.value_time, self.value, self.status)
 
 
 class KATPortalClient(object):
@@ -1154,7 +1154,7 @@ class KATPortalClient(object):
 
     @tornado.gen.coroutine
     def sensor_history(self, sensor_name, start_time_sec, end_time_sec,
-                       include_value_ts=False):
+                       include_value_time=False):
         """Return time history of sample measurements for a sensor.
 
         For a list of sensor names, see :meth:`.sensors_list`.
@@ -1168,18 +1168,18 @@ class KATPortalClient(object):
             (1970-01-01 UTC).
         end_time_sec: float
             End time for sample history query, in seconds since the UNIX epoch.
-        include_value_ts: bool
-            Flag to also include value timestamp in addition to time series
-            sample timestamp in the result.
+        include_value_time: bool
+            Flag to also include value sample_time in addition to time series
+            sample sample_time in the result.
             Default: False.
 
         Returns
         -------
         list:
             List of :class:`.SensorSample` namedtuples (one per sample, with fields
-            timestamp, value and status) or, if include_value_ts was set, then
+            sample_time, value and status) or, if include_value_time was set, then
             list of :class:`.SensorSampleValueTs` namedtuples (one per sample, with fields
-            timestamp, value_timestamp, value and status).
+            sample_time, value_time, value and status).
             See :class:`.SensorSample` and :class:`.SensorSampleValueTs` for details.
             If the sensor named never existed, or is otherwise invalid, the
             list will be empty - no exception is raised.
@@ -1196,7 +1196,7 @@ class KATPortalClient(object):
             'end_time': end_time_sec,
             'limit': MAX_SAMPLES_PER_HISTORY_QUERY
         }
-        if include_value_ts:
+        if include_value_time:
             additional_fields = 'status,value_time'
         else:
             additional_fields = 'status'
@@ -1221,12 +1221,12 @@ class KATPortalClient(object):
                                       item['value'],
                                       item['status'])
             data.append(sample)
-        result = sorted(data, key=_sort_by_timestamp)
+        result = sorted(data, key=_sort_by_sample_time)
         raise tornado.gen.Return(result)
 
     @tornado.gen.coroutine
     def sensors_histories(self, filters, start_time_sec, end_time_sec,
-                          include_value_ts=False):
+                          include_value_time=False):
         """Return time histories of sample measurements for multiple sensors.
 
         Finds the list of available sensors in the system that match the
@@ -1244,9 +1244,9 @@ class KATPortalClient(object):
             (1970-01-01 UTC).
         end_time_sec: float
             End time for sample history query, in seconds since the UNIX epoch.
-        include_value_ts: bool
-            Flag to also include value timestamp in addition to time series
-            sample timestamp in the result.
+        include_value_time: bool
+            Flag to also include value sample_time in addition to time series
+            sample sample_time in the result.
             Default: False.
 
         Returns
@@ -1254,10 +1254,10 @@ class KATPortalClient(object):
         dict:
             Dictionary of lists.  The keys are the full sensor names.
             The values are lists of :class:`.SensorSample` namedtuples,
-            (one per sample, with fields timestamp, value and status)
-            or, if include_value_ts was set, then
+            (one per sample, with fields sample_time, value and status)
+            or, if include_value_time was set, then
             list of :class:`.SensorSampleValueTs` namedtuples (one per sample,
-            with fields timestamp, value_timestamp, value and status).
+            with fields sample_time, value_time, value and status).
             See :class:`.SensorSample` and :class:`.SensorSampleValueTs` for details.
 
         Raises
@@ -1275,7 +1275,7 @@ class KATPortalClient(object):
             elapsed_time_sec = time.time() - request_start_sec
             histories[sensor] = yield self.sensor_history(
                 sensor, start_time_sec, end_time_sec,
-                include_value_ts=include_value_ts)
+                include_value_time=include_value_time)
         raise tornado.gen.Return(histories)
 
     @tornado.gen.coroutine
@@ -1392,7 +1392,7 @@ class KATPortalClient(object):
                 'user_id': 1,
                 'attachments': [],
                 'tags': '[]',
-                'timestamp': '2017-02-07 08:47:22',
+                'sample_time': '2017-02-07 08:47:22',
                 'start_time': '2017-02-07 00:00:00',
                 'modified': '',
                 'content': 'katportalclient userlog creation content!',
@@ -1453,7 +1453,7 @@ class KATPortalClient(object):
                 'user_id': 1,
                 'attachments': [],
                 'tags': '[]',
-                'timestamp': '2017-02-07 08:47:22',
+                'sample_time': '2017-02-07 08:47:22',
                 'start_time': '2017-02-07 00:00:00',
                 'modified': '',
                 'content': 'katportalclient userlog creation content!',
@@ -1507,7 +1507,7 @@ class KATPortalClient(object):
                 'user_id': 1,
                 'attachments': [],
                 'tags': '[]',
-                'timestamp': '2017-02-07 08:47:22',
+                'sample_time': '2017-02-07 08:47:22',
                 'start_time': '2017-02-07 00:00:00',
                 'modified': '',
                 'content': 'katportalclient userlog modified content!',
@@ -1618,5 +1618,5 @@ class SensorLookupError(Exception):
     """Raise if requested sensor lookup failed."""
 
 
-def _sort_by_timestamp(sample):
-    return float(sample.timestamp)
+def _sort_by_sample_time(sample):
+    return float(sample.sample_time)

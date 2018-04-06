@@ -588,8 +588,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         sensor_name_filter = 'anc_weather_wind_speed'
 
         self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
-            valid_response='[{}]'.format(
-                sensor_json['anc_weather_wind_speed']),
+            valid_response=('"data": [%s]'%sensor_json['anc_weather_wind_speed']),
             invalid_response='[]',
             starts_with=history_base_url,
             contains=sensor_name_filter)
@@ -607,7 +606,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         sensor_name_filter = 'anc_w.*_device_status'
 
         self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
-            valid_response='[{}, {}]'.format(sensor_json['anc_wind_device_status'],
+            valid_response='"data":[%s, %s]' %(sensor_json['anc_wind_device_status'],
                                              sensor_json['anc_weather_device_status']),
             invalid_response='[]',
             starts_with=history_base_url,
@@ -628,8 +627,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             'anc_weather_wind_speed', 'anc_weather_wind_speed']
 
         self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
-            valid_response='[{}]'.format(
-                sensor_json['anc_weather_wind_speed']),
+            valid_response=('"data":[%s]' % sensor_json['anc_weather_wind_speed']),
             invalid_response='[]',
             starts_with=history_base_url,
             contains=sensor_name_filters[0])
@@ -663,7 +661,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
 
         self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
             valid_response=sensor_json['regex_error'],
-            invalid_response='[]',
+            invalid_response='"error": "testing_error"',
             starts_with=history_base_url)
 
         with self.assertRaises(SensorNotFoundError):
@@ -736,7 +734,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             yield self._portal_client.sensor_detail(sensor_name_filter)
 
     @gen_test
-    def test_sensor_history_single_sensor_with_value_ts(self):
+    def test_sensor_history_single_sensor_with_value_time(self):
         """Test that time ordered data with value_timestamp is received for a single sensor request."""
         history_base_url = self._portal_client.sitemap[
             'historic_sensor_values']
@@ -753,7 +751,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             client_states=self._portal_client._sensor_history_states)
 
         samples = yield self._portal_client.sensor_history(
-            sensor_name, start_time_sec=0, end_time_sec=time.time(), include_value_ts=False)
+            sensor_name, start_time_sec=0, end_time_sec=time.time(), include_value_time=False)
         # expect exactly 4 samples
         self.assertTrue(len(samples) == 4)
 
@@ -766,7 +764,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             self.assertEqual(len(sample), 3)
 
         samples = yield self._portal_client.sensor_history(
-            sensor_name, start_time_sec=0, end_time_sec=time.time(), include_value_ts=True)
+            sensor_name, start_time_sec=0, end_time_sec=time.time(), include_value_time=True)
         # expect exactly 4 samples
         self.assertTrue(len(samples) == 4)
 
