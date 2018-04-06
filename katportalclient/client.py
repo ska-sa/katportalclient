@@ -93,7 +93,7 @@ class SensorSample(namedtuple('SensorSample', 'sample_time, value, status')):
 
 
 class SensorSampleValueTime(namedtuple(
-        'SensorSampleValueTs', 'sample_time, value_time, value, status')):
+        'SensorSampleValueTime', 'sample_time, value_time, value, status')):
     """Class to represent sensor samples, including the value_time.
 
     Fields:
@@ -1178,9 +1178,9 @@ class KATPortalClient(object):
         list:
             List of :class:`.SensorSample` namedtuples (one per sample, with fields
             sample_time, value and status) or, if include_value_time was set, then
-            list of :class:`.SensorSampleValueTs` namedtuples (one per sample, with fields
+            list of :class:`.SensorSampleValueTime` namedtuples (one per sample, with fields
             sample_time, value_time, value and status).
-            See :class:`.SensorSample` and :class:`.SensorSampleValueTs` for details.
+            See :class:`.SensorSample` and :class:`.SensorSampleValueTime` for details.
             If the sensor named never existed, or is otherwise invalid, the
             list will be empty - no exception is raised.
 
@@ -1212,7 +1212,7 @@ class KATPortalClient(object):
         data = []
         for item in data_json['data']:
             if 'value_time' in item:
-                sample = SensorSampleValueTs(item['sample_time'],
+                sample = SensorSampleValueTime(item['sample_time'],
                                              item['value_time'],
                                              item['value'],
                                              item['status'])
@@ -1256,9 +1256,9 @@ class KATPortalClient(object):
             The values are lists of :class:`.SensorSample` namedtuples,
             (one per sample, with fields sample_time, value and status)
             or, if include_value_time was set, then
-            list of :class:`.SensorSampleValueTs` namedtuples (one per sample,
+            list of :class:`.SensorSampleValueTime` namedtuples (one per sample,
             with fields sample_time, value_time, value and status).
-            See :class:`.SensorSample` and :class:`.SensorSampleValueTs` for details.
+            See :class:`.SensorSample` and :class:`.SensorSampleValueTime` for details.
 
         Raises
         -------
