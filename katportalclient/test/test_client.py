@@ -896,7 +896,6 @@ class TestKATPortalClient(WebSocketBaseTestCase):
 
         histories = yield self._portal_client.sensors_histories(
             sensor_name_filter, start_time_sec=0, end_time_sec=time.time())
-        print('histories == {}'.format(histories))
         # expect exactly 2 lists of samples
         self.assertTrue(len(histories) == 2)
         # expect keys to match the 2 sensor names

@@ -1148,7 +1148,13 @@ class KATPortalClient(object):
                         sensor_name,
                         [result['name'] for result in results[0:5]]))
         else:
-            raise tornado.gen.Return(results[0])
+            attrs = results[0].get('attributes')
+            result = { 'name': results[0].get('name'),
+                       'description': attrs.get('description'),
+                       'params': attrs.get('params'),
+                       'katcp_name': attrs.get('original_name'),
+                       'component': attrs.get('component')}
+            raise tornado.gen.Return(result)
 
     @tornado.gen.coroutine
     def sensor_history(self, sensor_name, start_time_sec, end_time_sec,
