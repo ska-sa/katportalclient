@@ -647,7 +647,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         sensor_name_filter = 'anc_weather_wind_speed'
 
         self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
-            valid_response=('"data": [%s]' % sensor_json['anc_weather_wind_speed']),
+            valid_response=('{"data": [%s]}' % sensor_json['anc_weather_wind_speed']),
             invalid_response='[]',
             starts_with=history_base_url,
             contains=sensor_name_filter)
@@ -665,7 +665,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         sensor_name_filter = 'anc_w.*_device_status'
 
         self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
-            valid_response='"data":[%s, %s]' % (sensor_json['anc_wind_device_status'],
+            valid_response='{"data":[%s, %s]}' % (sensor_json['anc_wind_device_status'],
                                                 sensor_json['anc_weather_device_status']),
             invalid_response='[]',
             starts_with=history_base_url,
@@ -686,7 +686,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             'anc_weather_wind_speed', 'anc_weather_wind_speed']
 
         self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
-            valid_response=('"data":[%s]' % sensor_json['anc_weather_wind_speed']),
+            valid_response=('{"data":[%s]}' % sensor_json['anc_weather_wind_speed']),
             invalid_response='[]',
             starts_with=history_base_url,
             contains=sensor_name_filters[0])
@@ -743,14 +743,13 @@ class TestKATPortalClient(WebSocketBaseTestCase):
 
         sensor_detail = yield self._portal_client.sensor_detail(sensor_name)
         
-        self.assertTrue(sensor_detail[0] == sensor_name)
-        self.assertTrue(sensor_detail[2]['description'] == "Wind speed")
-        self.assertTrue(sensor_detail[2]['params'] == "[0.0, 70.0]")
-        self.assertTrue(sensor_detail[2]['units'] == "m/s")
-        self.assertTrue(sensor_detail[2]['type'] == "float")
-        self.assertTrue(sensor_detail[1] == "anc")
-        self.assertTrue(sensor_detail[2]['katcp_name']
-                        == "anc.weather.wind-speed")
+        self.assertTrue(sensor_detail['name'] == sensor_name)
+        self.assertTrue(sensor_detail['description'] == "Wind speed")
+        self.assertTrue(sensor_detail['params'] == "[0.0, 70.0]")
+        self.assertTrue(sensor_detail['units'] == "m/s")
+        #self.assertTrue(sensor_detail['type'] == "float")
+        #self.assertTrue(sensor_detail['component'] == "anc")
+        #self.assertTrue(sensor_detail['katcp_name']  == "anc.weather.wind-speed")
 
     @gen_test
     def test_sensor_detail_for_multiple_sensors_but_exact_match(self):
