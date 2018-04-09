@@ -29,62 +29,121 @@ LOGGER_NAME = 'test_portalclient'
 
 # Example JSON text for sensor request responses
 sensor_json = {
-    "anc_weather_wind_speed": """["anc_weather_wind_speed","anc",
-                                  {"description":"Wind speed",
+    "anc_weather_wind_speed": """{"name":"anc_weather_wind_speed",
+                                  "component": "anc",
+                                  "attributes": {"description":"Wind speed",
                                    "systype":"mkat",
                                    "site":"deva",
                                    "katcp_name":"anc.weather.wind-speed",
                                    "params":"[0.0, 70.0]",
                                    "units":"m\/s",
-                                   "type":"float"}]""",
+                                   "type":"float"}}""",
 
-    "anc_mean_wind_speed": """["anc_mean_wind_speed","anc",
-                                {"description":"Mean wind speed",
+    "anc_mean_wind_speed": """{ "name" : "anc_mean_wind_speed",
+                                "component": "anc",
+                                "attributes": {"description":"Mean wind speed",
                                  "systype":"mkat",
                                  "site":"deva",
                                  "katcp_name":"anc.mean-wind-speed",
                                  "params":"[0.0, 70.0]",
                                  "units":"m\/s",
-                                 "type":"float"}]""",
+                                 "type":"float"}}""",
 
-    "anc_gust_wind_speed": """["anc_gust_wind_speed","anc",
-                               {"description":"Gust wind speed",
+    "anc_gust_wind_speed": """{"name" :"anc_gust_wind_speed",
+                                     "component": "anc",
+                               "attributes":{"description":"Gust wind speed",
                                 "systype":"mkat",
                                 "site":"deva",
                                 "katcp_name":"anc.gust-wind-speed",
                                 "params":"[0.0, 70.0]",
                                 "units":"m\/s",
-                                "type":"float"}]""",
+                                "type":"float"}}""",
 
-    "anc_gust_wind_speed2": """["anc_gust_wind_speed2","anc",
-                               {"description":"Gust wind speed2",
+    "anc_gust_wind_speed2": """{"name" :"anc_gust_wind_speed2",
+                                     "component": "anc",
+                               "attributes":{"description":"Gust wind speed2",
                                 "systype":"mkat",
                                 "site":"deva",
                                 "katcp_name":"anc.gust-wind-speed2",
                                 "params":"[0.0, 72.0]",
                                 "units":"m\/s",
-                                "type":"float"}]""",
+                                "type":"float"}}""",
 
-    "anc_wind_device_status": """["anc_wind_device_status","anc",
-                                  {"description":"Overall status of wind system",
+    "anc_wind_device_status": """{"name" :"anc_wind_device_status",
+                                     "component": "anc",
+                                  "attributes":{"description":"Overall status of wind system",
                                    "systype":"mkat",
                                    "site":"deva",
                                    "katcp_name":"anc.wind.device-status",
                                    "params":"['ok', 'degraded', 'fail']",
                                    "units":"",
-                                   "type":"discrete"}]""",
+                                   "type":"discrete"}}""",
 
-    "anc_weather_device_status": """["anc_weather_device_status","anc",
-                                     {"description":"Overall status of weather system",
+    "anc_weather_device_status": """{"name" :"anc_weather_device_status",
+                                     "component": "anc",
+                                     "attributes":{"description":"Overall status of weather system",
                                       "systype":"mkat",
                                        "site":"deva",
                                        "katcp_name":"anc.weather.device-status",
                                        "params":"['ok', 'degraded', 'fail']",
                                        "units":"",
-                                       "type":"discrete"}]""",
+                                       "type":"discrete"}}""",
 
     "regex_error": """{"error":"invalid regular expression: quantifier operand invalid\n"}"""
 }
+
+
+sensor_data1 = """{
+  "url": "/katstore/api/query/?start_time=1523249984&end_time=now&interval=0&sensor=sys_watchdogs_sys&minmax=false&buffer_only=false&additional_fields=false",
+  "sensor_name": "sys_watchdogs_sys",
+  "title": "Sensors Query",
+  "data": [
+    {
+      "value": "91474",
+      "sample_time": "1523249992.0250809193",
+      "status" : "error"
+    },
+    {
+      "value": "91475",
+      "sample_time": "1523250002.0252408981",
+      "status" : "error"
+    },
+    {
+      "value": "91476",
+      "sample_time": "1523250012.0289709568",
+      "status" : "error"
+    },
+    {
+      "value": "91477",
+      "sample_time": "1523250022.0292000771",
+      "status" : "error"
+    }
+  ]
+}"""
+
+sensor_data2 = """{
+  "url": "/katstore/api/query/?start_time=1523249984&end_time=now&interval=0&sensor=sys_watchdogs_sys&minmax=false&buffer_only=false&additional_fields=false",
+  "sensor_name": "sys_watchdogs_sys",
+  "title": "Sensors Query",
+  "data": [
+    {
+      "value": "91475",
+      "sample_time": "1523250002.0252408981",
+      "status" : "error"
+    },
+    {
+      "value": "91476",
+      "sample_time": "1523250012.0289709568",
+      "status" : "error"
+    },
+    {
+      "value": "91477",
+      "sample_time": "1523250022.0292000771",
+      "status" : "error"
+    }
+  ]
+}"""
+
 
 
 # Example redis-pubsub message for sensor history
@@ -875,10 +934,10 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         #  - 3rd call provides the sample history for sensor 1
         self.mock_http_async_client().fetch.side_effect = mock_async_fetchers(
             valid_responses=[
-                '[{}, {}]'.format(sensor_json[sensor_names[0]],
-                                  sensor_json[sensor_names[1]]),
-                '{"result":"success"}',
-                '{"result":"success"}'],
+                '{"data" : [%s, %s]}' % (sensor_json[sensor_names[0]],
+                                         sensor_json[sensor_names[1]]),
+                sensor_data1, sensor_data2
+                ],
             invalid_responses=['1error', '2error', '3error'],
             starts_withs=history_base_url,
             containses=[
@@ -894,8 +953,10 @@ class TestKATPortalClient(WebSocketBaseTestCase):
                 self._portal_client._sensor_history_states,
                 self._portal_client._sensor_history_states])
 
+        
         histories = yield self._portal_client.sensors_histories(
             sensor_name_filter, start_time_sec=0, end_time_sec=time.time())
+        print(" histories {} ".format(histories))
         # expect exactly 2 lists of samples
         self.assertTrue(len(histories) == 2)
         # expect keys to match the 2 sensor names
@@ -932,8 +993,8 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         #  - 2nd call provides the sample history for sensor 1
         self.mock_http_async_client().fetch.side_effect = mock_async_fetchers(
             valid_responses=[
-                '{"result":"success"}',
-                '{"result":"success"}'],
+                '{"data":"success"}',
+                '{"data":"success"}'],
             invalid_responses=['1error', '2error'],
             starts_withs=history_base_url,
             containses=[
@@ -1396,7 +1457,6 @@ def mock_async_fetchers(valid_responses, invalid_responses, starts_withs=None,
     assert(len(containses) == num_calls)
     assert(len(publish_raw_messageses) == num_calls)
     assert(len(client_stateses) == num_calls)
-
     mock_fetches = [mock_async_fetcher(v, i, s, e, c, p, cs)
                     for v, i, s, e, c, p, cs in zip(
                         valid_responses, invalid_responses,
@@ -1405,11 +1465,8 @@ def mock_async_fetchers(valid_responses, invalid_responses, starts_withs=None,
     # flip order so that poping effectively goes from first to last input
     mock_fetches.reverse()
 
-    print("valid response {}".format(valid_responses))
-    print("mock_fetches {}".format(mock_fetches))
     def mock_fetch(url):
         single_fetch = mock_fetches.pop()
-        print('single_fetch {}'.format(url))
         return single_fetch(url)
 
     return mock_fetch
@@ -1428,7 +1485,6 @@ def mock_async_fetcher(valid_response, invalid_response, starts_with=None,
             body_buffer = StringIO.StringIO(valid_response)
         else:
             body_buffer = StringIO.StringIO(invalid_response)
-        
         # optionally send raw message from test websocket server
         if publish_raw_messages and test_websocket:
             for raw_message in publish_raw_messages:
