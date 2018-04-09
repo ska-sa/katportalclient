@@ -1153,6 +1153,8 @@ class KATPortalClient(object):
                        'description': attrs.get('description'),
                        'params': attrs.get('params'),
                        'katcp_name': attrs.get('original_name'),
+                       'units': attrs.get('units'),
+                       'resource': attrs.get('resource'),
                        'component': attrs.get('component')}
             raise tornado.gen.Return(result)
 
