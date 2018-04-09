@@ -98,11 +98,9 @@ class SensorSampleValueTime(namedtuple(
 
     Fields:
         - sample_time:  float
-            The sample_time (UNIX epoch) the sample was received by CAM.
-            sample_time value is reported with millisecond precision.
+            The timestamp (UNIX epoch) the sample was received by CAM.
         - value_time:  float
-            The sample_time (UNIX epoch) the sample was read at the lowest level sensor.
-            value_time value is reported with millisecond precision.
+            The timestamp (UNIX epoch) the sample was read at the lowest level sensor.
         - value:  str
             The value of the sensor when sampled.  The units depend on the
             sensor, see :meth:`.sensor_detail`.
@@ -1170,7 +1168,7 @@ class KATPortalClient(object):
             End time for sample history query, in seconds since the UNIX epoch.
         include_value_time: bool
             Flag to also include value sample_time in addition to time series
-            sample sample_time in the result.
+            sample time in the result.
             Default: False.
 
         Returns
@@ -1195,7 +1193,7 @@ class KATPortalClient(object):
             'start_time': start_time_sec,
             'end_time': end_time_sec,
             'limit': MAX_SAMPLES_PER_HISTORY_QUERY,
-            'include_value_time' : include_value_time
+            'include_value_time': include_value_time
         }
         url = url_concat(
             self.sitemap['historic_sensor_values'] + '/query', params)
@@ -1209,9 +1207,9 @@ class KATPortalClient(object):
         for item in data_json['data']:
             if 'value_time' in item:
                 sample = SensorSampleValueTime(item['sample_time'],
-                                             item['value_time'],
-                                             item['value'],
-                                             item['status'])
+                                               item['value_time'],
+                                               item['value'],
+                                               item['status'])
             else:
                 sample = SensorSample(item['sample_time'],
                                       item['value'],
@@ -1242,7 +1240,7 @@ class KATPortalClient(object):
             End time for sample history query, in seconds since the UNIX epoch.
         include_value_time: bool
             Flag to also include value sample_time in addition to time series
-            sample sample_time in the result.
+            sample sample in the result.
             Default: False.
 
         Returns
@@ -1268,7 +1266,6 @@ class KATPortalClient(object):
         sensors = yield self.sensor_names(filters)
         histories = {}
         for sensor in sensors:
-            elapsed_time_sec = time.time() - request_start_sec
             histories[sensor] = yield self.sensor_history(
                 sensor, start_time_sec, end_time_sec,
                 include_value_time=include_value_time)
@@ -1388,7 +1385,7 @@ class KATPortalClient(object):
                 'user_id': 1,
                 'attachments': [],
                 'tags': '[]',
-                'sample_time': '2017-02-07 08:47:22',
+                'timestamp': '2017-02-07 08:47:22',
                 'start_time': '2017-02-07 00:00:00',
                 'modified': '',
                 'content': 'katportalclient userlog creation content!',

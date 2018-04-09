@@ -588,7 +588,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         sensor_name_filter = 'anc_weather_wind_speed'
 
         self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
-            valid_response=('"data": [%s]'%sensor_json['anc_weather_wind_speed']),
+            valid_response=('"data": [%s]' % sensor_json['anc_weather_wind_speed']),
             invalid_response='[]',
             starts_with=history_base_url,
             contains=sensor_name_filter)
@@ -606,8 +606,8 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         sensor_name_filter = 'anc_w.*_device_status'
 
         self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
-            valid_response='"data":[%s, %s]' %(sensor_json['anc_wind_device_status'],
-                                             sensor_json['anc_weather_device_status']),
+            valid_response='"data":[%s, %s]' % (sensor_json['anc_wind_device_status'],
+                                                sensor_json['anc_weather_device_status']),
             invalid_response='[]',
             starts_with=history_base_url,
             contains=sensor_name_filter)
@@ -896,6 +896,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
 
         histories = yield self._portal_client.sensors_histories(
             sensor_name_filter, start_time_sec=0, end_time_sec=time.time())
+        print('histories == {}'.format(histories))
         # expect exactly 2 lists of samples
         self.assertTrue(len(histories) == 2)
         # expect keys to match the 2 sensor names
@@ -1405,8 +1406,11 @@ def mock_async_fetchers(valid_responses, invalid_responses, starts_withs=None,
     # flip order so that poping effectively goes from first to last input
     mock_fetches.reverse()
 
+    print("valid response {}".format(valid_responses))
+    print("mock_fetches {}".format(mock_fetches))
     def mock_fetch(url):
         single_fetch = mock_fetches.pop()
+        print('single_fetch {}'.format(url))
         return single_fetch(url)
 
     return mock_fetch
@@ -1425,7 +1429,7 @@ def mock_async_fetcher(valid_response, invalid_response, starts_with=None,
             body_buffer = StringIO.StringIO(valid_response)
         else:
             body_buffer = StringIO.StringIO(invalid_response)
-
+        
         # optionally send raw message from test websocket server
         if publish_raw_messages and test_websocket:
             for raw_message in publish_raw_messages:
