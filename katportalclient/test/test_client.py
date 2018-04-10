@@ -170,6 +170,40 @@ sensor_data3 = """{
   ]
 }"""
 
+sensor_data4 = """{
+  "url": "/katstore/api/query/?start_time=1523249984&end_time=now&interval=0&sensor=sys_watchdogs_sys&minmax=false&buffer_only=false&additional_fields=false",
+  "sensor_name": "sys_watchdogs_sys",
+  "title": "Sensors Query",
+  "data": [
+    {
+      "value": "91474",
+      "sample_time": "1523249992.0250809193",
+      "value_time": "1523249991.0250809193",
+      "status" : "error"
+    },
+    {
+      "value": "91475",
+      "sample_time": "1523250002.0252408981",
+      "value_time": "1523249991.0250809193",
+      "status" : "error"
+    },
+    {
+      "value": "91477",
+      "sample_time": "1523250022.0292000771",
+      "value_time": "1523249991.0250809193",
+      "status" : "error"
+    },
+    {
+      "value": "91477",
+      "sample_time": "1523250021.0292000771",
+      "value_time": "1523249990.0250809193",
+      "status" : "error"
+    }
+  ]
+}"""
+
+
+
 sensor_data_fail = """{
   "url": "/katstore/api/query/?start_time=1523249984&end_time=now&interval=0&sensor=sys_watchdogs_sys&minmax=false&buffer_only=false&additional_fields=false",
   "sensor_name": "sys_watchdogs_sys",
@@ -798,7 +832,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         sensor_name_filter = 'anc_gust_wind_speed'
 
         self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
-            valid_response='[{}, {}]'.format(sensor_json['anc_gust_wind_speed2'],
+            valid_response='{"data" : [ %s, %s]}' % (sensor_json['anc_gust_wind_speed2'],
                                              sensor_json['anc_gust_wind_speed']),
             invalid_response="[]",
             starts_with=history_base_url,
@@ -857,7 +891,6 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         samples = yield self._portal_client.sensor_history(
             sensor_name, start_time_sec=0, end_time_sec=time.time(), include_value_time=True)
         # expect exactly 4 samples
-        print("samples {}".format(samples))
         self.assertTrue(len(samples) == 3)
 
         # ensure time order is increasing
@@ -989,7 +1022,6 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         
         histories = yield self._portal_client.sensors_histories(
             sensor_name_filter, start_time_sec=0, end_time_sec=time.time())
-        print(" histories {} ".format(histories))
         # expect exactly 2 lists of samples
         self.assertTrue(len(histories) == 2)
         # expect keys to match the 2 sensor names
@@ -1026,8 +1058,8 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         #  - 2nd call provides the sample history for sensor 1
         self.mock_http_async_client().fetch.side_effect = mock_async_fetchers(
             valid_responses=[
-                '{"data":"success"}',
-                '{"data":"success"}'],
+                sensor_data4,
+                sensor_data3],
             invalid_responses=['1error', '2error'],
             starts_withs=history_base_url,
             containses=[
