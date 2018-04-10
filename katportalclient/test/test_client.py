@@ -202,16 +202,12 @@ sensor_data4 = """{
   ]
 }"""
 
-
-
 sensor_data_fail = """{
   "url": "/katstore/api/query/?start_time=1523249984&end_time=now&interval=0&sensor=sys_watchdogs_sys&minmax=false&buffer_only=false&additional_fields=false",
   "sensor_name": "sys_watchdogs_sys",
   "title": "Sensors Query",
   "data": []
 }"""
-
-
 
 # Example redis-pubsub message for sensor history
 sensor_history_pub_messages_json = {
@@ -733,7 +729,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
 
         self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
             valid_response='{"data":[%s, %s]}' % (sensor_json['anc_wind_device_status'],
-                                                sensor_json['anc_weather_device_status']),
+                                                  sensor_json['anc_weather_device_status']),
             invalid_response='[]',
             starts_with=history_base_url,
             contains=sensor_name_filter)
@@ -809,14 +805,14 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             yield self._portal_client.sensor_detail('invalid_sensor_name')
 
         sensor_detail = yield self._portal_client.sensor_detail(sensor_name)
-        
+
         self.assertTrue(sensor_detail['name'] == sensor_name)
         self.assertTrue(sensor_detail['description'] == "Wind speed")
         self.assertTrue(sensor_detail['params'] == "[0.0, 70.0]")
         self.assertTrue(sensor_detail['units'] == "m/s")
         self.assertTrue(sensor_detail['type'] == "float")
         self.assertTrue(sensor_detail['component'] == "anc")
-        self.assertTrue(sensor_detail['katcp_name']  == "anc.weather.wind-speed")
+        self.assertTrue(sensor_detail['katcp_name'] == "anc.weather.wind-speed")
 
     @gen_test
     def test_sensor_detail_for_multiple_sensors_but_exact_match(self):
@@ -833,7 +829,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
 
         self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
             valid_response='{"data" : [ %s, %s]}' % (sensor_json['anc_gust_wind_speed2'],
-                                             sensor_json['anc_gust_wind_speed']),
+                                                     sensor_json['anc_gust_wind_speed']),
             invalid_response="[]",
             starts_with=history_base_url,
             contains=sensor_name_filter)
@@ -1019,7 +1015,6 @@ class TestKATPortalClient(WebSocketBaseTestCase):
                 self._portal_client._sensor_history_states,
                 self._portal_client._sensor_history_states])
 
-        
         histories = yield self._portal_client.sensors_histories(
             sensor_name_filter, start_time_sec=0, end_time_sec=time.time())
         # expect exactly 2 lists of samples
@@ -1454,7 +1449,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
     def test_sensor_subarray_lookup(self):
         """Test sensor subarray lookup is correctly extracted."""
         lookup_base_url = (self._portal_client.sitemap['subarray'] +
-            '/3/sensor-lookup/cbf/device_status/0')
+                           '/3/sensor-lookup/cbf/device_status/0')
         sensor_name_filter = 'device_status'
         expected_sensor_name = 'cbf_3_device_status'
 
@@ -1471,7 +1466,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
     def test_sensor_subarray_katcp_name_lookup(self):
         """Test sensor subarray lookup returns the correct katcp name."""
         lookup_base_url = (self._portal_client.sitemap['subarray'] +
-            '/3/sensor-lookup/cbf/device-status/1')
+                           '/3/sensor-lookup/cbf/device-status/1')
         sensor_name_filter = 'device-status'
         expected_sensor_name = 'cbf_3.device-status'
 
@@ -1488,11 +1483,11 @@ class TestKATPortalClient(WebSocketBaseTestCase):
     def test_sensor_subarray_invalid_sensor_lookup(self):
         """Test that sensor subarray lookup can correctly handle an invalid sensor name."""
         lookup_base_url = (self._portal_client.sitemap['subarray'] +
-            '/3/sensor-lookup/anc/device_status/0')
+                           '/3/sensor-lookup/anc/device_status/0')
         sensor_name_filter = 'device_status'
         self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
             valid_response='{"error":"SensorLookupError: Could not lookup the sensor '
-                'on component. Could not determine component."}',
+                           'on component. Could not determine component."}',
             invalid_response='[]',
             starts_with=lookup_base_url,
             contains=sensor_name_filter)
@@ -1563,7 +1558,7 @@ def mock_async_fetcher(valid_response, invalid_response, starts_with=None,
                     for key, state in client_states.items():
                         if contains == state['sensor']:
                             namespace = key
-                    #raw_message = raw_message.replace(
+                    # raw_message = raw_message.replace(
                     #    'test_namespace', namespace)
                 test_websocket.write_message(raw_message)
 
