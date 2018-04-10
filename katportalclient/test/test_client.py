@@ -144,6 +144,39 @@ sensor_data2 = """{
   ]
 }"""
 
+sensor_data3 = """{
+  "url": "/katstore/api/query/?start_time=1523249984&end_time=now&interval=0&sensor=sys_watchdogs_sys&minmax=false&buffer_only=false&additional_fields=false",
+  "sensor_name": "sys_watchdogs_sys",
+  "title": "Sensors Query",
+  "data": [
+    {
+      "value": "91474",
+      "sample_time": "1523249992.0250809193",
+      "value_time": "1523249991.0250809193",
+      "status" : "error"
+    },
+    {
+      "value": "91475",
+      "sample_time": "1523250002.0252408981",
+      "value_time": "1523249991.0250809193",
+      "status" : "error"
+    },
+    {
+      "value": "91477",
+      "sample_time": "1523250022.0292000771",
+      "value_time": "1523249991.0250809193",
+      "status" : "error"
+    }
+  ]
+}"""
+
+sensor_data_fail = """{
+  "url": "/katstore/api/query/?start_time=1523249984&end_time=now&interval=0&sensor=sys_watchdogs_sys&minmax=false&buffer_only=false&additional_fields=false",
+  "sensor_name": "sys_watchdogs_sys",
+  "title": "Sensors Query",
+  "data": []
+}"""
+
 
 
 # Example redis-pubsub message for sensor history
@@ -801,7 +834,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         publish_messages.extend(sensor_history_pub_messages_json[sensor_name])
 
         self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
-            valid_response='{"result":"success"}',
+            valid_response=sensor_data3,
             invalid_response='error',
             starts_with=history_base_url,
             contains=sensor_name,
@@ -811,30 +844,31 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         samples = yield self._portal_client.sensor_history(
             sensor_name, start_time_sec=0, end_time_sec=time.time(), include_value_time=False)
         # expect exactly 4 samples
-        self.assertTrue(len(samples) == 4)
+        self.assertTrue(len(samples) == 3)
 
         # ensure time order is increasing
         time_sec = 0
         for sample in samples:
-            self.assertGreater(sample.timestamp, time_sec)
-            time_sec = sample.timestamp
+            self.assertGreater(sample.sample_time, time_sec)
+            time_sec = sample.sample_time
             # Ensure sample contains timestamp, value, status
-            self.assertEqual(len(sample), 3)
+            self.assertEqual(len(sample), 4)
 
         samples = yield self._portal_client.sensor_history(
             sensor_name, start_time_sec=0, end_time_sec=time.time(), include_value_time=True)
         # expect exactly 4 samples
-        self.assertTrue(len(samples) == 4)
+        print("samples {}".format(samples))
+        self.assertTrue(len(samples) == 3)
 
         # ensure time order is increasing
         time_sec = 0
         for sample in samples:
-            self.assertGreater(sample.timestamp, time_sec)
-            time_sec = sample.timestamp
+            self.assertGreater(sample.sample_time, time_sec)
+            time_sec = sample.sample_time
             # Ensure sample contains timestamp, value_timestamp, value, status
             self.assertEqual(len(sample), 4)
             # Ensure value_timestamp
-            self.assertGreater(sample.timestamp, sample.value_timestamp)
+            self.assertGreater(sample.sample_time, sample.value_time)
 
     @gen_test
     def test_sensor_history_single_sensor_valid_times(self):
@@ -846,7 +880,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         publish_messages.extend(sensor_history_pub_messages_json[sensor_name])
 
         self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
-            valid_response='{"result":"success"}',
+            valid_response=sensor_data3,
             invalid_response='error',
             starts_with=history_base_url,
             contains=sensor_name,
@@ -856,7 +890,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         samples = yield self._portal_client.sensor_history(
             sensor_name, start_time_sec=0, end_time_sec=time.time())
         # expect exactly 4 samples
-        self.assertTrue(len(samples) == 4)
+        self.assertTrue(len(samples) == 3)
 
         # ensure time order is increasing
         time_sec = 0
@@ -878,7 +912,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             sensor_history_pub_messages_json[sensor_name][-1])
 
         self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
-            valid_response='{"result":"success"}',
+            valid_response=sensor_data_fail,
             invalid_response='error',
             starts_with=history_base_url,
             contains=sensor_name,
@@ -1497,8 +1531,8 @@ def mock_async_fetcher(valid_response, invalid_response, starts_with=None,
                     for key, state in client_states.items():
                         if contains == state['sensor']:
                             namespace = key
-                    raw_message = raw_message.replace(
-                        'test_namespace', namespace)
+                    #raw_message = raw_message.replace(
+                    #    'test_namespace', namespace)
                 test_websocket.write_message(raw_message)
 
         result = HTTPResponse(HTTPRequest(url), 200, buffer=body_buffer)
