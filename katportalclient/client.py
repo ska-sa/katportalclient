@@ -1150,14 +1150,14 @@ class KATPortalClient(object):
                         [result['name'] for result in results[0:5]]))
         else:
             attrs = results[0].get('attributes')
-            result = { 'name': results[0].get('name'),
-                       'description': attrs.get('description'),
-                       'params': attrs.get('params'),
-                       'katcp_name': attrs.get('katcp_name'),
-                       'units': attrs.get('units'),
-                       'type': attrs.get('type'),
-                       'resource': attrs.get('resource'),
-                       'component': results[0].get('component')}
+            result = {'name': results[0].get('name'),
+                      'description': attrs.get('description'),
+                      'params': attrs.get('params'),
+                      'katcp_name': attrs.get('katcp_name'),
+                      'units': attrs.get('units'),
+                      'type': attrs.get('type'),
+                      'resource': attrs.get('resource'),
+                      'component': results[0].get('component')}
             raise tornado.gen.Return(result)
 
     @tornado.gen.coroutine
@@ -1272,7 +1272,6 @@ class KATPortalClient(object):
         SensorNotFoundError:
             - If any of the filters were invalid regular expression patterns.
         """
-        request_start_sec = time.time()
         sensors = yield self.sensor_names(filters)
         histories = {}
         for sensor in sensors:
