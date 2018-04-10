@@ -814,9 +814,9 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         self.assertTrue(sensor_detail['description'] == "Wind speed")
         self.assertTrue(sensor_detail['params'] == "[0.0, 70.0]")
         self.assertTrue(sensor_detail['units'] == "m/s")
-        #self.assertTrue(sensor_detail['type'] == "float")
-        #self.assertTrue(sensor_detail['component'] == "anc")
-        #self.assertTrue(sensor_detail['katcp_name']  == "anc.weather.wind-speed")
+        self.assertTrue(sensor_detail['type'] == "float")
+        self.assertTrue(sensor_detail['component'] == "anc")
+        self.assertTrue(sensor_detail['katcp_name']  == "anc.weather.wind-speed")
 
     @gen_test
     def test_sensor_detail_for_multiple_sensors_but_exact_match(self):

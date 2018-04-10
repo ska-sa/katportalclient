@@ -1153,10 +1153,11 @@ class KATPortalClient(object):
             result = { 'name': results[0].get('name'),
                        'description': attrs.get('description'),
                        'params': attrs.get('params'),
-                       'katcp_name': attrs.get('original_name'),
+                       'katcp_name': attrs.get('katcp_name'),
                        'units': attrs.get('units'),
+                       'type': attrs.get('type'),
                        'resource': attrs.get('resource'),
-                       'component': attrs.get('component')}
+                       'component': results[0].get('component')}
             raise tornado.gen.Return(result)
 
     @tornado.gen.coroutine
