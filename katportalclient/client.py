@@ -76,8 +76,7 @@ class SensorSample(namedtuple('SensorSample', 'sample_time, value, status')):
 
     Fields:
         - sample_time:  float
-            The sample_time (UNIX epoch) the sample was received by CAM.
-            sample_time value is reported with millisecond precision.
+            The time (UNIX epoch) the sample was received by CAM.
         - value:  str
             The value of the sensor when sampled.  The units depend on the
             sensor, see :meth:`.sensor_detail`.
@@ -98,9 +97,9 @@ class SensorSampleValueTime(namedtuple(
 
     Fields:
         - sample_time:  float
-            The timestamp (UNIX epoch) the sample was received by CAM.
+            The time (UNIX epoch) the sample was received by CAM.
         - value_time:  float
-            The timestamp (UNIX epoch) the sample was read at the lowest level sensor.
+            The time (UNIX epoch) the sample was read at the lowest level sensor.
         - value:  str
             The value of the sensor when sampled.  The units depend on the
             sensor, see :meth:`.sensor_detail`.
