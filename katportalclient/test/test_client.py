@@ -857,7 +857,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             yield self._portal_client.sensor_detail(sensor_name_filter)
 
     @gen_test
-    def test_sensor_history_single_sensor_with_value_time(self):
+    def test_sensor_history_single_sensor_without_value_time(self):
         """Test that time ordered data with value_timestamp is received for a single sensor request."""
         history_base_url = self._portal_client.sitemap[
             'historic_sensor_values']
@@ -866,15 +866,15 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         publish_messages.extend(sensor_history_pub_messages_json[sensor_name])
 
         self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
-            valid_response=sensor_data3,
+            valid_response=sensor_data1,
             invalid_response='error',
             starts_with=history_base_url,
             contains=sensor_name)
 
         samples = yield self._portal_client.sensor_history(
             sensor_name, start_time_sec=0, end_time_sec=time.time(), include_value_time=False)
-        # expect exactly 3 samples
-        self.assertTrue(len(samples) == 3)
+        # expect exactly 4 samples
+        self.assertTrue(len(samples) == 4)
 
         # ensure time order is increasing
         time_sec = 0
@@ -882,11 +882,28 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             self.assertGreater(sample.sample_time, time_sec)
             time_sec = sample.sample_time
             # Ensure sample contains timestamp, value, status
-            self.assertEqual(len(sample), 4)
+            self.assertEqual(len(sample), 3)
+
+    @gen_test
+    def test_sensor_history_single_sensor_with_value_time(self):
+        """Test that time ordered data with value_timestamp is received for a single sensor request."""
+        history_base_url = self._portal_client.sitemap[
+            'historic_sensor_values']
+        sensor_name = 'anc_mean_wind_speed'
+        publish_messages = [sensor_history_pub_messages_json['init']]
+        publish_messages.extend(sensor_history_pub_messages_json[sensor_name])
+
+
+        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+            valid_response=sensor_data3,
+            invalid_response='error',
+            starts_with=history_base_url,
+            contains=sensor_name)
 
         samples = yield self._portal_client.sensor_history(
             sensor_name, start_time_sec=0, end_time_sec=time.time(), include_value_time=True)
         # expect exactly 3 samples
+        print("len samples {}".format(len(samples)))
         self.assertTrue(len(samples) == 3)
 
         # ensure time order is increasing
