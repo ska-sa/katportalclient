@@ -96,8 +96,8 @@ sensor_json = {
 
 
 sensor_data1 = """{
-  "url": "/katstore/api/query/?start_time=1523249984&end_time=now&interval=0&sensor=sys_watchdogs_sys&minmax=false&buffer_only=false&additional_fields=false",
-  "sensor_name": "sys_watchdogs_sys",
+  "url": "/katstore/api/query/?start_time=1523249984&end_time=now&interval=0&sensor=anc_mean_wind_speed&minmax=false&buffer_only=false&additional_fields=false",
+  "sensor_name": "anc_mean_wind_speed",
   "title": "Sensors Query",
   "data": [
     {
@@ -124,8 +124,8 @@ sensor_data1 = """{
 }"""
 
 sensor_data2 = """{
-  "url": "/katstore/api/query/?start_time=1523249984&end_time=now&interval=0&sensor=sys_watchdogs_sys&minmax=false&buffer_only=false&additional_fields=false",
-  "sensor_name": "sys_watchdogs_sys",
+  "url": "/katstore/api/query/?start_time=1523249984&end_time=now&interval=0&sensor=anc_mean_wind_speed&minmax=false&buffer_only=false&additional_fields=false",
+  "sensor_name": "anc_mean_wind_speed",
   "title": "Sensors Query",
   "data": [
     {
@@ -173,8 +173,8 @@ sensor_data3 = """{
 }"""
 
 sensor_data4 = """{
-  "url": "/katstore/api/query/?start_time=1523249984&end_time=now&interval=0&sensor=sys_watchdogs_sys&minmax=false&buffer_only=false&additional_fields=false",
-  "sensor_name": "sys_watchdogs_sys",
+  "url": "/katstore/api/query/?start_time=1523249984&end_time=now&interval=0&sensor=anc_mean_wind_speed&minmax=false&buffer_only=false&additional_fields=false",
+  "sensor_name": "anc_mean_wind_speed",
   "title": "Sensors Query",
   "data": [
     {
@@ -205,8 +205,8 @@ sensor_data4 = """{
 }"""
 
 sensor_data_fail = """{
-  "url": "/katstore/api/query/?start_time=1523249984&end_time=now&interval=0&sensor=sys_watchdogs_sys&minmax=false&buffer_only=false&additional_fields=false",
-  "sensor_name": "sys_watchdogs_sys",
+  "url": "/katstore/api/query/?start_time=1523249984&end_time=now&interval=0&sensor=anc_mean_wind_speed&minmax=false&buffer_only=false&additional_fields=false",
+  "sensor_name": "anc_mean_wind_speed",
   "title": "Sensors Query",
   "data": []
 }"""
