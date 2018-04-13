@@ -873,7 +873,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
 
         samples = yield self._portal_client.sensor_history(
             sensor_name, start_time_sec=0, end_time_sec=time.time(), include_value_time=False)
-        # expect exactly 4 samples
+        # expect exactly 3 samples
         self.assertTrue(len(samples) == 3)
 
         # ensure time order is increasing
@@ -886,7 +886,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
 
         samples = yield self._portal_client.sensor_history(
             sensor_name, start_time_sec=0, end_time_sec=time.time(), include_value_time=True)
-        # expect exactly 4 samples
+        # expect exactly 3 samples
         self.assertTrue(len(samples) == 3)
 
         # ensure time order is increasing
@@ -918,7 +918,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
 
         samples = yield self._portal_client.sensor_history(
             sensor_name, start_time_sec=0, end_time_sec=time.time())
-        # expect exactly 4 samples
+        # expect exactly 3 samples
         self.assertTrue(len(samples) == 3)
 
         # ensure time order is increasing
@@ -952,27 +952,6 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             sensor_name, start_time_sec=0, end_time_sec=100)
         # expect no samples
         self.assertTrue(len(samples) == 0)
-
-    @gen_test
-    def no_longer_tseting_sensor_history_exception_on_timeout(self):
-        """Test that exception is raised is download exceeds timeout."""
-        history_base_url = self._portal_client.sitemap[
-            'historic_sensor_values']
-        sensor_name = 'anc_mean_wind_speed'
-        publish_messages = [sensor_history_pub_messages_json['init']]
-        publish_messages.extend(sensor_history_pub_messages_json[sensor_name])
-
-        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
-            valid_response='{"result":"success"}',
-            invalid_response='error',
-            starts_with=history_base_url,
-            contains=sensor_name,
-            publish_raw_messages=publish_messages,
-            client_states=self._portal_client._sensor_history_states)
-
-        with self.assertRaises(SensorHistoryRequestError):
-            yield self._portal_client.sensor_history(
-                sensor_name, start_time_sec=0, end_time_sec=100, timeout_sec=0)
 
     @gen_test
     def test_sensor_history_multiple_sensors_valid_times(self):
@@ -1545,22 +1524,6 @@ def mock_async_fetcher(valid_response, invalid_response, starts_with=None,
             body_buffer = StringIO.StringIO(valid_response)
         else:
             body_buffer = StringIO.StringIO(invalid_response)
-        # optionally send raw message from test websocket server
-        if publish_raw_messages and test_websocket:
-            for raw_message in publish_raw_messages:
-                if isinstance(client_states, dict):
-                    # we need to rewrite the namespace, since the client
-                    # generates a random one per request at runtime.
-                    # We have to find the state dict that contains the sensor
-                    # name (in 'contains') to figure out which namespace
-                    # is being used for this sensor (yes, it is hacky)
-                    namespace = None
-                    for key, state in client_states.items():
-                        if contains == state['sensor']:
-                            namespace = key
-                    # raw_message = raw_message.replace(
-                    #    'test_namespace', namespace)
-                test_websocket.write_message(raw_message)
 
         result = HTTPResponse(HTTPRequest(url), 200, buffer=body_buffer)
         future = concurrent.Future()
