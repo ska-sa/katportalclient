@@ -1454,7 +1454,7 @@ class KATPortalClient(object):
                 'user_id': 1,
                 'attachments': [],
                 'tags': '[]',
-                'sample_time': '2017-02-07 08:47:22',
+                'timestamp': '2017-02-07 08:47:22',
                 'start_time': '2017-02-07 00:00:00',
                 'modified': '',
                 'content': 'katportalclient userlog creation content!',
