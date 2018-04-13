@@ -868,7 +868,6 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             invalid_response='error',
             starts_with=history_base_url,
             contains=sensor_name,
-            publish_raw_messages=publish_messages,
             client_states=self._portal_client._sensor_history_states)
 
         samples = yield self._portal_client.sensor_history(
@@ -913,7 +912,6 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             invalid_response='error',
             starts_with=history_base_url,
             contains=sensor_name,
-            publish_raw_messages=publish_messages,
             client_states=self._portal_client._sensor_history_states)
 
         samples = yield self._portal_client.sensor_history(
@@ -945,7 +943,6 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             invalid_response='error',
             starts_with=history_base_url,
             contains=sensor_name,
-            publish_raw_messages=publish_messages,
             client_states=self._portal_client._sensor_history_states)
 
         samples = yield self._portal_client.sensor_history(
@@ -1476,8 +1473,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
 
 
 def mock_async_fetchers(valid_responses, invalid_responses, starts_withs=None,
-                        ends_withs=None, containses=None, publish_raw_messageses=None,
-                        client_stateses=None):
+                        ends_withs=None, containses=None, client_stateses=None):
     """Allows definition of multiple HTTP async fetchers."""
     num_calls = len(valid_responses)
     if starts_withs is None or isinstance(starts_withs, basestring):
@@ -1486,21 +1482,18 @@ def mock_async_fetchers(valid_responses, invalid_responses, starts_withs=None,
         ends_withs = [ends_withs] * num_calls
     if containses is None or isinstance(containses, basestring):
         containses = [containses] * num_calls
-    if publish_raw_messageses is None:
-        publish_raw_messageses = [None] * num_calls
     if client_stateses is None:
         client_stateses = [None] * num_calls
     assert(len(invalid_responses) == num_calls)
     assert(len(starts_withs) == num_calls)
     assert(len(ends_withs) == num_calls)
     assert(len(containses) == num_calls)
-    assert(len(publish_raw_messageses) == num_calls)
     assert(len(client_stateses) == num_calls)
     mock_fetches = [mock_async_fetcher(v, i, s, e, c, p, cs)
-                    for v, i, s, e, c, p, cs in zip(
+                    for v, i, s, e, c, cs in zip(
                         valid_responses, invalid_responses,
                         starts_withs, ends_withs, containses,
-                        publish_raw_messageses, client_stateses)]
+                        client_stateses)]
     # flip order so that poping effectively goes from first to last input
     mock_fetches.reverse()
 
@@ -1512,8 +1505,7 @@ def mock_async_fetchers(valid_responses, invalid_responses, starts_withs=None,
 
 
 def mock_async_fetcher(valid_response, invalid_response, starts_with=None,
-                       ends_with=None, contains=None, publish_raw_messages=None,
-                       client_states=None):
+                       ends_with=None, contains=None, client_states=None):
     """Returns a mock HTTP async fetch function, depending on the conditions."""
 
     def mock_fetch(url, method="GET", body=None):
