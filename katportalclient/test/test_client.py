@@ -89,7 +89,9 @@ sensor_json = {
                                        "units":"",
                                        "type":"discrete"}}""",
 
-    "regex_error": """{"error":"invalid regular expression: quantifier operand invalid\n"}"""
+    "regex_error": """{"error":"invalid regular expression: quantifier operand invalid\n"}""",
+
+    "invalid_response": """{"error":"prepared invalid response"}"""
 }
 
 
@@ -783,7 +785,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
 
         self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
             valid_response=sensor_json['regex_error'],
-            invalid_response='"error": "testing_error"',
+            invalid_response=sensor_json['invalid_response'],
             starts_with=history_base_url)
 
         with self.assertRaises(SensorNotFoundError):
@@ -797,7 +799,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         sensor_name = 'anc_weather_wind_speed'
         self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
             valid_response=('{"data":[%s]}' % sensor_json['anc_weather_wind_speed']),
-            invalid_response='{"error":"test error"}',
+            invalid_response=sensor_json['invalid_response'],
             starts_with=history_base_url,
             contains=sensor_name)
 
