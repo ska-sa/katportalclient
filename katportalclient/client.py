@@ -9,8 +9,10 @@ import base64
 import hashlib
 import hmac
 import logging
+import uuid
 import time
 from urllib import urlencode
+from datetime import timedelta
 from collections import namedtuple
 
 import tornado.gen
@@ -28,6 +30,13 @@ from request import JSONRPCRequest
 
 # Limit for sensor history queries, in order to preserve memory on katportal.
 MAX_SAMPLES_PER_HISTORY_QUERY = 1000000
+# Pick a reasonable chunk size for sample downloads.  The samples are
+# published in blocks, so many at a time.
+# 43200 = 12 hour chunks if 1 sample every second
+SAMPLE_HISTORY_CHUNK_SIZE = 43200
+# Request sample times  in milliseconds for better precision
+SAMPLE_HISTORY_REQUEST_TIME_TYPE = 'ms'
+SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC = 1000.0
 
 # Websocket connect and reconnect timeouts
 WS_CONNECT_TIMEOUT = 10
@@ -199,8 +208,7 @@ class KATPortalClient(object):
 
         try:
             response_json = json.loads(response.body)
-            if not response_json.get('logged_in',
-                                     False) or response_json.get('session_id'):
+            if not response_json.get('logged_in', False) or response_json.get('session_id'):
                 self._session_id = response_json.get('session_id')
                 self._current_user_id = response_json.get('user_id')
 
@@ -578,6 +586,54 @@ class KATPortalClient(object):
         processed = False
         if msg_id == 'redis-pubsub-init':
             processed = True  # Nothing to do really.
+        elif 'msg_channel' in msg_result:
+            namespace = msg_result['msg_channel'].split(':', 1)[0]
+            if namespace in self._sensor_history_states:
+                state = self._sensor_history_states[namespace]
+                msg_data = msg_result['msg_data']
+                if (isinstance(msg_data, dict) and
+                        'inform_type' in msg_data and
+                        msg_data['inform_type'] == 'sample_history'):
+                    # inform message which provides synchronisation
+                    # information.
+                    inform = msg_data['inform_data']
+                    num_new_samples = inform['num_samples_to_be_published']
+                    state['num_samples_pending'] += num_new_samples
+                    if inform['done']:
+                        state['done_event'].set()
+                elif isinstance(msg_data, list):
+                    num_received = 0
+                    for sample in msg_data:
+                        if len(sample) == 6:
+                            # assume sample data message, extract fields of interest
+                            # (timestamp returned in milliseconds, so scale to seconds)
+                            # example:  [1476164224429L, 1476164223640L,
+                            #            1476164224429354L, u'5.07571614843',
+                            #            u'anc_mean_wind_speed', u'nominal']
+                            if state['include_value_ts']:
+                                # Requesting value_timestamp in addition to
+                                # sample timestamp
+                                sensor_sample = SensorSampleValueTs(
+                                    timestamp=sample[
+                                        0] / SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
+                                    value_timestamp=sample[
+                                        1] / SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
+                                    value=sample[3],
+                                    status=sample[5])
+                            else:
+                                # Only sample timestamp
+                                sensor_sample = SensorSample(
+                                    timestamp=sample[
+                                        0] / SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
+                                    value=sample[3],
+                                    status=sample[5])
+                            state['samples'].append(sensor_sample)
+                            num_received += 1
+                    state['num_samples_pending'] -= num_received
+                else:
+                    self._logger.warn(
+                        'Ignoring unexpected message: %s', msg_result)
+                processed = True
         if not processed:
             if self._on_update:
                 self._io_loop.add_callback(self._on_update, msg_result)
@@ -1036,8 +1092,13 @@ class KATPortalClient(object):
             if 'error' in sensors:
                 raise SensorNotFoundError(
                     "Invalid sensor request: " + sensors['error'])
-            elif 'data' in sensors:
-                results = sensors['data']
+        else:
+            for sensor in sensors:
+                sensor_info = {}
+                sensor_info['name'] = sensor[0]
+                sensor_info['component'] = sensor[1]
+                sensor_info.update(sensor[2])
+                results.append(sensor_info)
         return results
 
     @tornado.gen.coroutine
@@ -1193,39 +1254,73 @@ class KATPortalClient(object):
             - If there was an error submitting the request.
             - If the request timed out
         """
+        # create new namespace and state variables per query, to allow multiple
+        # request simultaneously
+        state = {
+            'sensor': sensor_name,
+            'done_event': tornado.locks.Event(),
+            'num_samples_pending': 0,
+            'include_value_ts': include_value_ts,
+            'samples': []
+        }
+        namespace = str(uuid.uuid4())
+        self._sensor_history_states[namespace] = state
+        # ensure connected, and subscribed before sending request
+        yield self.connect()
+        yield self.subscribe(namespace, ['*'])
+
         params = {
             'sensor': sensor_name,
-            'start_time': start_time_sec,
-            'end_time': end_time_sec,
-            'limit': MAX_SAMPLES_PER_HISTORY_QUERY,
-            'timeout': timeout_sec
+            'time_type': SAMPLE_HISTORY_REQUEST_TIME_TYPE,
+            'start': start_time_sec * SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
+            'end': end_time_sec * SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
+            'namespace': namespace,
+            'request_in_chunks': 1,
+            'chunk_size': SAMPLE_HISTORY_CHUNK_SIZE,
+            'limit': MAX_SAMPLES_PER_HISTORY_QUERY
         }
-        if include_value_ts: 
-            additional_fields = 'status,value_time'
-        else:
-            additional_fields = 'status'
         url = url_concat(
-            self.sitemap['historic_sensor_values'] + '/query', params)
+            self.sitemap['historic_sensor_values'] + '/samples', params)
         self._logger.debug("Sensor history request: %s", url)
-        response = yield self._http_client.fetch(url, request_timeout=timeout_sec, 
-                                                 connect_timeout=timeout_sec)
-        data_json = json.loads(response.body)
-        if 'data' not in data_json:
+        response = yield self._http_client.fetch(url)
+        data = json.loads(response.body)
+        if isinstance(data, dict) and data['result'] == 'success':
+            download_start_sec = time.time()
+            # Query accepted by portal - data will be returned via websocket, but
+            # we need to wait until it has arrived.  For synchronisation, we wait
+            # for a 'done_event'. This event is updated in
+            # _process_redis_message().
+            try:
+                timeout_delta = timedelta(seconds=timeout_sec)
+                yield state['done_event'].wait(timeout=timeout_delta)
+
+                self._logger.debug('Done in %d seconds, fetched %s samples.' % (
+                    time.time() - download_start_sec,
+                    len(state['samples'])))
+            except tornado.gen.TimeoutError:
+                raise SensorHistoryRequestError(
+                    "Sensor history request timed out")
+
+        else:
             raise SensorHistoryRequestError("Error requesting sensor history: {}"
                                             .format(response.body))
-        data = []
-        for item in data_json['data']:
-            if 'value_time' in item:
-                sensor = SensorSampleValueTs(item['sample_time'],
-                                             item['value_time'],
-                                             item['value'],
-                                             item['status'])
-            else:
-                sensor = SensorSample(item['sample_time'],
-                                      item['value'],
-                                      item['status'])
-            data.append(sensor)
-        result = sorted(data, key=_sort_by_timestamp)
+
+        def sort_by_timestamp(sample):
+            return sample.timestamp
+        # return a sorted copy, as data may have arrived out of order
+        result = sorted(state['samples'], key=sort_by_timestamp)
+
+        if len(result) >= MAX_SAMPLES_PER_HISTORY_QUERY:
+            self._logger.warn(
+                'Maximum sample limit (%d) hit - there may be more data available.',
+                MAX_SAMPLES_PER_HISTORY_QUERY)
+
+        # Free the state variables that were only required for the duration of
+        # the download.  Do not disconnect - there may be websocket activity
+        # initiated by another call.
+        yield self.unsubscribe(namespace, ['*'])
+        del self._sensor_history_states[namespace]
+
         raise tornado.gen.Return(result)
 
     @tornado.gen.coroutine
@@ -1623,7 +1718,3 @@ class SubarrayNumberUnknown(Exception):
 
 class SensorLookupError(Exception):
     """Raise if requested sensor lookup failed."""
-
-
-def _sort_by_timestamp(sample):
-    return float(sample.timestamp)
