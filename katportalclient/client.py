@@ -1178,6 +1178,8 @@ class KATPortalClient(object):
             Flag to also include value sample_time in addition to time series
             sample time in the result.
             Default: False.
+        interval: int
+            The resampling interval in seconds. 0 to disable.
 
         Returns
         -------
@@ -1251,6 +1253,8 @@ class KATPortalClient(object):
             Flag to also include value sample_time in addition to time series
             sample sample in the result.
             Default: False.
+        interval: int
+            The resampling interval in seconds. 0 to disable.
 
         Returns
         -------
@@ -1276,7 +1280,8 @@ class KATPortalClient(object):
         for sensor in sensors:
             histories[sensor] = yield self.sensor_history(
                 sensor, start_time_sec, end_time_sec,
-                include_value_time=include_value_time)
+                include_value_time=include_value_time,
+                interval=interval)
         raise tornado.gen.Return(histories)
 
     @tornado.gen.coroutine

@@ -893,7 +893,6 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         publish_messages = [sensor_history_pub_messages_json['init']]
         publish_messages.extend(sensor_history_pub_messages_json[sensor_name])
 
-
         self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
             valid_response=sensor_data3,
             invalid_response='error',
@@ -903,7 +902,6 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         samples = yield self._portal_client.sensor_history(
             sensor_name, start_time_sec=0, end_time_sec=time.time(), include_value_time=True)
         # expect exactly 3 samples
-        print("len samples {}".format(len(samples)))
         self.assertTrue(len(samples) == 3)
 
         # ensure time order is increasing
