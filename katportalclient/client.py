@@ -1106,7 +1106,7 @@ class KATPortalClient(object):
                   'params': str,
                   'units': str,
                   'type': str,
-                  'resource': str,
+                  'component': str,
                   'katcp_name': str,
                   ... }
 
@@ -1120,7 +1120,7 @@ class KATPortalClient(object):
                      Measurement units for sensor value, e.g. 'm/s'.
                 type: str
                      Sensor type, e.g. 'float', 'discrete', 'boolean'
-                resource: str
+                component: str
                      Name of resource that provides the sensor.
                 katcp_name: str
                      Internal KATCP messaging name.
@@ -1155,13 +1155,12 @@ class KATPortalClient(object):
                       'katcp_name': attrs.get('katcp_name'),
                       'units': attrs.get('units'),
                       'type': attrs.get('type'),
-                      'resource': attrs.get('resource'),
                       'component': results[0].get('component')}
             raise tornado.gen.Return(result)
 
     @tornado.gen.coroutine
     def sensor_history(self, sensor_name, start_time_sec, end_time_sec,
-                       include_value_time=False):
+                       include_value_time=False, interval=0):
         """Return time history of sample measurements for a sensor.
 
         For a list of sensor names, see :meth:`.sensors_list`.
@@ -1202,7 +1201,8 @@ class KATPortalClient(object):
             'start_time': start_time_sec,
             'end_time': end_time_sec,
             'limit': MAX_SAMPLES_PER_HISTORY_QUERY,
-            'include_value_time': include_value_time
+            'include_value_time': include_value_time,
+            'interval': interval
         }
         url = url_concat(
             self.sitemap['historic_sensor_values'] + '/query', params)
@@ -1229,7 +1229,7 @@ class KATPortalClient(object):
 
     @tornado.gen.coroutine
     def sensors_histories(self, filters, start_time_sec, end_time_sec,
-                          include_value_time=False):
+                          include_value_time=False, interval=0):
         """Return time histories of sample measurements for multiple sensors.
 
         Finds the list of available sensors in the system that match the

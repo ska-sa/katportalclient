@@ -77,7 +77,7 @@ def main():
             value_time = args.include_value_time
             history = yield portal_client.sensor_history(
                 sensor_names[0], args.start, args.end,
-                include_value_time=value_time)
+                include_value_time=value_time, interval=args.interval)
             histories = {sensor_names[0]: history}
         else:
             # Request history for all the sensors - result is timestamp, value, status
@@ -85,7 +85,8 @@ def main():
             #        include_value_time=True
             #    result is then timestmap, value_timestmap, value, status
             histories = yield portal_client.sensors_histories(
-                sensor_names, args.start, args.end, include_value_time=value_time)
+                sensor_names, args.start, args.end, include_value_time=value_time,
+                interval=args.interval)
 
         print "Found {} sensors.".format(len(histories))
         for sensor_name, history in histories.items():
@@ -138,6 +139,11 @@ if __name__ == '__main__':
         default=time.time(),
         help="end time of sample query [sec since UNIX epoch] (default: now).")
     parser.add_argument(
+        '-p', '--interval',
+        type=int,
+        default=0,
+        help="Interval for sampling, this is done server side unlike decimation (default: %(default)s).")
+    parser.add_argument(
         '-d', '--decimate',
         type=int,
         metavar='N',
@@ -155,8 +161,8 @@ if __name__ == '__main__':
         help="provide extremely verbose output.")
     parser.add_argument(
         '-i', '--include-value-time',
-        type=bool,
-        default=False,
+        dest="include_value_time", action="store_true",
+        default=True,
         help="include value timestamp")
 
     args = parser.parse_args()
