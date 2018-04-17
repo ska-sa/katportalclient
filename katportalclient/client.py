@@ -1121,7 +1121,7 @@ class KATPortalClient(object):
                 type: str
                      Sensor type, e.g. 'float', 'discrete', 'boolean'
                 component: str
-                     Name of resource that provides the sensor.
+                     Name of component that provides the sensor.
                 katcp_name: str
                      Internal KATCP messaging name.
 

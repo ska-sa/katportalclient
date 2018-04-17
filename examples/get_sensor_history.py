@@ -161,8 +161,7 @@ if __name__ == '__main__':
         help="provide extremely verbose output.")
     parser.add_argument(
         '-i', '--include-value-time',
-        dest="include_value_time", action="store_true",
-        default=True,
+        dest="include_value_time", action="store_false",
         help="include value timestamp")
 
     args = parser.parse_args()
