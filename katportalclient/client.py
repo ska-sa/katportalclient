@@ -1026,7 +1026,6 @@ class KATPortalClient(object):
 
     def _extract_sensors_details(self, json_text):
         """Extract and return list of sensor names from a JSON response."""
-        print('json_texts {}'.format(json_text))
         sensors = json.loads(json_text)
         results = []
         # Errors are returned in dict, while valid data is returned in a list.
