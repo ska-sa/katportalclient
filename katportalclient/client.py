@@ -1214,6 +1214,71 @@ class KATPortalClient(object):
             raise tornado.gen.Return(results[0])
 
     @tornado.gen.coroutine
+    def sensor_value(self, sensor_name, include_value_ts=False):
+        """Return the latest value of a sensor.
+
+        .. note::
+
+            The websocket is not used for this request - it does not need
+            to be connected.
+
+        Parameters
+        ----------
+        sensor_name: str
+            Exact sensor name. No regular expressions allowed.
+            To get a list of sensor names based off regular expressions, see
+            :meth:`.sensor_names`.
+
+        Returns
+        -------
+        namedtuple:
+            Instance of :class:`.SensorSampleValueTs` if `include_value_ts` is `True`,
+            otherwise an instance of :class:`.SensorSample`
+
+        Raises
+        -------
+        SensorNotFoundError:
+            - If no information was available for the requested sensor name.
+        """
+        url = self.sitemap['monitor'] + '/list-sensors/all'
+
+        response = yield self._http_client.fetch(
+            "{}?reading_only=1&name_filter=^{}$".format(url, sensor_name))
+        results = json.loads(response.body)
+
+        if len(results) == 0:
+            raise SensorNotFoundError("Value for sensor {} not found".format(sensor_name))
+
+        result_to_format = None
+        if len(results) > 1:
+            # check for exact match, before giving up
+            for result in results:
+                if result['name'] == sensor_name:
+                    result_to_format = result
+                    break
+            else:
+                raise SensorNotFoundError(
+                    "Multiple sensors ({}) found - specify a single sensor "
+                    "name not a pattern like: '{}'.  (Some matches: {})."
+                    .format(len(results),
+                            sensor_name,
+                            [result['name'] for result in results[0:5]]))
+        else:
+            result_to_format = results[0]
+
+        if include_value_ts:
+            raise tornado.gen.Return(SensorSampleValueTs(
+                timestamp=result_to_format['time'],
+                value_timestamp=result_to_format['value_ts'],
+                value=result_to_format['value'],
+                status=result_to_format['status']))
+        else:
+            raise tornado.gen.Return(SensorSample(
+                timestamp=result_to_format['time'],
+                value=result_to_format['value'],
+                status=result_to_format['status']))
+
+    @tornado.gen.coroutine
     def sensor_history(self, sensor_name, start_time_sec, end_time_sec,
                        include_value_ts=False, timeout_sec=300):
         """Return time history of sample measurements for a sensor.
