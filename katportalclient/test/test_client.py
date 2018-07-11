@@ -747,7 +747,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
 
     @gen_test
     def test_sensor_value_no_results(self):
-        """test that we handle no matches"""
+        """Test that we handle no matches"""
         self.mock_http_async_client().fetch.side_effect = fake_http_response('[]')
         with self.assertRaises(SensorNotFoundError):
             yield self._portal_client.sensor_value("INVALID_SENSOR")

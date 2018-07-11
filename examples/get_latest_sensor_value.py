@@ -3,8 +3,8 @@
 # BSD license - see COPYING for details
 """Simple example demonstrating retrieving the latest sensor value.
 
-This example gets lists of sensor names, and gets the
-latest value of a specific sensor.  It uses HTTP access to katportal.
+This example gets lists of sensor names, then returns the
+latest value of each specific sensor.  It uses HTTP access to katportal.
 """
 import logging
 import argparse

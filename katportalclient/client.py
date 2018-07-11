@@ -1239,6 +1239,8 @@ class KATPortalClient(object):
         -------
         SensorNotFoundError:
             - If no information was available for the requested sensor name.
+        InvalidResponseError:
+            - When the katportal service returns invalid JSON
         """
         url = self.sitemap['monitor'] + '/list-sensors/all'
 
