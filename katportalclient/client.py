@@ -1244,12 +1244,17 @@ class KATPortalClient(object):
 
         response = yield self._http_client.fetch(
             "{}?reading_only=1&name_filter=^{}$".format(url, sensor_name))
-        results = json.loads(response.body)
+        try:
+            results = json.loads(response.body)
+        except json.JSONError:
+            raise InvalidResponseError(
+                "Request to {} did not respond with valid JSON".format(url))
 
         if len(results) == 0:
             raise SensorNotFoundError("Value for sensor {} not found".format(sensor_name))
 
         result_to_format = None
+
         if len(results) > 1:
             # check for exact match, before giving up
             for result in results:
@@ -1783,3 +1788,7 @@ class SubarrayNumberUnknown(Exception):
 
 class SensorLookupError(Exception):
     """Raise if requested sensor lookup failed."""
+
+
+class InvalidResponseError(Exception):
+    """Raise if server response was invalid."""
