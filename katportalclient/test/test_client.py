@@ -759,22 +759,22 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         mon_response = ('[{"status":"nominal",'
                         '"name":"anc_tfr_m018_l_band_offset","component":"anc",'
                         '"value":43680.0,'
-                        '"value_ts":1530713112.9800000191,"time":1531302437.772356987},'
+                        '"value_ts":1530713112,"time":1531302437},'
                         '{"status":"nominal",'
                         '"name":"some_other_sample","component":"anc","value":43680.0,'
-                        '"value_ts":111.111,"time":111.111}]')
+                        '"value_ts":111.111,"time":222.222}]')
 
         self.mock_http_async_client().fetch.side_effect = fake_http_response(mon_response)
         result = yield self._portal_client.sensor_value("anc_tfr_m018_l_band_offset")
-        expected_result = SensorSample(timestamp=1531302437.772357, value=43680.0,
+        expected_result = SensorSample(timestamp=1531302437, value=43680.0,
                                        status='nominal')
         assert result == expected_result
 
         self.mock_http_async_client().fetch.side_effect = fake_http_response(mon_response)
         result = yield self._portal_client.sensor_value("anc_tfr_m018_l_band_offset",
                                                         include_value_ts=True)
-        expected_result = SensorSampleValueTs(timestamp=1531302437.772357,
-                                              value_timestamp=1530713112.98,
+        expected_result = SensorSampleValueTs(timestamp=1531302437,
+                                              value_timestamp=1530713112,
                                               value=43680.0, status='nominal')
         assert result == expected_result
 
@@ -785,10 +785,10 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         mon_response = ('[{"status":"nominal",'
                         '"name":"some_other_sample","component":"anc",'
                         '"value":43680.0,'
-                        '"value_ts":1530713112.9800000191,"time":1531302437.772356987},'
+                        '"value_ts":1530713112.9800000191,"time":1531302437},'
                         '{"status":"nominal",'
                         '"name":"some_other_sample1","component":"anc","value":43680.0,'
-                        '"value_ts":111.111,"time":111.111}]')
+                        '"value_ts":111.111,"time":222.222}]')
 
         self.mock_http_async_client().fetch.side_effect = fake_http_response(mon_response)
         with self.assertRaises(SensorNotFoundError):
@@ -799,15 +799,15 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         """Test that we can handle single result"""
         mon_response = ('[{"status":"nominal",'
                         '"name":"some_other_sample","component":"anc","value":43680.0,'
-                        '"value_ts":111.111,"time":111.111}]')
+                        '"value_ts":111.111,"time":222.222}]')
 
         self.mock_http_async_client().fetch.side_effect = fake_http_response(mon_response)
-        expected_result = SensorSample(timestamp=111.111, value=43680.0, status='nominal')
+        expected_result = SensorSample(timestamp=222.222, value=43680.0, status='nominal')
         res = yield self._portal_client.sensor_value("anc_tfr_m018_l_band_offset_average")
         assert res == expected_result
 
         self.mock_http_async_client().fetch.side_effect = fake_http_response(mon_response)
-        expected_result = SensorSampleValueTs(timestamp=111.111, value_timestamp=111.111,
+        expected_result = SensorSampleValueTs(timestamp=222.222, value_timestamp=111.111,
                                               value=43680.0, status=u'nominal')
         res = yield self._portal_client.sensor_value("anc_tfr_m018_l_band_offset_average",
                                                      include_value_ts=True)

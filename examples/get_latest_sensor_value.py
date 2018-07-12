@@ -30,7 +30,7 @@ def main():
     sensor_names = yield portal_client.sensor_names(args.sensors)
     print "\nMatching sensor names for pattern {}: {}".format(args.sensors, sensor_names)
 
-    # Fetch the details for the sensors found.
+    # Fetch the readings for the sensors found.
     if len(sensor_names) == 0:
         print "No matching sensors found!"
     else:
@@ -38,7 +38,7 @@ def main():
             try:
                 sensor_value = yield portal_client.sensor_value(sensor_name,
                                                                 include_value_ts=True)
-            except SensorNotFoundError, exc:
+            except SensorNotFoundError as exc:
                 print "\n", exc
                 continue
             print "\nValue for sensor {}:".format(sensor_name)
