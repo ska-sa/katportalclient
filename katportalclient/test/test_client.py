@@ -19,9 +19,10 @@ from tornado.test.websocket_test import (
     WebSocketBaseTestCase, TestWebSocketHandler)
 
 from katportalclient import (
-    KATPortalClient, JSONRPCRequest, ScheduleBlockNotFoundError,
+    KATPortalClient, JSONRPCRequest, ScheduleBlockNotFoundError, InvalidResponseError,
     SensorNotFoundError, SensorLookupError, SensorHistoryRequestError,
-    ScheduleBlockTargetsParsingError, create_jwt_login_token)
+    ScheduleBlockTargetsParsingError, create_jwt_login_token, SensorSample,
+    SensorSampleValueTs)
 
 
 LOGGER_NAME = 'test_portalclient'
@@ -195,6 +196,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
                         'authorization': r"http://0.0.0.0/katauth",
                         'userlogs': r"http://0.0.0.0/katcontrol/userlogs",
                         'subarray': r"http:/0.0.0.0/katcontrol/subarray",
+                        'monitor': r"http:/0.0.0.0/katmonitor",
                         }
                        }
             body_buffer = StringIO.StringIO(json.dumps(sitemap))
@@ -735,6 +737,81 @@ class TestKATPortalClient(WebSocketBaseTestCase):
 
         with self.assertRaises(SensorNotFoundError):
             yield self._portal_client.sensor_detail(sensor_name_filter)
+
+    @gen_test
+    def test_sensor_value_invalid_results(self):
+        """test that we handle the monitor server returning an invalid string"""
+        self.mock_http_async_client().fetch.side_effect = fake_http_response('')
+        with self.assertRaises(InvalidResponseError):
+            yield self._portal_client.sensor_value("INVALID_SENSOR")
+
+    @gen_test
+    def test_sensor_value_no_results(self):
+        """Test that we handle no matches"""
+        self.mock_http_async_client().fetch.side_effect = fake_http_response('[]')
+        with self.assertRaises(SensorNotFoundError):
+            yield self._portal_client.sensor_value("INVALID_SENSOR")
+
+    @gen_test
+    def test_sensor_value_multiple_results_one_match(self):
+        """Test that we handle multiple results correctly with one match"""
+
+        mon_response = ('[{"status":"nominal",'
+                        '"name":"anc_tfr_m018_l_band_offset","component":"anc",'
+                        '"value":43680.0,'
+                        '"value_ts":1530713112,"time":1531302437},'
+                        '{"status":"nominal",'
+                        '"name":"some_other_sample","component":"anc","value":43680.0,'
+                        '"value_ts":111.111,"time":222.222}]')
+
+        self.mock_http_async_client().fetch.side_effect = fake_http_response(mon_response)
+        result = yield self._portal_client.sensor_value("anc_tfr_m018_l_band_offset")
+        expected_result = SensorSample(timestamp=1531302437, value=43680.0,
+                                       status='nominal')
+        assert result == expected_result
+
+        self.mock_http_async_client().fetch.side_effect = fake_http_response(mon_response)
+        result = yield self._portal_client.sensor_value("anc_tfr_m018_l_band_offset",
+                                                        include_value_ts=True)
+        expected_result = SensorSampleValueTs(timestamp=1531302437,
+                                              value_timestamp=1530713112,
+                                              value=43680.0, status='nominal')
+        assert result == expected_result
+
+    @gen_test
+    def test_sensor_value_multiple_results_no_match(self):
+        """Test that we handle multiple results correctly with no matches"""
+
+        mon_response = ('[{"status":"nominal",'
+                        '"name":"some_other_sample","component":"anc",'
+                        '"value":43680.0,'
+                        '"value_ts":1530713112.9800000191,"time":1531302437},'
+                        '{"status":"nominal",'
+                        '"name":"some_other_sample1","component":"anc","value":43680.0,'
+                        '"value_ts":111.111,"time":222.222}]')
+
+        self.mock_http_async_client().fetch.side_effect = fake_http_response(mon_response)
+        with self.assertRaises(SensorNotFoundError):
+            yield self._portal_client.sensor_value("anc_tfr_m018_l_band_offset_average")
+
+    @gen_test
+    def test_sensor_value_one_result(self):
+        """Test that we can handle single result"""
+        mon_response = ('[{"status":"nominal",'
+                        '"name":"some_other_sample","component":"anc","value":43680.0,'
+                        '"value_ts":111.111,"time":222.222}]')
+
+        self.mock_http_async_client().fetch.side_effect = fake_http_response(mon_response)
+        expected_result = SensorSample(timestamp=222.222, value=43680.0, status='nominal')
+        res = yield self._portal_client.sensor_value("anc_tfr_m018_l_band_offset_average")
+        assert res == expected_result
+
+        self.mock_http_async_client().fetch.side_effect = fake_http_response(mon_response)
+        expected_result = SensorSampleValueTs(timestamp=222.222, value_timestamp=111.111,
+                                              value=43680.0, status=u'nominal')
+        res = yield self._portal_client.sensor_value("anc_tfr_m018_l_band_offset_average",
+                                                     include_value_ts=True)
+        assert res == expected_result
 
     @gen_test
     def test_sensor_history_single_sensor_with_value_ts(self):
@@ -1453,3 +1530,11 @@ def mock_async_fetcher(valid_response, invalid_response, starts_with=None,
         return future
 
     return mock_fetch
+
+
+def fake_http_response(response_string):
+    """Used as a mock side effect response for AsyncHTTPClient.fetch"""
+    result = HTTPResponse(HTTPRequest(''), 200, buffer=StringIO.StringIO(response_string))
+    future = concurrent.Future()
+    future.set_result(result)
+    return [future]
