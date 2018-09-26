@@ -42,6 +42,10 @@ SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC = 1000.0
 WS_CONNECT_TIMEOUT = 10
 WS_RECONNECT_INTERVAL = 15
 WS_HEART_BEAT_INTERVAL = 20000  # in milliseconds
+# HTTP timeouts.  Note the request timeout includes time spent connecting,
+# so it should not be less than the connect timeout.
+HTTP_CONNECT_TIMEOUT = 20
+HTTP_REQUEST_TIMEOUT = 60
 
 module_logger = logging.getLogger('kat.katportalclient')
 
@@ -158,7 +162,9 @@ class KATPortalClient(object):
         self._io_loop = io_loop or tornado.ioloop.IOLoop.current()
         self._on_update = on_update_callback
         self._pending_requests = {}
-        self._http_client = tornado.httpclient.AsyncHTTPClient()
+        self._http_client = tornado.httpclient.AsyncHTTPClient(
+            defaults=dict(connect_timeout=HTTP_CONNECT_TIMEOUT,
+                          request_timeout=HTTP_REQUEST_TIMEOUT))
         self._sitemap = None
         self._sensor_history_states = {}
         self._reference_observer_config = None
