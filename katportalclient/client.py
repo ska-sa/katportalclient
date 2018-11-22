@@ -33,6 +33,10 @@ MAX_SAMPLES_PER_HISTORY_QUERY = 1000000
 WS_CONNECT_TIMEOUT = 10
 WS_RECONNECT_INTERVAL = 15
 WS_HEART_BEAT_INTERVAL = 20000  # in milliseconds
+# HTTP timeouts.  Note the request timeout includes time spent connecting,
+# so it should not be less than the connect timeout.
+HTTP_CONNECT_TIMEOUT = 20
+HTTP_REQUEST_TIMEOUT = 60
 
 module_logger = logging.getLogger('kat.katportalclient')
 
@@ -146,7 +150,9 @@ class KATPortalClient(object):
         self._io_loop = io_loop or tornado.ioloop.IOLoop.current()
         self._on_update = on_update_callback
         self._pending_requests = {}
-        self._http_client = tornado.httpclient.AsyncHTTPClient()
+        self._http_client = tornado.httpclient.AsyncHTTPClient(
+            defaults=dict(connect_timeout=HTTP_CONNECT_TIMEOUT,
+                          request_timeout=HTTP_REQUEST_TIMEOUT))
         self._sitemap = None
         self._sensor_history_states = {}
         self._reference_observer_config = None
@@ -1156,6 +1162,78 @@ class KATPortalClient(object):
                       'type': attrs.get('type'),
                       'component': results[0].get('component')}
             raise tornado.gen.Return(result)
+
+    @tornado.gen.coroutine
+    def sensor_value(self, sensor_name, include_value_ts=False):
+        """Return the latest value of a sensor.
+
+        .. note::
+
+            The websocket is not used for this request - it does not need
+            to be connected.
+
+        Parameters
+        ----------
+        sensor_name: str
+            Exact sensor name. No regular expressions allowed.
+            To get a list of sensor names based off regular expressions, see
+            :meth:`.sensor_names`.
+
+        Returns
+        -------
+        namedtuple:
+            Instance of :class:`.SensorSampleValueTs` if `include_value_ts` is `True`,
+            otherwise an instance of :class:`.SensorSample`
+
+        Raises
+        -------
+        SensorNotFoundError:
+            - If no information was available for the requested sensor name.
+        InvalidResponseError:
+            - When the katportal service returns invalid JSON
+        """
+        url = self.sitemap['monitor'] + '/list-sensors/all'
+
+        response = yield self._http_client.fetch(
+            "{}?reading_only=1&name_filter=^{}$".format(url, sensor_name))
+        try:
+            results = json.loads(response.body)
+        except json.JSONError:
+            raise InvalidResponseError(
+                "Request to {} did not respond with valid JSON".format(url))
+
+        if len(results) == 0:
+            raise SensorNotFoundError("Value for sensor {} not found".format(sensor_name))
+
+        result_to_format = None
+
+        if len(results) > 1:
+            # check for exact match, before giving up
+            for result in results:
+                if result['name'] == sensor_name:
+                    result_to_format = result
+                    break
+            else:
+                raise SensorNotFoundError(
+                    "Multiple sensors ({}) found - specify a single sensor "
+                    "name not a pattern like: '{}'.  (Some matches: {})."
+                    .format(len(results),
+                            sensor_name,
+                            [result['name'] for result in results[0:5]]))
+        else:
+            result_to_format = results[0]
+
+        if include_value_ts:
+            raise tornado.gen.Return(SensorSampleValueTs(
+                timestamp=result_to_format['time'],
+                value_timestamp=result_to_format['value_ts'],
+                value=result_to_format['value'],
+                status=result_to_format['status']))
+        else:
+            raise tornado.gen.Return(SensorSample(
+                timestamp=result_to_format['time'],
+                value=result_to_format['value'],
+                status=result_to_format['status']))
 
     @tornado.gen.coroutine
     def sensor_history(self, sensor_name, start_time_sec, end_time_sec,
