@@ -70,20 +70,20 @@ def main():
                    datetime.utcfromtimestamp(args.end).strftime('%Y-%m-%dT%H:%M:%SZ')))
         if len(sensor_names) == 1:
             # Request history for just a single sensor - result is
-            # timestamp, value, status
+            # sample_time, value, status
             #    If value timestamp is also required, then add the additional argument:
             #        include_value_time=True
-            #    result is then timestamp, value_timestmap, value, status
+            #    result is then sample_time, value_time, value, status
             value_time = args.include_value_time
             history = yield portal_client.sensor_history(
                 sensor_names[0], args.start, args.end,
                 include_value_time=value_time, interval=args.interval)
             histories = {sensor_names[0]: history}
         else:
-            # Request history for all the sensors - result is timestamp, value, status
+            # Request history for all the sensors - result is sample_time, value, status
             #    If value timestamp is also required, then add the additional argument:
             #        include_value_time=True
-            #    result is then timestmap, value_timestmap, value, status
+            #    result is then sample_time, value_time, value, status
             histories = yield portal_client.sensors_histories(
                 sensor_names, args.start, args.end, include_value_time=value_time,
                 interval=args.interval)
@@ -108,7 +108,7 @@ def main():
     # Requesting history for 1 sensors, from 2018-04-03T11:52:08Z to 2018-04-03T12:52:08Z
     # Found 1 sensors.
     # History for: sys_watchdogs_sys (360 samples)
-    #	index,timestamp,value,status
+    #	index,sample_time,value,status
     #	0,1522756329.5110459328,42108,nominal
     #	1,1522756339.511122942,42109,nominal
     #	2,1522756349.5113239288,42110,nominal

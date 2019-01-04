@@ -1182,7 +1182,7 @@ class KATPortalClient(object):
         Returns
         -------
         namedtuple:
-            Instance of :class:`.SensorSampleValueTs` if `include_value_ts` is `True`,
+            Instance of :class:`.SensorSampleValueTime` if `include_value_ts` is `True`,
             otherwise an instance of :class:`.SensorSample`
 
         Raises
@@ -1224,14 +1224,14 @@ class KATPortalClient(object):
             result_to_format = results[0]
 
         if include_value_ts:
-            raise tornado.gen.Return(SensorSampleValueTs(
-                timestamp=result_to_format['time'],
-                value_timestamp=result_to_format['value_ts'],
+            raise tornado.gen.Return(SensorSampleValueTime(
+                sample_time=result_to_format['time'],
+                value_time=result_to_format['value_ts'],
                 value=result_to_format['value'],
                 status=result_to_format['status']))
         else:
             raise tornado.gen.Return(SensorSample(
-                timestamp=result_to_format['time'],
+                sample_time=result_to_format['time'],
                 value=result_to_format['value'],
                 status=result_to_format['status']))
 
@@ -1699,6 +1699,10 @@ class SubarrayNumberUnknown(Exception):
 
 class SensorLookupError(Exception):
     """Raise if requested sensor lookup failed."""
+
+
+class InvalidResponseError(Exception):
+    """Raise if server response was invalid."""
 
 
 def _sort_by_sample_time(sample):

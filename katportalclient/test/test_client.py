@@ -22,7 +22,7 @@ from katportalclient import (
     KATPortalClient, JSONRPCRequest, ScheduleBlockNotFoundError, InvalidResponseError,
     SensorNotFoundError, SensorLookupError, SensorHistoryRequestError,
     ScheduleBlockTargetsParsingError, create_jwt_login_token, SensorSample,
-    SensorSampleValueTs)
+    SensorSampleValueTime)
 
 
 LOGGER_NAME = 'test_portalclient'
@@ -886,16 +886,16 @@ class TestKATPortalClient(WebSocketBaseTestCase):
 
         self.mock_http_async_client().fetch.side_effect = fake_http_response(mon_response)
         result = yield self._portal_client.sensor_value("anc_tfr_m018_l_band_offset")
-        expected_result = SensorSample(timestamp=1531302437, value=43680.0,
+        expected_result = SensorSample(sample_time=1531302437, value=43680.0,
                                        status='nominal')
         assert result == expected_result
 
         self.mock_http_async_client().fetch.side_effect = fake_http_response(mon_response)
         result = yield self._portal_client.sensor_value("anc_tfr_m018_l_band_offset",
                                                         include_value_ts=True)
-        expected_result = SensorSampleValueTs(timestamp=1531302437,
-                                              value_timestamp=1530713112,
-                                              value=43680.0, status='nominal')
+        expected_result = SensorSampleValueTime(sample_time=1531302437,
+                                                value_time=1530713112,
+                                                value=43680.0, status='nominal')
         assert result == expected_result
 
     @gen_test
@@ -922,20 +922,21 @@ class TestKATPortalClient(WebSocketBaseTestCase):
                         '"value_ts":111.111,"time":222.222}]')
 
         self.mock_http_async_client().fetch.side_effect = fake_http_response(mon_response)
-        expected_result = SensorSample(timestamp=222.222, value=43680.0, status='nominal')
+        expected_result = SensorSample(sample_time=222.222, value=43680.0,
+                                       status='nominal')
         res = yield self._portal_client.sensor_value("anc_tfr_m018_l_band_offset_average")
         assert res == expected_result
 
         self.mock_http_async_client().fetch.side_effect = fake_http_response(mon_response)
-        expected_result = SensorSampleValueTs(timestamp=222.222, value_timestamp=111.111,
-                                              value=43680.0, status=u'nominal')
+        expected_result = SensorSampleValueTime(sample_time=222.222, value_time=111.111,
+                                                value=43680.0, status=u'nominal')
         res = yield self._portal_client.sensor_value("anc_tfr_m018_l_band_offset_average",
                                                      include_value_ts=True)
         assert res == expected_result
 
     @gen_test
     def test_sensor_history_single_sensor_without_value_time(self):
-        """Test time ordered data without value_timestamp for single sensor request."""
+        """Test time ordered data without value_time for single sensor request."""
         history_base_url = self._portal_client.sitemap[
             'historic_sensor_values']
         sensor_name = 'anc_mean_wind_speed'
@@ -958,12 +959,12 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         for sample in samples:
             self.assertGreater(sample.sample_time, time_sec)
             time_sec = sample.sample_time
-            # Ensure sample contains timestamp, value, status
+            # Ensure sample contains sample_time, value, status
             self.assertEqual(len(sample), 3)
 
     @gen_test
     def test_sensor_history_single_sensor_with_value_time(self):
-        """Test that time ordered data with value_timestamp is received for a single sensor request."""
+        """Test that time ordered data with value_time is received for a single sensor request."""
         history_base_url = self._portal_client.sitemap[
             'historic_sensor_values']
         sensor_name = 'anc_mean_wind_speed'
@@ -986,9 +987,9 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         for sample in samples:
             self.assertGreater(sample.sample_time, time_sec)
             time_sec = sample.sample_time
-            # Ensure sample contains timestamp, value_timestamp, value, status
+            # Ensure sample contains sample_time, value_time, value, status
             self.assertEqual(len(sample), 4)
-            # Ensure value_timestamp
+            # Ensure value_time
             self.assertGreater(sample.sample_time, sample.value_time)
 
     @gen_test
