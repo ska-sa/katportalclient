@@ -1256,7 +1256,7 @@ class KATPortalClient(object):
             sample time in the result.
             Default: False.
         interval: int
-            The resampling interval in seconds. 0 to disable.
+            The resampling interval in seconds. 0 to disable. Currently NOT supported.
 
         Returns
         -------
@@ -1280,9 +1280,9 @@ class KATPortalClient(object):
             'start_time': start_time_sec,
             'end_time': end_time_sec,
             'limit': MAX_SAMPLES_PER_HISTORY_QUERY,
-            'include_value_time': include_value_time,
-            'interval': interval
+            'include_value_time': include_value_time
         }
+
         url = url_concat(
             self.sitemap['historic_sensor_values'] + '/query', params)
         self._logger.debug("Sensor history request: %s", url)
