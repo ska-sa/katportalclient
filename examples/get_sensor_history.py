@@ -68,25 +68,25 @@ def main():
                    datetime.utcfromtimestamp(
                        args.start).strftime('%Y-%m-%dT%H:%M:%SZ'),
                    datetime.utcfromtimestamp(args.end).strftime('%Y-%m-%dT%H:%M:%SZ')))
+        value_time = args.include_value_time
         if len(sensor_names) == 1:
             # Request history for just a single sensor - result is
             # sample_time, value, status
             #    If value timestamp is also required, then add the additional argument:
             #        include_value_time=True
             #    result is then sample_time, value_time, value, status
-            value_time = args.include_value_time
             history = yield portal_client.sensor_history(
                 sensor_names[0], args.start, args.end,
-                include_value_time=value_time, interval=args.interval)
+                include_value_ts=value_time)
             histories = {sensor_names[0]: history}
         else:
             # Request history for all the sensors - result is sample_time, value, status
             #    If value timestamp is also required, then add the additional argument:
             #        include_value_time=True
             #    result is then sample_time, value_time, value, status
-            histories = yield portal_client.sensors_histories(
-                sensor_names, args.start, args.end, include_value_time=value_time,
-                interval=args.interval)
+            histories = yield portal_client.sensors_histories(sensor_names, args.start,
+                                                              args.end,
+                                                              include_value_ts=value_time)
 
         print "Found {} sensors.".format(len(histories))
         for sensor_name, history in histories.items():

@@ -950,7 +950,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             contains=sensor_name)
 
         samples = yield self._portal_client.sensor_history(
-            sensor_name, start_time_sec=0, end_time_sec=time.time(), include_value_time=False)
+            sensor_name, start_time_sec=0, end_time_sec=time.time(), include_value_ts=False)
         # expect exactly 4 samples
         self.assertTrue(len(samples) == 4)
 
@@ -978,7 +978,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             contains=sensor_name)
 
         samples = yield self._portal_client.sensor_history(
-            sensor_name, start_time_sec=0, end_time_sec=time.time(), include_value_time=True)
+            sensor_name, start_time_sec=0, end_time_sec=time.time(), include_value_ts=True)
         # expect exactly 3 samples
         self.assertTrue(len(samples) == 3)
 
@@ -1075,8 +1075,9 @@ class TestKATPortalClient(WebSocketBaseTestCase):
                 sensor_names[0],
                 sensor_names[1]])
 
-        histories = yield self._portal_client.sensors_histories(
-            sensor_name_filter, start_time_sec=0, end_time_sec=time.time())
+        histories = yield self._portal_client.sensors_histories(sensor_name_filter,
+                                                                start_time_sec=0,
+                                                                end_time_sec=time.time())
         # expect exactly 2 lists of samples
         self.assertTrue(len(histories) == 2)
         # expect keys to match the 2 sensor names

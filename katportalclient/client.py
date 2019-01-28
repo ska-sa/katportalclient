@@ -1237,7 +1237,7 @@ class KATPortalClient(object):
 
     @tornado.gen.coroutine
     def sensor_history(self, sensor_name, start_time_sec, end_time_sec,
-                       include_value_time=False, interval=0):
+                       include_value_ts=False, timeout_sec=0):
         """Return time history of sample measurements for a sensor.
 
         For a list of sensor names, see :meth:`.sensors_list`.
@@ -1251,12 +1251,12 @@ class KATPortalClient(object):
             (1970-01-01 UTC).
         end_time_sec: float
             End time for sample history query, in seconds since the UNIX epoch.
-        include_value_time: bool
+        include_value_ts: bool
             Flag to also include value sample_time in addition to time series
             sample time in the result.
             Default: False.
-        interval: int
-            The resampling interval in seconds. 0 to disable. Currently NOT supported.
+        timeout_sec: int
+            This parameter is no longer support. Here for backwards compatibility
 
         Returns
         -------
@@ -1275,12 +1275,17 @@ class KATPortalClient(object):
             - If there was an error submitting the request.
             - If the request timed out
         """
+
+        if timeout_sec != 0:
+            self._logger.warn(
+                "timeout_sec is no longer supported. Default tornado timeout is used")
+
         params = {
             'sensor': sensor_name,
             'start_time': start_time_sec,
             'end_time': end_time_sec,
             'limit': MAX_SAMPLES_PER_HISTORY_QUERY,
-            'include_value_time': include_value_time
+            'include_value_time': include_value_ts
         }
 
         url = url_concat(
@@ -1308,7 +1313,7 @@ class KATPortalClient(object):
 
     @tornado.gen.coroutine
     def sensors_histories(self, filters, start_time_sec, end_time_sec,
-                          include_value_time=False, interval=0):
+                          include_value_ts=False, timeout_sec=0):
         """Return time histories of sample measurements for multiple sensors.
 
         Finds the list of available sensors in the system that match the
@@ -1326,12 +1331,12 @@ class KATPortalClient(object):
             (1970-01-01 UTC).
         end_time_sec: float
             End time for sample history query, in seconds since the UNIX epoch.
-        include_value_time: bool
+        include_value_ts: bool
             Flag to also include value sample_time in addition to time series
             sample sample in the result.
             Default: False.
-        interval: int
-            The resampling interval in seconds. 0 to disable.
+        timeout_sec: int
+            This parameter is no longer support. Here for backwards compatibility
 
         Returns
         -------
@@ -1352,13 +1357,13 @@ class KATPortalClient(object):
         SensorNotFoundError:
             - If any of the filters were invalid regular expression patterns.
         """
+
         sensors = yield self.sensor_names(filters)
         histories = {}
         for sensor in sensors:
             histories[sensor] = yield self.sensor_history(
                 sensor, start_time_sec, end_time_sec,
-                include_value_time=include_value_time,
-                interval=interval)
+                include_value_ts=include_value_ts, timeout_sec=timeout_sec)
         raise tornado.gen.Return(histories)
 
     @tornado.gen.coroutine
