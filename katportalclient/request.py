@@ -2,6 +2,8 @@
 # BSD license - see COPYING for details
 """Module defining the JSON-RPC request class used by websocket client."""
 
+from builtins import str
+from builtins import object
 import uuid
 
 import omnijson as json

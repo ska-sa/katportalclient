@@ -7,6 +7,7 @@ This example uses HTTP access to katportal, not websocket access.  It uses a
 specific subarray when initialising the KATPortalClient, as schedule blocks
 are assigned to specific subarrays.
 """
+from __future__ import print_function
 import logging
 import argparse
 
@@ -30,7 +31,7 @@ def main():
 
     # Get the IDs of schedule blocks assigned to the subarray specified above.
     sb_ids = yield portal_client.schedule_blocks_assigned()
-    print "\nSchedule block IDs on subarray {}\n{}".format(args.sub_nr, sb_ids)
+    print("\nSchedule block IDs on subarray {}\n{}".format(args.sub_nr, sb_ids))
     # Example output:
     #   Schedule block IDs on subarray 1:
     #   [u'20161010-0001', u'20161010-0002', u'20161010-0003']
@@ -38,7 +39,7 @@ def main():
     # Fetch the details for one of the schedule blocks found.
     if len(sb_ids) > 0:
         sb_detail = yield portal_client.schedule_block_detail(sb_ids[0])
-        print "\nDetail for SB {}:\n{}\n".format(sb_ids[0], sb_detail)
+        print("\nDetail for SB {}:\n{}\n".format(sb_ids[0], sb_detail))
         # Example output:
         # Detail for SB 20161010-0001:
         # {u'antennas_dry_run_alloc': u'm011',

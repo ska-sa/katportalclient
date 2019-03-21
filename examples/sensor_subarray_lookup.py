@@ -9,6 +9,7 @@ the given subarray is not in the 'active' or 'initialising' state.
 This example uses HTTP access to katportal, not websocket access.
 
 """
+from __future__ import print_function
 
 import logging
 import argparse
@@ -37,9 +38,9 @@ def main():
             component=lookup_args['component'],
             sensor=lookup_args['sensor'],
             return_katcp_name=lookup_args['return_katcp_name'])
-        print "Lookup result: ", name
+        print("Lookup result: ", name)
     except SensorLookupError as exc:
-        print "Lookup failed!", exc
+        print("Lookup failed!", exc)
 
 
 if __name__ == '__main__':

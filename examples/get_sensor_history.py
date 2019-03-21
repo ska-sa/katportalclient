@@ -7,6 +7,8 @@ This example gets lists of sensor names in various ways, and gets the
 detailed atttributes of a specific sensor.  It also gets the time history
 samples for a few sensors.
 """
+from __future__ import print_function
+from builtins import range
 import logging
 import argparse
 import time
@@ -32,7 +34,7 @@ def main():
 
     # Get the names of sensors matching the patterns
     sensor_names = yield portal_client.sensor_names(args.sensors)
-    print "\nMatching sensor names: {}".format(sensor_names)
+    print("\nMatching sensor names: {}".format(sensor_names))
     # Example output (if sensors is 'm01[12]_pos_request_base'):
     #   Matching sensor names: [u'm011_pos_request_base_azim',
     #   u'm012_pos_request_base_ra', u'm012_pos_request_base_dec',
@@ -43,9 +45,9 @@ def main():
     # Fetch the details for the sensors found.
     for sensor_name in sensor_names:
         sensor_detail = yield portal_client.sensor_detail(sensor_name)
-        print "\nDetail for sensor {}:".format(sensor_name)
+        print("\nDetail for sensor {}:".format(sensor_name))
         for key in sensor_detail:
-            print "    {}: {}".format(key, sensor_detail[key])
+            print("    {}: {}".format(key, sensor_detail[key]))
         # Example output:
         #   Detail for sensor m011_pos_request_base_azim:
         #       name: m011_pos_request_base_azim
@@ -60,7 +62,7 @@ def main():
 
     num_sensors = len(sensor_names)
     if num_sensors == 0:
-        print "\nNo matching sensors found - no history to request!"
+        print("\nNo matching sensors found - no history to request!")
     else:
         print ("\nRequesting history for {} sensors, from {} to {}"
                .format(
@@ -82,14 +84,14 @@ def main():
             histories = yield portal_client.sensors_histories(
                 sensor_names, args.start, args.end, timeout_sec=args.timeout)
 
-        print "Found {} sensors.".format(len(histories))
-        for sensor_name, history in histories.items():
+        print("Found {} sensors.".format(len(histories)))
+        for sensor_name, history in list(histories.items()):
             num_samples = len(history)
-            print "History for: {} ({} samples)".format(sensor_name, num_samples)
+            print("History for: {} ({} samples)".format(sensor_name, num_samples))
             if num_samples > 0:
-                print "\tindex,timestamp,value,status"
+                print("\tindex,timestamp,value,status")
                 for count in range(0, num_samples, args.decimate):
-                    print "\t{},{}".format(count, history[count].csv())
+                    print("\t{},{}".format(count, history[count].csv()))
 
     # Example: ./get_sensor_history.py -s 1476164224 -e 1476164229 anc_mean_wind_speed
     #

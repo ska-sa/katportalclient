@@ -3,15 +3,22 @@
 """
 Websocket client and HTTP module for access to katportal webservers.
 """
+from __future__ import division
+from __future__ import absolute_import
 
 
+from future import standard_library
+standard_library.install_aliases()
+from builtins import str
+from builtins import object
+from past.utils import old_div
 import base64
 import hashlib
 import hmac
 import logging
 import uuid
 import time
-from urllib import urlencode
+from urllib.parse import urlencode
 from datetime import timedelta
 from collections import namedtuple
 
@@ -25,7 +32,7 @@ from tornado.httputil import url_concat, HTTPHeaders
 from tornado.httpclient import HTTPRequest
 from tornado.ioloop import PeriodicCallback
 
-from request import JSONRPCRequest
+from .request import JSONRPCRequest
 
 
 # Limit for sensor history queries, in order to preserve memory on katportal.
@@ -620,17 +627,17 @@ class KATPortalClient(object):
                                 # Requesting value_timestamp in addition to
                                 # sample timestamp
                                 sensor_sample = SensorSampleValueTs(
-                                    timestamp=sample[
-                                        0] / SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
-                                    value_timestamp=sample[
-                                        1] / SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
+                                    timestamp=old_div(sample[
+                                        0], SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC),
+                                    value_timestamp=old_div(sample[
+                                        1], SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC),
                                     value=sample[3],
                                     status=sample[5])
                             else:
                                 # Only sample timestamp
                                 sensor_sample = SensorSample(
-                                    timestamp=sample[
-                                        0] / SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
+                                    timestamp=old_div(sample[
+                                        0], SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC),
                                     value=sample[3],
                                     status=sample[5])
                             state['samples'].append(sensor_sample)

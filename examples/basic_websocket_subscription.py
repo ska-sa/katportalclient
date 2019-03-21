@@ -7,7 +7,9 @@ This example connects to katportal via a websocket.  It subscribes to
 the specified sensor group names, and keeps printing out the published messages
 received every few seconds.
 """
+from __future__ import print_function
 
+from builtins import str
 import argparse
 import logging
 import uuid
@@ -23,14 +25,14 @@ logger.setLevel(logging.INFO)
 
 def on_update_callback(msg_dict):
     """Handler for every JSON message published over the websocket."""
-    print "GOT message:"
-    for key, value in msg_dict.items():
+    print("GOT message:")
+    for key, value in list(msg_dict.items()):
         if key == 'msg_data':
-            print '\tmsg_data:'
-            for data_key, data_value in msg_dict['msg_data'].items():
-                print "\t\t{}: {}".format(data_key, data_value)
+            print('\tmsg_data:')
+            for data_key, data_value in list(msg_dict['msg_data'].items()):
+                print("\t\t{}: {}".format(data_key, data_value))
         else:
-            print "\t{}: {}".format(key, value)
+            print("\t{}: {}".format(key, value))
 
 
 @tornado.gen.coroutine
@@ -51,7 +53,7 @@ def main():
     # Subscribe to the namespace (async call) - no messages will be received yet,
     # as this is a new namespace.
     result = yield portal_client.subscribe(namespace)
-    print "Subscription result: {} identifier(s).".format(result)
+    print("Subscription result: {} identifier(s).".format(result))
 
     # Set the sampling strategies for the sensors of interest, on our custom
     # namespace.  In this example, we are interested in a number of patterns,
@@ -60,7 +62,7 @@ def main():
     result = yield portal_client.set_sampling_strategies(
         namespace, args.sensors,
         'period 5.0')
-    print "\nSet sampling strategies result: {}.\n".format(result)
+    print("\nSet sampling strategies result: {}.\n".format(result))
 
     # Example:
     #  ./basic_websocket_subscription.py --host 127.0.0.1 pos_actual_pointm anc_mean_wind
