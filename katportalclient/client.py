@@ -97,7 +97,7 @@ class SensorSample(namedtuple('SensorSample', 'timestamp, value, status')):
     Fields:
         - timestamp:  float
             The timestamp (UNIX epoch) the sample was received by CAM.
-            timestamp value is reported with millisecond precision.
+            timestamp value is reported with at least millisecond precision.
         - value:  str
             The value of the sensor when sampled.  The units depend on the
             sensor, see :meth:`.sensor_detail`.
@@ -109,7 +109,7 @@ class SensorSample(namedtuple('SensorSample', 'timestamp, value, status')):
 
     def csv(self):
         """Returns sample in comma separated values format."""
-        return '{},{},{}'.format(self.timestamp, self.value, self.status)
+        return '{:.6f},{},{}'.format(self.timestamp, self.value, self.status)
 
 
 class SensorSampleValueTs(namedtuple(
@@ -119,10 +119,10 @@ class SensorSampleValueTs(namedtuple(
     Fields:
         - timestamp:  float
             The timestamp (UNIX epoch) the sample was received by CAM.
-            Timestamp value is reported with millisecond precision.
+            Timestamp value is reported with at least millisecond precision.
         - value_timestamp:  float
             The timestamp (UNIX epoch) the sample was read at the lowest level sensor.
-            value_timestamp value is reported with millisecond precision.
+            value_timestamp value is reported with at least millisecond precision.
         - value:  str
             The value of the sensor when sampled.  The units depend on the
             sensor, see :meth:`.sensor_detail`.
@@ -134,7 +134,7 @@ class SensorSampleValueTs(namedtuple(
 
     def csv(self):
         """Returns sample in comma separated values format."""
-        return '{},{},{},{}'.format(
+        return '{:.6f},{:.6f},{},{}'.format(
             self.timestamp, self.value_timestamp, self.value, self.status)
 
 

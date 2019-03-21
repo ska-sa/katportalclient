@@ -65,19 +65,19 @@ def main():
         for sensor_name in sensor_names:
             sensor_detail = yield portal_client.sensor_detail(sensor_name)
             print("\nDetail for sensor {}:".format(sensor_name))
-            for key in sensor_detail:
+            for key in sorted(sensor_detail):
                 print("    {}: {}".format(key, sensor_detail[key]))
             # Example output:
             #   Detail for sensor m011_pos_request_base_azim:
-            #       name: m011_pos_request_base_azim
-            #       systype: mkat
             #       component: m011
-            #       site: deva
-            #       katcp_name: m011.pos.request-base-azim
-            #       params: [-195.0, 370.0]
-            #       units: deg
-            #       type: float
             #       description: Requested target azimuth
+            #       katcp_name: m011.pos.request-base-azim
+            #       name: m011_pos_request_base_azim
+            #       params: [-195.0, 370.0]
+            #       site: deva
+            #       systype: mkat
+            #       type: float
+            #       units: deg
 
     # Example: ./get_sensor_info.py --host devx.camlab.kat.ac.za anc_(mean|gust)_wind_speed
     #
