@@ -9,15 +9,14 @@ from __future__ import absolute_import
 
 from future import standard_library
 standard_library.install_aliases()
-from builtins import str
-from builtins import object
-from past.utils import old_div
 import base64
 import hashlib
 import hmac
 import logging
 import uuid
 import time
+from builtins import bytes, str, object
+from past.builtins import basestring
 from urllib.parse import urlencode
 from datetime import timedelta
 from collections import namedtuple
@@ -77,16 +76,19 @@ def create_jwt_login_token(email, password):
         The authentication token to include in the HTTP Authorization header
         when verifying a user's credentials on katportal.
     """
-    jwt_header_alg = base64.standard_b64encode(u'{"alg":"HS256","typ":"JWT"}')
-    jwt_header_email = base64.standard_b64encode(
-        u'{"email":"%s"}' % email).strip('=')
-    jwt_header = '.'.join([jwt_header_alg, jwt_header_email])
+    jwt_header_alg = base64.standard_b64encode(b'{"alg":"HS256","typ":"JWT"}')
+    header_email = '{"email":"%s"}' % (email)
+    header_email = bytes(header_email, encoding='utf-8')
+    jwt_header_email = base64.standard_b64encode(header_email).strip(b'=')
+    jwt_header = b'.'.join([jwt_header_alg, jwt_header_email])
 
+    password = bytes(password, encoding='utf-8')
     password_sha = hashlib.sha256(password).hexdigest()
+    password_sha = bytes(password_sha, encoding='utf-8')
     dig = hmac.new(password_sha, msg=jwt_header,
                    digestmod=hashlib.sha256).digest()
-    password_encrypted = base64.b64encode(dig).decode()
-    jwt_auth_token = '.'.join([jwt_header, password_encrypted])
+    password_encrypted = base64.b64encode(dig)
+    jwt_auth_token = b'.'.join([jwt_header, password_encrypted])
 
     return jwt_auth_token
 
@@ -248,6 +250,8 @@ class KATPortalClient(object):
         Wraps tornado.fetch to add the Authorization headers with
         the locally cached session_id.
         """
+        if isinstance(auth_token, bytes):
+            auth_token = auth_token.decode()
         login_header = HTTPHeaders({
             "Authorization": "CustomJWT {}".format(auth_token)})
         request = HTTPRequest(
@@ -418,10 +422,14 @@ class KATPortalClient(object):
                     if reconnecting:
                         self._logger.info(
                             'Retrying connection in %s seconds...', WS_RECONNECT_INTERVAL)
-                        self._io_loop.call_later(
-                            WS_RECONNECT_INTERVAL, self._connect, True)
+                        self._connect_later(WS_RECONNECT_INTERVAL)
                 if not self.is_connected and not reconnecting:
                     self._logger.error("Failed to connect!")
+
+    def _connect_later(self, wait_time):
+        """Schedule later connection attempt."""
+        # Trivial function, but useful for unit testing
+        self._io_loop.call_later(wait_time, self._connect, True)
 
     @tornado.gen.coroutine
     def connect(self):
@@ -627,17 +635,17 @@ class KATPortalClient(object):
                                 # Requesting value_timestamp in addition to
                                 # sample timestamp
                                 sensor_sample = SensorSampleValueTs(
-                                    timestamp=old_div(sample[
-                                        0], SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC),
-                                    value_timestamp=old_div(sample[
-                                        1], SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC),
+                                    timestamp=sample[
+                                        0] / SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
+                                    value_timestamp=sample[
+                                        1] / SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
                                     value=sample[3],
                                     status=sample[5])
                             else:
                                 # Only sample timestamp
                                 sensor_sample = SensorSample(
-                                    timestamp=old_div(sample[
-                                        0], SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC),
+                                    timestamp=sample[
+                                        0] / SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
                                     value=sample[3],
                                     status=sample[5])
                             state['samples'].append(sensor_sample)
@@ -1144,7 +1152,7 @@ class KATPortalClient(object):
             - If any of the filters were invalid regular expression patterns.
         """
         url = self.sitemap['historic_sensor_values'] + '/sensors'
-        if isinstance(filters, str):
+        if isinstance(filters, basestring):
             filters = [filters]
         results = set()
         for filt in filters:
@@ -1153,7 +1161,7 @@ class KATPortalClient(object):
             # only add sensors once, to ensure a unique list
             for sensor in new_sensors:
                 results.add(sensor['name'])
-        raise tornado.gen.Return(list(results))
+        raise tornado.gen.Return(sorted(results))
 
     @tornado.gen.coroutine
     def sensor_detail(self, sensor_name):
