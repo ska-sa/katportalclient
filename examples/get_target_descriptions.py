@@ -7,11 +7,11 @@ a schedule block id code.
 This example uses HTTP access to katportal, not websocket access.
 """
 from __future__ import print_function
+
 import logging
 import argparse
-import time
-import katpoint
 
+import katpoint
 import tornado.gen
 
 from katportalclient import KATPortalClient

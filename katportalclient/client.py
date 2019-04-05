@@ -6,30 +6,31 @@ Websocket client and HTTP module for access to katportal webservers.
 from __future__ import division
 from __future__ import absolute_import
 
-
 from future import standard_library
-standard_library.install_aliases()
+standard_library.install_aliases()  # noqa: E402
 import base64
 import hashlib
 import hmac
 import logging
 import uuid
 import time
-from builtins import bytes, str, object
+
+import omnijson as json
+import tornado.gen
+import tornado.httpclient
+import tornado.ioloop
+import tornado.locks
+
+from builtins import bytes, object, str
+from collections import namedtuple
+from datetime import timedelta
 from past.builtins import basestring
 from urllib.parse import urlencode
-from datetime import timedelta
-from collections import namedtuple
 
-import tornado.gen
-import tornado.ioloop
-import tornado.httpclient
-import tornado.locks
-import omnijson as json
-from tornado.websocket import websocket_connect
-from tornado.httputil import url_concat, HTTPHeaders
 from tornado.httpclient import HTTPRequest
+from tornado.httputil import url_concat, HTTPHeaders
 from tornado.ioloop import PeriodicCallback
+from tornado.websocket import websocket_connect
 
 from .request import JSONRPCRequest
 

@@ -8,13 +8,15 @@ detailed atttributes of a specific sensor.  It also gets the time history
 samples for a few sensors.
 """
 from __future__ import print_function
-from builtins import range
+
 import logging
 import argparse
 import time
-from datetime import datetime
 
 import tornado.gen
+
+from builtins import range
+from datetime import datetime
 
 from katportalclient import KATPortalClient
 

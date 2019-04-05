@@ -8,6 +8,7 @@ specific subarray when initialising the KATPortalClient, as schedule blocks
 are assigned to specific subarrays.
 """
 from __future__ import print_function
+
 import logging
 import argparse
 

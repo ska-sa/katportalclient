@@ -8,6 +8,7 @@ detailed atttributes of a specific sensor.  It uses HTTP access to katportal,
 not websocket access.
 """
 from __future__ import print_function
+
 import logging
 import argparse
 

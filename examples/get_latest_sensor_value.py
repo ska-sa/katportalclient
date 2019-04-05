@@ -7,6 +7,7 @@ This example gets lists of sensor names, then returns the
 latest value of each specific sensor.  It uses HTTP access to katportal.
 """
 from __future__ import print_function
+
 import logging
 import argparse
 

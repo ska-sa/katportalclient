@@ -9,12 +9,13 @@ received every few seconds.
 """
 from __future__ import print_function
 
-from builtins import str
 import argparse
 import logging
 import uuid
 
 import tornado.gen
+
+from builtins import str
 
 from katportalclient import KATPortalClient
 

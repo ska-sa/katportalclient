@@ -3,25 +3,24 @@
 """Tests for katportalclient."""
 from __future__ import print_function
 
-
 from future import standard_library
-standard_library.install_aliases()
+standard_library.install_aliases()  # noqa: E402
 import logging
 import io
 import time
-from builtins import zip, bytes
-from past.builtins import basestring
-from functools import partial
 
 import mock
 import omnijson as json
-from tornado import gen
-from tornado import concurrent
-from tornado.web import Application
+
+from builtins import bytes, zip
+from functools import partial
+from past.builtins import basestring
+
+from tornado import concurrent, gen
 from tornado.httpclient import HTTPResponse, HTTPRequest
+from tornado.test.websocket_test import WebSocketBaseTestCase, TestWebSocketHandler
 from tornado.testing import gen_test
-from tornado.test.websocket_test import (
-    WebSocketBaseTestCase, TestWebSocketHandler)
+from tornado.web import Application
 
 from katportalclient import (
     KATPortalClient, JSONRPCRequest, ScheduleBlockNotFoundError, InvalidResponseError,
