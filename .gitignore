@@ -47,8 +47,9 @@ version.txt
 dump.rdb
 build
 
-# Test results #
-################
+# Testing #
+###########
 nosetests.xml
 *.coverage
 cover
+.tox
