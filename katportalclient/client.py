@@ -3,29 +3,36 @@
 """
 Websocket client and HTTP module for access to katportal webservers.
 """
+from __future__ import division
+from __future__ import absolute_import
 
-
+from future import standard_library
+standard_library.install_aliases()  # noqa: E402
 import base64
 import hashlib
 import hmac
 import logging
 import uuid
 import time
-from urllib import urlencode
-from datetime import timedelta
-from collections import namedtuple
 
-import tornado.gen
-import tornado.ioloop
-import tornado.httpclient
-import tornado.locks
 import omnijson as json
-from tornado.websocket import websocket_connect
-from tornado.httputil import url_concat, HTTPHeaders
-from tornado.httpclient import HTTPRequest
-from tornado.ioloop import PeriodicCallback
+import tornado.gen
+import tornado.httpclient
+import tornado.ioloop
+import tornado.locks
 
-from request import JSONRPCRequest
+from builtins import bytes, object, str
+from collections import namedtuple
+from datetime import timedelta
+from past.builtins import basestring
+from urllib.parse import urlencode
+
+from tornado.httpclient import HTTPRequest
+from tornado.httputil import url_concat, HTTPHeaders
+from tornado.ioloop import PeriodicCallback
+from tornado.websocket import websocket_connect
+
+from .request import JSONRPCRequest
 
 
 # Limit for sensor history queries, in order to preserve memory on katportal.
@@ -70,16 +77,19 @@ def create_jwt_login_token(email, password):
         The authentication token to include in the HTTP Authorization header
         when verifying a user's credentials on katportal.
     """
-    jwt_header_alg = base64.standard_b64encode(u'{"alg":"HS256","typ":"JWT"}')
-    jwt_header_email = base64.standard_b64encode(
-        u'{"email":"%s"}' % email).strip('=')
-    jwt_header = '.'.join([jwt_header_alg, jwt_header_email])
+    jwt_header_alg = base64.standard_b64encode(b'{"alg":"HS256","typ":"JWT"}')
+    header_email = '{"email":"%s"}' % (email)
+    header_email = bytes(header_email, encoding='utf-8')
+    jwt_header_email = base64.standard_b64encode(header_email).strip(b'=')
+    jwt_header = b'.'.join([jwt_header_alg, jwt_header_email])
 
+    password = bytes(password, encoding='utf-8')
     password_sha = hashlib.sha256(password).hexdigest()
+    password_sha = bytes(password_sha, encoding='utf-8')
     dig = hmac.new(password_sha, msg=jwt_header,
                    digestmod=hashlib.sha256).digest()
-    password_encrypted = base64.b64encode(dig).decode()
-    jwt_auth_token = '.'.join([jwt_header, password_encrypted])
+    password_encrypted = base64.b64encode(dig)
+    jwt_auth_token = b'.'.join([jwt_header, password_encrypted])
 
     return jwt_auth_token
 
@@ -90,7 +100,7 @@ class SensorSample(namedtuple('SensorSample', 'timestamp, value, status')):
     Fields:
         - timestamp:  float
             The timestamp (UNIX epoch) the sample was received by CAM.
-            timestamp value is reported with millisecond precision.
+            timestamp value is reported with at least millisecond precision.
         - value:  str
             The value of the sensor when sampled.  The units depend on the
             sensor, see :meth:`.sensor_detail`.
@@ -102,7 +112,7 @@ class SensorSample(namedtuple('SensorSample', 'timestamp, value, status')):
 
     def csv(self):
         """Returns sample in comma separated values format."""
-        return '{},{},{}'.format(self.timestamp, self.value, self.status)
+        return '{:.6f},{},{}'.format(self.timestamp, self.value, self.status)
 
 
 class SensorSampleValueTs(namedtuple(
@@ -112,10 +122,10 @@ class SensorSampleValueTs(namedtuple(
     Fields:
         - timestamp:  float
             The timestamp (UNIX epoch) the sample was received by CAM.
-            Timestamp value is reported with millisecond precision.
+            Timestamp value is reported with at least millisecond precision.
         - value_timestamp:  float
             The timestamp (UNIX epoch) the sample was read at the lowest level sensor.
-            value_timestamp value is reported with millisecond precision.
+            value_timestamp value is reported with at least millisecond precision.
         - value:  str
             The value of the sensor when sampled.  The units depend on the
             sensor, see :meth:`.sensor_detail`.
@@ -127,7 +137,7 @@ class SensorSampleValueTs(namedtuple(
 
     def csv(self):
         """Returns sample in comma separated values format."""
-        return '{},{},{},{}'.format(
+        return '{:.6f},{:.6f},{},{}'.format(
             self.timestamp, self.value_timestamp, self.value, self.status)
 
 
@@ -241,6 +251,8 @@ class KATPortalClient(object):
         Wraps tornado.fetch to add the Authorization headers with
         the locally cached session_id.
         """
+        if isinstance(auth_token, bytes):
+            auth_token = auth_token.decode()
         login_header = HTTPHeaders({
             "Authorization": "CustomJWT {}".format(auth_token)})
         request = HTTPRequest(
@@ -411,10 +423,14 @@ class KATPortalClient(object):
                     if reconnecting:
                         self._logger.info(
                             'Retrying connection in %s seconds...', WS_RECONNECT_INTERVAL)
-                        self._io_loop.call_later(
-                            WS_RECONNECT_INTERVAL, self._connect, True)
+                        self._connect_later(WS_RECONNECT_INTERVAL)
                 if not self.is_connected and not reconnecting:
                     self._logger.error("Failed to connect!")
+
+    def _connect_later(self, wait_time):
+        """Schedule later connection attempt."""
+        # Trivial function, but useful for unit testing
+        self._io_loop.call_later(wait_time, self._connect, True)
 
     @tornado.gen.coroutine
     def connect(self):
@@ -1137,7 +1153,7 @@ class KATPortalClient(object):
             - If any of the filters were invalid regular expression patterns.
         """
         url = self.sitemap['historic_sensor_values'] + '/sensors'
-        if isinstance(filters, str):
+        if isinstance(filters, basestring):
             filters = [filters]
         results = set()
         for filt in filters:
@@ -1146,7 +1162,7 @@ class KATPortalClient(object):
             # only add sensors once, to ensure a unique list
             for sensor in new_sensors:
                 results.add(sensor['name'])
-        raise tornado.gen.Return(list(results))
+        raise tornado.gen.Return(sorted(results))
 
     @tornado.gen.coroutine
     def sensor_detail(self, sensor_name):

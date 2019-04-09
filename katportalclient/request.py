@@ -6,6 +6,8 @@ import uuid
 
 import omnijson as json
 
+from builtins import object, str
+
 
 class JSONRPCRequest(object):
     """
@@ -25,7 +27,7 @@ class JSONRPCRequest(object):
 
     def __init__(self, method, params):
         self.jsonrpc = '2.0'
-        self.id = str(uuid.uuid4().get_hex()[:10])
+        self.id = str(uuid.uuid4().hex[:10])
         self.method = method
         self.params = params
 

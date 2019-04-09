@@ -1,22 +1,26 @@
 # Copyright 2015 SKA South Africa (http://ska.ac.za/)
 # BSD license - see COPYING for details
 """Tests for katportalclient."""
+from __future__ import print_function
 
-
+from future import standard_library
+standard_library.install_aliases()  # noqa: E402
 import logging
-import StringIO
+import io
 import time
-from functools import partial
 
 import mock
 import omnijson as json
-from tornado import gen
-from tornado import concurrent
-from tornado.web import Application
+
+from builtins import bytes, zip
+from functools import partial
+from past.builtins import basestring
+
+from tornado import concurrent, gen
 from tornado.httpclient import HTTPResponse, HTTPRequest
+from tornado.test.websocket_test import WebSocketBaseTestCase, TestWebSocketHandler
 from tornado.testing import gen_test
-from tornado.test.websocket_test import (
-    WebSocketBaseTestCase, TestWebSocketHandler)
+from tornado.web import Application
 
 from katportalclient import (
     KATPortalClient, JSONRPCRequest, ScheduleBlockNotFoundError, InvalidResponseError,
@@ -26,6 +30,7 @@ from katportalclient import (
 
 
 LOGGER_NAME = 'test_portalclient'
+NEW_WEBSOCKET_DELAY = 0.05
 
 
 # Example JSON text for sensor request responses
@@ -199,7 +204,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
                         'monitor': r"http:/0.0.0.0/katmonitor",
                         }
                        }
-            body_buffer = StringIO.StringIO(json.dumps(sitemap))
+            body_buffer = buffer_bytes_io(json.dumps(sitemap))
             return HTTPResponse(HTTPRequest(url), 200, buffer=body_buffer)
 
         self.mock_http_sync_client().fetch.side_effect = mock_fetch
@@ -254,7 +259,8 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         self._portal_client._connect = mock.MagicMock(
             return_value=connect_future)
         connect_future.set_result(None)
-        yield self._portal_client._websocket_message(None)
+        yield test_websocket.close()
+        yield gen.sleep(NEW_WEBSOCKET_DELAY)  # give ioloop time to open new websocket
         self._portal_client._connect.assert_called_with(reconnecting=True)
 
     @gen_test
@@ -267,7 +273,8 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         self._portal_client._resend_subscriptions_and_strategies = mock.MagicMock(
             return_value=resend_future)
         resend_future.set_result(None)
-        yield self._portal_client._websocket_message(None)
+        yield test_websocket.close()
+        yield gen.sleep(NEW_WEBSOCKET_DELAY)  # give ioloop time to open new websocket
         self._portal_client._resend_subscriptions_and_strategies.assert_called_once()
 
         # test another reconnect if resending the strategies did not work on a
@@ -278,9 +285,10 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             return_value=resend_future2)
         self._portal_client._resend_subscriptions_and_strategies.side_effect = Exception(
             'some exception was thrown while _resend_subscriptions_and_strategies')
-        self._portal_client._io_loop.call_later = mock.MagicMock()
-        yield self._portal_client._websocket_message(None)
-        self._portal_client._io_loop.call_later.assert_called_once()
+        self._portal_client._connect_later = mock.MagicMock()
+        yield test_websocket.close()
+        yield gen.sleep(NEW_WEBSOCKET_DELAY)  # give ioloop time to open new websocket
+        self._portal_client._connect_later.assert_called_once()
 
     @gen_test
     def test_server_redis_reconnect_message(self):
@@ -450,7 +458,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         result = yield self._portal_client.set_sampling_strategy(
             'ants', 'mode', 'period 1')
         self.assertTrue(isinstance(result, dict))
-        self.assertTrue('mode' in result.keys())
+        self.assertTrue('mode' in list(result.keys()))
         self._portal_client._cache_jsonrpc_request.assert_called_once()
 
     @gen_test
@@ -460,7 +468,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         result = yield self._portal_client.set_sampling_strategies(
             'ants', ['mode', 'sensors_ok', 'ap_connected'], 'event-rate 1 5')
         self.assertTrue(isinstance(result, dict))
-        self.assertTrue('mode' in result.keys())
+        self.assertTrue('mode' in list(result.keys()))
         self._portal_client._cache_jsonrpc_request.assert_called_once()
 
     @gen_test
@@ -618,8 +626,8 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         sensors = yield self._portal_client.sensor_names(sensor_name_filter)
 
         self.assertTrue(len(sensors) == 2, "Expect exactly 2 sensors")
-        self.assertIn('anc_wind_device_status', sensors)
-        self.assertIn('anc_weather_device_status', sensors)
+        self.assertTrue(sensors[0] == 'anc_weather_device_status')
+        self.assertTrue(sensors[1] == 'anc_wind_device_status')
 
     @gen_test
     def test_sensor_names_no_duplicate_sensors(self):
@@ -831,7 +839,8 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             client_states=self._portal_client._sensor_history_states)
 
         samples = yield self._portal_client.sensor_history(
-            sensor_name, start_time_sec=0, end_time_sec=time.time(), include_value_ts=False)
+            sensor_name, start_time_sec=0, end_time_sec=time.time(),
+            include_value_ts=False)
         # expect exactly 4 samples
         self.assertTrue(len(samples) == 4)
 
@@ -844,7 +853,8 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             self.assertEqual(len(sample), 3)
 
         samples = yield self._portal_client.sensor_history(
-            sensor_name, start_time_sec=0, end_time_sec=time.time(), include_value_ts=True)
+            sensor_name, start_time_sec=0, end_time_sec=time.time(),
+            include_value_ts=True)
         # expect exactly 4 samples
         self.assertTrue(len(samples) == 4)
 
@@ -939,7 +949,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         history_base_url = self._portal_client.sitemap[
             'historic_sensor_values']
         sensor_name_filter = 'anc_.*_wind_speed'
-        sensor_names = ['anc_mean_wind_speed', 'anc_gust_wind_speed']
+        sensor_names = ['anc_gust_wind_speed', 'anc_mean_wind_speed']
         publish_messages = [
             [sensor_history_pub_messages_json['init']],
             [sensor_history_pub_messages_json['init']]
@@ -979,11 +989,11 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         # expect exactly 2 lists of samples
         self.assertTrue(len(histories) == 2)
         # expect keys to match the 2 sensor names
-        self.assertIn(sensor_names[0], histories.keys())
-        self.assertIn(sensor_names[1], histories.keys())
-        # expect 4 samples for 1st, and 3 samples for 2nd
-        self.assertTrue(len(histories[sensor_names[0]]) == 4)
-        self.assertTrue(len(histories[sensor_names[1]]) == 3)
+        self.assertIn(sensor_names[0], list(histories.keys()))
+        self.assertIn(sensor_names[1], list(histories.keys()))
+        # expect 3 samples for 1st, and 4 samples for 2nd
+        self.assertTrue(len(histories[sensor_names[0]]) == 3)
+        self.assertTrue(len(histories[sensor_names[1]]) == 4)
 
         # ensure time order is increasing, per sensor
         for sensor in histories:
@@ -1038,8 +1048,8 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         # expect exactly 2 lists of samples
         self.assertTrue(len(histories) == 2)
         # expect keys to match the 2 sensor names
-        self.assertIn(sensor_names[0], histories.keys())
-        self.assertIn(sensor_names[1], histories.keys())
+        self.assertIn(sensor_names[0], list(histories.keys()))
+        self.assertIn(sensor_names[1], list(histories.keys()))
         # expect 4 samples for 1st, and 3 samples for 2nd
         self.assertTrue(len(histories[sensor_names[0]]) == 4)
         self.assertTrue(len(histories[sensor_names[1]]) == 3)
@@ -1100,16 +1110,16 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         # and the standard JWT standard RFC 7519, see http://jwt.io
         self.assertEquals(
             test_token,
-            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InRlc3RAdGVzdC'
-            '50ZXN0In0.aI9/c3tgy5kaKUMfeVHn/3CWLddz4lZI4yFAqHq/JH0=')
+            b'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InRlc3RAdGVzdC'
+            b'50ZXN0In0.aI9/c3tgy5kaKUMfeVHn/3CWLddz4lZI4yFAqHq/JH0=')
         test_token2 = create_jwt_login_token(
             email='random text should also work, you never know!',
             password='some PeOpl3 have WEIRD pa$$words?')
         self.assertEquals(
             test_token2,
-            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InJhbmRvbSB0ZX'
-            'h0IHNob3VsZCBhbHNvIHdvcmssIHlvdSBuZXZlciBrbm93ISJ9.H1aItCXEZfNO'
-            '5CUP3vwKefqdEMBVpnNfMRYah5jPCAA=')
+            b'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InJhbmRvbSB0ZX'
+            b'h0IHNob3VsZCBhbHNvIHdvcmssIHlvdSBuZXZlciBrbm93ISJ9.H1aItCXEZfNO'
+            b'5CUP3vwKefqdEMBVpnNfMRYah5jPCAA=')
 
     @gen_test
     def test_login(self):
@@ -1124,7 +1134,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             return_value=authorized_fetch_future)
         auth_fetch_result = HTTPResponse(
             HTTPRequest(auth_base_url), 200,
-            buffer=StringIO.StringIO(
+            buffer=buffer_bytes_io(
                 '{"session_id": "token generated by katportal", "user_id": "123"}'))
         authorized_fetch_future.set_result(auth_fetch_result)
 
@@ -1141,7 +1151,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         authorized_fetch_fail_future = gen.Future()
         auth_fetch_fail_result = HTTPResponse(
             HTTPRequest(auth_base_url), 200,
-            buffer=StringIO.StringIO('{"logged_in": "False"}'))
+            buffer=buffer_bytes_io('{"logged_in": "False"}'))
         self._portal_client.authorized_fetch = mock.MagicMock(
             return_value=authorized_fetch_fail_future)
         authorized_fetch_fail_future.set_result(auth_fetch_fail_result)
@@ -1150,10 +1160,10 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         # test tokens for this test is generated using a the email, password combination
         # and the standard JWT standard RFC 7519, see http://jwt.io
         self._portal_client.authorized_fetch.assert_called_with(
-            auth_token='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImZ'
-                       'haWwgdXNlcm5hbWUifQ.IWU7Asuevn8Skm+qU7GJPuhLFoCvG47A'
-                       'M7lyRQfAbT0=',
-            url=u'http://0.0.0.0/katauth/user/verify/read_only')
+            auth_token=b'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImZ'
+                       b'haWwgdXNlcm5hbWUifQ.IWU7Asuevn8Skm+qU7GJPuhLFoCvG47A'
+                       b'M7lyRQfAbT0=',
+            url='http://0.0.0.0/katauth/user/verify/read_only')
         self.assertEquals(self._portal_client._session_id, None)
         self.assertEquals(self._portal_client._current_user_id, None)
 
@@ -1170,7 +1180,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             return_value=authorized_fetch_future)
         auth_fetch_result = HTTPResponse(
             HTTPRequest(auth_base_url), 200,
-            buffer=StringIO.StringIO(
+            buffer=buffer_bytes_io(
                 '{"session_id": "token generated by katportal", "user_id": "123"}'))
         authorized_fetch_future.set_result(auth_fetch_result)
 
@@ -1231,7 +1241,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             return_value=authorized_fetch_future)
         auth_fetch_result = HTTPResponse(
             HTTPRequest(userlogs_base_url), 200,
-            buffer=StringIO.StringIO(
+            buffer=buffer_bytes_io(
                 r"""
                 [{
                     "other_metadata": "[]",
@@ -1284,7 +1294,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             return_value=authorized_fetch_future)
         auth_fetch_result = HTTPResponse(
             HTTPRequest(userlogs_base_url), 200,
-            buffer=StringIO.StringIO(
+            buffer=buffer_bytes_io(
                 r"""
                 {
                     "other_metadata": "[]",
@@ -1322,18 +1332,22 @@ class TestKATPortalClient(WebSocketBaseTestCase):
 
         self._portal_client.authorized_fetch.assert_called_once_with(
             auth_token='some token',
-            body=json.dumps(
-                {"content": "test content",
-                 "tag_ids": [1, 2, 3],
-                 "start_time": "2017-02-07 08:47:22",
-                 "user": self._portal_client._current_user_id,
-                 "end_time": "2017-02-07 08:47:22"}),
+            body=mock.ANY,
             method='POST',
             url=self._portal_client.sitemap['userlogs'])
+        call_kwargs = self._portal_client.authorized_fetch.call_args[1]
+        actual_body_dict = json.loads(call_kwargs['body'])
+        expected_body_dict = {
+            "content": "test content",
+            "tag_ids": [1, 2, 3],
+            "start_time": "2017-02-07 08:47:22",
+            "user": self._portal_client._current_user_id,
+            "end_time": "2017-02-07 08:47:22"}
+        self.assertDictEqual(actual_body_dict, expected_body_dict)
 
     @gen_test
     def test_modify_userlog(self):
-        """Test userlog creation"""
+        """Test userlog modification"""
         # fake a login
         self._portal_client._session_id = 'some token'
         self._portal_client._current_user_id = 1
@@ -1345,7 +1359,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             return_value=userlog_fetch_future)
         fetch_result = HTTPResponse(
             HTTPRequest(userlogs_base_url), 200,
-            buffer=StringIO.StringIO(
+            buffer=buffer_bytes_io(
                 r"""
                 {
                     "other_metadata": "[]",
@@ -1394,10 +1408,13 @@ class TestKATPortalClient(WebSocketBaseTestCase):
 
         self._portal_client.authorized_fetch.assert_called_once_with(
             auth_token='some token',
-            body=json.dumps(userlog_to_modify),
+            body=mock.ANY,
             method='POST',
             url='{}/{}'.format(
                 self._portal_client.sitemap['userlogs'], userlog_to_modify['id']))
+        call_kwargs = self._portal_client.authorized_fetch.call_args[1]
+        actual_body_dict = json.loads(call_kwargs['body'])
+        self.assertDictEqual(actual_body_dict, userlog_to_modify)
 
         # Test bad tags attribute
         with self.assertRaises(json.JSONError):
@@ -1408,7 +1425,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
     def test_sensor_subarray_lookup(self):
         """Test sensor subarray lookup is correctly extracted."""
         lookup_base_url = (self._portal_client.sitemap['subarray'] +
-            '/3/sensor-lookup/cbf/device_status/0')
+                           '/3/sensor-lookup/cbf/device_status/0')
         sensor_name_filter = 'device_status'
         expected_sensor_name = 'cbf_3_device_status'
 
@@ -1425,7 +1442,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
     def test_sensor_subarray_katcp_name_lookup(self):
         """Test sensor subarray lookup returns the correct katcp name."""
         lookup_base_url = (self._portal_client.sitemap['subarray'] +
-            '/3/sensor-lookup/cbf/device-status/1')
+                           '/3/sensor-lookup/cbf/device-status/1')
         sensor_name_filter = 'device-status'
         expected_sensor_name = 'cbf_3.device-status'
 
@@ -1442,11 +1459,11 @@ class TestKATPortalClient(WebSocketBaseTestCase):
     def test_sensor_subarray_invalid_sensor_lookup(self):
         """Test that sensor subarray lookup can correctly handle an invalid sensor name."""
         lookup_base_url = (self._portal_client.sitemap['subarray'] +
-            '/3/sensor-lookup/anc/device_status/0')
+                           '/3/sensor-lookup/anc/device_status/0')
         sensor_name_filter = 'device_status'
         self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
             valid_response='{"error":"SensorLookupError: Could not lookup the sensor '
-                'on component. Could not determine component."}',
+                           'on component. Could not determine component."}',
             invalid_response='[]',
             starts_with=lookup_base_url,
             contains=sensor_name_filter)
@@ -1503,9 +1520,9 @@ def mock_async_fetcher(valid_response, invalid_response, starts_with=None,
         contains_ok = contains is None or contains in url
 
         if start_ok and end_ok and contains_ok:
-            body_buffer = StringIO.StringIO(valid_response)
+            body_buffer = buffer_bytes_io(valid_response)
         else:
-            body_buffer = StringIO.StringIO(invalid_response)
+            body_buffer = buffer_bytes_io(invalid_response)
 
         # optionally send raw message from test websocket server
         if publish_raw_messages and test_websocket:
@@ -1534,7 +1551,12 @@ def mock_async_fetcher(valid_response, invalid_response, starts_with=None,
 
 def fake_http_response(response_string):
     """Used as a mock side effect response for AsyncHTTPClient.fetch"""
-    result = HTTPResponse(HTTPRequest(''), 200, buffer=StringIO.StringIO(response_string))
+    result = HTTPResponse(HTTPRequest(''), 200, buffer=buffer_bytes_io(response_string))
     future = concurrent.Future()
     future.set_result(result)
     return [future]
+
+
+def buffer_bytes_io(message):
+    """Return a string as BytesIO, in Python 2 and 3."""
+    return io.BytesIO(bytes(message, encoding='utf-8'))
