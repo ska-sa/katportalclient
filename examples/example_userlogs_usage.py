@@ -11,7 +11,6 @@ from __future__ import print_function
 import time
 import logging
 import argparse
-import sys
 
 import tornado.gen
 
