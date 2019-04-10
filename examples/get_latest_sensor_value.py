@@ -29,7 +29,7 @@ def main():
 
     # Get the names of sensors matching the patterns
     # See examples/get_sensor_info.py for details on sensor name pattern matching
-    sensor_names = yield portal_client.sensor_names(args.sensors)
+    sensor_names = args.sensors  # yield portal_client.sensor_names(args.sensors)
     print("\nMatching sensor names for pattern {}: {}".format(args.sensors, sensor_names))
 
     # Fetch the readings for the sensors found.
@@ -38,13 +38,13 @@ def main():
     else:
         for sensor_name in sensor_names:
             try:
-                sensor_value = yield portal_client.sensor_value(sensor_name,
-                                                                include_value_ts=True)
+                sensor_values = yield portal_client.sensor_values(sensor_name,
+                                                                          include_value_ts=True)
             except SensorNotFoundError as exc:
                 print("\n", exc)
                 continue
             print("\nValue for sensor {}:".format(sensor_name))
-            print(sensor_value)
+            print(sensor_values)
 
 
 if __name__ == '__main__':
