@@ -1237,7 +1237,7 @@ class KATPortalClient(object):
 
     @tornado.gen.coroutine
     def sensor_value(self, sensor_name, include_value_ts=False):
-        """Return the latest value of a sensor.
+        """Return the latest reading of a sensor.
 
         .. note::
 
@@ -1250,6 +1250,9 @@ class KATPortalClient(object):
             Exact sensor name. No regular expressions allowed.
             To get a list of sensor names based off regular expressions, see
             :meth:`.sensor_names`.
+        include_value_ts: bool
+            Flag to also include value timestamp.
+            Default: False.
 
         Returns
         -------
@@ -1321,6 +1324,9 @@ class KATPortalClient(object):
             'observer' sensor reading for all antennas.
 
             See :meth:`.set_sampling_strategies` for more detail.
+        include_value_ts: bool
+            Flag to also include value timestamp.
+            Default: False.
 
         Returns
         -------
