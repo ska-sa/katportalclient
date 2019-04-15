@@ -1308,7 +1308,7 @@ class KATPortalClient(object):
                 status=result_to_format['status']))
 
     @tornado.gen.coroutine
-    def sensor_readings(self, filters, include_value_ts=False):
+    def sensor_values(self, filters, include_value_ts=False):
         """Return a list of latest readings of the sensors matching the
         specified pattern.
 

@@ -822,21 +822,21 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         assert res == expected_result
 
     @gen_test
-    def test_sensor_readings_invalid_results(self):
+    def test_sensor_values_invalid_results(self):
         """test that we handle the monitor server returning an invalid string"""
         self.mock_http_async_client().fetch.side_effect = fake_http_response('')
         with self.assertRaises(InvalidResponseError):
-            yield self._portal_client.sensor_readings("INVALID_FILTER")
+            yield self._portal_client.sensor_values("INVALID_FILTER")
 
     @gen_test
-    def test_sensor_readings_no_results(self):
+    def test_sensor_values_no_results(self):
         """Test that we handle no matches"""
         self.mock_http_async_client().fetch.side_effect = fake_http_response('[]')
         with self.assertRaises(SensorNotFoundError):
-            yield self._portal_client.sensor_readings("INVALID_FILTER")
+            yield self._portal_client.sensor_values("INVALID_FILTER")
 
     @gen_test
-    def test_sensor_readings_one_filter_multiple_matches(self):
+    def test_sensor_values_one_filter_multiple_matches(self):
         """Test that we handle multiple matches correctly with one filter"""
 
         mon_response = ('[{"status":"nominal",'
@@ -848,32 +848,32 @@ class TestKATPortalClient(WebSocketBaseTestCase):
                         '"value_ts":111.111,"time":222.222}]')
 
         self.mock_http_async_client().fetch.side_effect = fake_http_response(mon_response)
-        result = yield self._portal_client.sensor_readings("ARBITRARY_FILTER")
-        expected_result = {"anc_tfr_m018_l_band_offset" : SensorSample(timestamp=1531302437,
-                                                                       value=43680.0,
-                                                                       status='nominal'),
-                           "some_other_sample" : SensorSample(timestamp=222.222,
-                                                              value=43680.0,
-                                                              status='nominal')
-                          }
+        result = yield self._portal_client.sensor_values("ARBITRARY_FILTER")
+        expected_result = {
+            "anc_tfr_m018_l_band_offset": SensorSample(timestamp=1531302437,
+                                                       value=43680.0,
+                                                       status='nominal'),
+            "some_other_sample": SensorSample(timestamp=222.222,
+                                              value=43680.0,
+                                              status='nominal')}
         assert result == expected_result
 
         self.mock_http_async_client().fetch.side_effect = fake_http_response(mon_response)
-        result = yield self._portal_client.sensor_readings("ARBITRARY_FILTER",
-                                                           include_value_ts=True)
-        expected_result = {"anc_tfr_m018_l_band_offset" : SensorSampleValueTs(timestamp=1531302437,
-                                                                              value_timestamp=1530713112,
-                                                                              value=43680.0,
-                                                                              status='nominal'),
-                           "some_other_sample" : SensorSampleValueTs(timestamp=222.222,
-                                                                     value_timestamp=111.111,
-                                                                     value=43680.0,
-                                                                     status='nominal')
-                          }
+        result = yield self._portal_client.sensor_values("ARBITRARY_FILTER",
+                                                         include_value_ts=True)
+        expected_result = {
+            "anc_tfr_m018_l_band_offset": SensorSampleValueTs(timestamp=1531302437,
+                                                              value_timestamp=1530713112,
+                                                              value=43680.0,
+                                                              status='nominal'),
+            "some_other_sample": SensorSampleValueTs(timestamp=222.222,
+                                                     value_timestamp=111.111,
+                                                     value=43680.0,
+                                                     status='nominal')}
         assert result == expected_result
 
     @gen_test
-    def test_sensor_readings_multiple_filters_multiple_matches(self):
+    def test_sensor_values_multiple_filters_multiple_matches(self):
         """Test that we handle multiple matches correctly with multiple filters"""
 
         mon_response_0 = ('[{"status":"nominal",'
@@ -888,22 +888,24 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         self.mock_http_async_client().fetch.side_effect = mock_async_fetchers(
             valid_responses=[mon_response_0, mon_response_1],
             invalid_responses=['1error', '2error'],
-            containses=["sample_0","sample_1"]
+            containses=["sample_0", "sample_1"]
             )
 
-        expected_result = {"some_other_sample_0" : SensorSample(timestamp=220.222,
-                                                                value=43480.0,
-                                                                status='nominal'),
-                           "some_other_sample_1" : SensorSample(timestamp=221.222,
-                                                                value=43580.0,
-                                                                status='nominal')
-                          }
-        res = yield self._portal_client.sensor_readings(["some_other_sample_0", "some_other_sample_1"])
+        expected_result = {"some_other_sample_0": SensorSample(timestamp=220.222,
+                                                               value=43480.0,
+                                                               status='nominal'),
+                           "some_other_sample_1": SensorSample(timestamp=221.222,
+                                                               value=43580.0,
+                                                               status='nominal')}
+        res = yield self._portal_client.sensor_values(["some_other_sample_0",
+                                                       "some_other_sample_1"])
         assert res == expected_result, res
 
     @gen_test
     def test_sensor_history_single_sensor_with_value_ts(self):
-        """Test that time ordered data with value_timestamp is received for a single sensor request."""
+        """Test that time ordered data with value_timestamp is received for a
+        single sensor request.
+        """
         history_base_url = self._portal_client.sitemap[
             'historic_sensor_values']
         sensor_name = 'anc_mean_wind_speed'
@@ -1635,6 +1637,7 @@ def fake_http_response(response_string):
     future = concurrent.Future()
     future.set_result(result)
     return [future]
+
 
 def buffer_bytes_io(message):
     """Return a string as BytesIO, in Python 2 and 3."""
