@@ -284,6 +284,7 @@ class KATPortalClient(object):
             'historic_sensor_values': '',
             'program_blocks': '',
             'schedule_blocks': '',
+            'capture_blocks': '',
             'sub_nr': '',
             'subarray': '',
             'target_descriptions': '',
@@ -329,6 +330,7 @@ class KATPortalClient(object):
                 { 'websocket': str,
                   'historic_sensor_values': str,
                   'schedule_blocks': str,
+                  'capture_blocks': str,
                   'sub_nr': str,
                   ... }
 
@@ -338,6 +340,8 @@ class KATPortalClient(object):
                     URL for requesting sensor value history.
                 schedule_blocks: str
                     URL for requesting observation schedule block information.
+                capture_blocks: str
+                    URL for requesting observation capture block information.
                 sub_nr: str
                     Subarray number to access (e.g. '1', '2', '3', or '4').
                 subarray_sensor_values: str
@@ -1104,6 +1108,47 @@ class KATPortalClient(object):
             raise ScheduleBlockNotFoundError(
                 "Invalid schedule block ID: " + id_code)
         raise tornado.gen.Return(schedule_block)
+
+    @tornado.gen.coroutine
+    def sb_ids_by_capture_block(self, capture_block_id):
+        """Return list of approved observation schedule blocks.
+
+        The schedule blocks have already approved. For detail about
+        a schedule block, use :meth:`.schedule_block_detail`.
+
+        .. note::
+
+            The websocket is not used for this request - it does not need
+            to be connected.
+
+        Parameters
+        ----------
+        capture_block_id: str
+            Capture block identifier. For example: ``1555494792``.
+
+        Returns
+        -------
+        list:
+            List of scheduled block ID strings.  Ordered according to
+            priority of the schedule blocks (first has hightest priority).
+
+        Raises
+        ------
+        ScheduleBlockNotFoundError:
+            If no schedule block ID was available for the requested capture block.
+        """
+        url = self.sitemap['capture_blocks'] + '/' + capture_block_id
+        response = yield self._http_client.fetch(url)
+        response = json.loads(response.body)
+        cb_schedule_blocks = response['result']
+        cb_results = []
+        for cb_schedule_block in cb_schedule_blocks:
+            if (cb_schedule_block['capture_block_id'] == capture_block_id and
+                    cb_schedule_block['type'] == 'OBSERVATION'):
+                cb_results.append(cb_schedule_block['capture_block_id'])
+            raise ScheduleBlockNotFoundError(
+                    "Invalid capture block ID: " + capture_block_id)
+        raise tornado.gen.Return(cb_schedule_block)
 
     def _extract_sensors_details(self, json_text):
         """Extract and return list of sensor names from a JSON response."""
