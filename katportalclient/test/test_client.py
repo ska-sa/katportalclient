@@ -195,6 +195,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
                        {'websocket': self.websocket_url,
                         'historic_sensor_values': r"http://0.0.0.0/history",
                         'schedule_blocks': r"http://0.0.0.0/sb",
+                        'capture_blocks': r"http://0.0.0.0/cb/sb/",
                         'subarray_sensor_values': r"http://0.0.0.0/sensor-list",
                         'target_descriptions': r"http://0.0.0.0/sources",
                         'sub_nr': '3',
@@ -494,6 +495,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         self.assertTrue(
             sitemap['historic_sensor_values'].startswith('http://'))
         self.assertTrue(sitemap['schedule_blocks'].startswith('http://'))
+        self.assertTrue(sitemap['capture_blocks'].startswith('http://'))
         self.assertTrue(sitemap['sub_nr'] == '3')
 
     @gen_test
@@ -589,6 +591,26 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         self.assertIn('actual_end_time', sb_valid)
         self.assertIn('expected_duration_seconds', sb_valid)
         self.assertIn('state', sb_valid)
+
+    @gen_test
+    def test_sb_ids_by_capture_block(self):
+        """Test with no capture block IDs on a subarray."""
+        capture_block_base_url = self._portal_client.sitemap[
+            'capture_blocks']
+
+        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+            valid_response=r"""
+                {"result":
+                    "[{\"capture_block_id\":\"1556092345\",\"owner\":\"CAM\",\"type\":\"OBSERVATION\",\"sub_nr\":1},
+                      {\"capture_block_id\":\"1556062104\",\"owner\":\"CAM\",\"type\":\"OBSERVATION\",\"sub_nr\":2}
+                     ]"
+                }""",
+            invalid_response="""{"result":null}""",
+            starts_with=capture_block_base_url)
+
+        sb_ids = yield self._portal_client.sb_ids_by_capture_block()
+
+        self.assertTrue(len(sb_ids) == 0, "Expect no schedule block IDs")
 
     @gen_test
     def test_sensor_names_single_sensor_valid(self):

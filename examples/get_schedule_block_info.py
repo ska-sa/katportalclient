@@ -31,12 +31,12 @@ def main():
                                     on_update_callback=None, logger=logger)
 
     # Get the IDs of schedule blocks assigned to the subarray specified above.
+    # sb_ids = ['20190417-0001']
     sb_ids = yield portal_client.schedule_blocks_assigned()
     print("\nSchedule block IDs on subarray {}\n{}".format(args.sub_nr, sb_ids))
     # Example output:
     #   Schedule block IDs on subarray 1:
     #   [u'20161010-0001', u'20161010-0002', u'20161010-0003']
-
     # Fetch the details for one of the schedule blocks found.
     if len(sb_ids) > 0:
         sb_detail = yield portal_client.schedule_block_detail(sb_ids[0])
@@ -79,6 +79,14 @@ def main():
         #              u'outcome': u'UNKNOWN',
         #              u'data_quality': None}
 
+    cb_ids = ['1555494792.25']
+    # cb_ids = yield portal_client.schedule_blocks_completed()
+    if len(cb_ids) > 0:
+        cb_detail = yield portal_client.sb_ids_by_capture_block(cb_ids[0])
+        print("\nSchedule block IDs for Capture block ID {}:\n{}\n".format(cb_ids[0], cb_detail))
+        # Example output:
+        # Schedule block IDs for given Capture block ID 1555494792:
+        # [u'20190417-0001']
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(

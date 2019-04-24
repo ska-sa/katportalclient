@@ -1091,7 +1091,10 @@ class KATPortalClient(object):
                     'COMPLETED': observation completed naturally (may have been
                                  successful, or failed).
                     'INTERRUPTED': observation was stopped or cancelled by a user or
-                                   the system.
+                                   the system
+                capture_block_id:
+                    Capture block identifier set when capture session initiates.
+                    For example: ``1555494792``.
                 sub_nr: int
                     The number of the subarray the observation is scheduled on.
 
@@ -1109,6 +1112,7 @@ class KATPortalClient(object):
                 "Invalid schedule block ID: " + id_code)
         raise tornado.gen.Return(schedule_block)
 
+    #TODO: Might need to add a usage script in ../examples
     @tornado.gen.coroutine
     def sb_ids_by_capture_block(self, capture_block_id):
         """Return list of approved observation schedule blocks.
@@ -1124,7 +1128,7 @@ class KATPortalClient(object):
         Parameters
         ----------
         capture_block_id: str
-            Capture block identifier. For example: ``1555494792``.
+            Capture block identifier. For example: ``1556067480``.
 
         Returns
         -------
@@ -1137,18 +1141,14 @@ class KATPortalClient(object):
         ScheduleBlockNotFoundError:
             If no schedule block ID was available for the requested capture block.
         """
-        url = self.sitemap['capture_blocks'] + '/' + capture_block_id
+        url = self.sitemap['capture_blocks'] + '/sb/' + capture_block_id
         response = yield self._http_client.fetch(url)
         response = json.loads(response.body)
-        cb_schedule_blocks = response['result']
-        cb_results = []
-        for cb_schedule_block in cb_schedule_blocks:
-            if (cb_schedule_block['capture_block_id'] == capture_block_id and
-                    cb_schedule_block['type'] == 'OBSERVATION'):
-                cb_results.append(cb_schedule_block['capture_block_id'])
+        capture_block = response['result']
+        if not capture_block:
             raise ScheduleBlockNotFoundError(
-                    "Invalid capture block ID: " + capture_block_id)
-        raise tornado.gen.Return(cb_schedule_block)
+                "Invalid capture block ID: " + capture_block_id)
+        raise tornado.gen.Return(capture_block)
 
     def _extract_sensors_details(self, json_text):
         """Extract and return list of sensor names from a JSON response."""
