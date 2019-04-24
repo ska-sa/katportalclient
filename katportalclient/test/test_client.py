@@ -594,23 +594,21 @@ class TestKATPortalClient(WebSocketBaseTestCase):
 
     @gen_test
     def test_sb_ids_by_capture_block(self):
-        """Test with no capture block IDs on a subarray."""
+        """Test with a givrn capture block ID."""
         capture_block_base_url = self._portal_client.sitemap[
             'capture_blocks']
+        capture_block_id = "1556092345"
 
         self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
             valid_response=r"""
                 {"result":
-                    "[{\"capture_block_id\":\"1556092345\",\"owner\":\"CAM\",\"type\":\"OBSERVATION\",\"sub_nr\":1},
-                      {\"capture_block_id\":\"1556062104\",\"owner\":\"CAM\",\"type\":\"OBSERVATION\",\"sub_nr\":2}
-                     ]"
+                     [20190424-0009]"
                 }""",
             invalid_response="""{"result":null}""",
-            starts_with=capture_block_base_url)
-
-        sb_ids = yield self._portal_client.sb_ids_by_capture_block()
-
-        self.assertTrue(len(sb_ids) == 0, "Expect no schedule block IDs")
+            starts_with=capture_block_base_url,
+            contains=capture_block_id)
+        with self.assertRaises(ScheduleBlockNotFoundError):
+            yield self._portal_client.sb_ids_by_capture_block("155610571c")
 
     @gen_test
     def test_sensor_names_single_sensor_valid(self):
