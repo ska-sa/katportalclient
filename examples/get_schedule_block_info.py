@@ -80,7 +80,6 @@ def main():
         #              u'data_quality': None}
 
     cb_ids = ['1555494792.25']
-    # cb_ids = yield portal_client.schedule_blocks_completed()
     if len(cb_ids) > 0:
         cb_detail = yield portal_client.sb_ids_by_capture_block(cb_ids[0])
         print("\nSchedule block IDs for Capture block ID {}:\n{}\n".format(cb_ids[0], cb_detail))
