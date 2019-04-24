@@ -594,7 +594,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
 
     @gen_test
     def test_sb_ids_by_capture_block(self):
-        """Test with a givrn capture block ID."""
+        """Test schedule block IDs are correctly extracted using a given capture block ID."""
         capture_block_base_url = self._portal_client.sitemap[
             'capture_blocks']
         capture_block_id = "1556092345"
@@ -605,10 +605,13 @@ class TestKATPortalClient(WebSocketBaseTestCase):
                      [20190424-0009]"
                 }""",
             invalid_response="""{"result":null}""",
-            starts_with=capture_block_base_url,
-            contains=capture_block_id)
-        with self.assertRaises(ScheduleBlockNotFoundError):
-            yield self._portal_client.sb_ids_by_capture_block("155610571c")
+            starts_with=capture_block_base_url)
+        sb_ids = yield self._portal_client.sb_ids_by_capture_block(capture_block_id)
+
+        # Verify that sb_id has been returned to the list
+        self.assertTrue(len(sb_ids) == 1,
+                        "Expect exactly 1 schedule block ID")
+        self.assertIn('20190424-0009', sb_ids)
 
     @gen_test
     def test_sensor_names_single_sensor_valid(self):
