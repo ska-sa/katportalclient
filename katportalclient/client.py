@@ -1112,13 +1112,13 @@ class KATPortalClient(object):
                 "Invalid schedule block ID: " + id_code)
         raise tornado.gen.Return(schedule_block)
 
-    #TODO: Might need to add a usage script in ../examples
     @tornado.gen.coroutine
     def sb_ids_by_capture_block(self, capture_block_id):
-        """Return list of approved observation schedule blocks.
+        """Return list of observation schedule blocks associated with the given
+        capture block ID.
 
-        The schedule blocks have already approved. For detail about
-        a schedule block, use :meth:`.schedule_block_detail`.
+        Capture block IDs are provided by SDP and link to the science data
+        archive.
 
         .. note::
 
@@ -1128,27 +1128,19 @@ class KATPortalClient(object):
         Parameters
         ----------
         capture_block_id: str
-            Capture block identifier. For example: ``1556067480``.
+            Capture block identifier. For example: '1556067480'.
 
         Returns
         -------
         list:
-            List of scheduled block ID strings.  Ordered according to
-            priority of the schedule blocks (first has hightest priority).
+            List of matching schedule block ID strings.  Could be empty.
 
-        Raises
-        ------
-        ScheduleBlockNotFoundError:
-            If no schedule block ID was available for the requested capture block.
         """
         url = self.sitemap['capture_blocks'] + '/sb/' + capture_block_id
         response = yield self._http_client.fetch(url)
         response = json.loads(response.body)
-        capture_block = response['result']
-        if not capture_block:
-            raise ScheduleBlockNotFoundError(
-                "Invalid capture block ID: " + capture_block_id)
-        raise tornado.gen.Return(capture_block)
+        schedule_block_ids = response['result']
+        raise tornado.gen.Return(schedule_block_ids)
 
     def _extract_sensors_details(self, json_text):
         """Extract and return list of sensor names from a JSON response."""

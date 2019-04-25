@@ -195,7 +195,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
                        {'websocket': self.websocket_url,
                         'historic_sensor_values': r"http://0.0.0.0/history",
                         'schedule_blocks': r"http://0.0.0.0/sb",
-                        'capture_blocks': r"http://0.0.0.0/cb/sb/",
+                        'capture_blocks': r"http://0.0.0.0/cb",
                         'subarray_sensor_values': r"http://0.0.0.0/sensor-list",
                         'target_descriptions': r"http://0.0.0.0/sources",
                         'sub_nr': '3',
@@ -593,25 +593,39 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         self.assertIn('state', sb_valid)
 
     @gen_test
-    def test_sb_ids_by_capture_block(self):
-        """Test schedule block IDs are correctly extracted using a given capture block ID."""
+    def test_sb_ids_by_capture_block_valid(self):
+        """Test SB IDs are extracted for valid capture block ID."""
         capture_block_base_url = self._portal_client.sitemap[
             'capture_blocks']
-        capture_block_id = "1556092345"
+        capture_block_id = "1556092846"
 
         self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
             valid_response=r"""
-                {"result":
-                     [20190424-0009]"
-                }""",
-            invalid_response="""{"result":null}""",
+                {"result":["20190424-0009", "20190424-0010"]}""",
+            invalid_response=r"""{"result":null}""",
             starts_with=capture_block_base_url)
         sb_ids = yield self._portal_client.sb_ids_by_capture_block(capture_block_id)
-
         # Verify that sb_id has been returned to the list
-        self.assertTrue(len(sb_ids) == 1,
-                        "Expect exactly 1 schedule block ID")
+        self.assertTrue(len(sb_ids) == 2,
+                        "Expect exactly 2 schedule block IDs")
         self.assertIn('20190424-0009', sb_ids)
+        self.assertIn('20190424-0010', sb_ids)
+
+    @gen_test
+    def test_sb_ids_by_capture_block_empty(self):
+        """Test no SB IDs are extracted for unused capture block ID."""
+        capture_block_base_url = self._portal_client.sitemap[
+            'capture_blocks']
+        capture_block_id = "123456"
+
+        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+            valid_response=r"""{"result":[]}""",
+            invalid_response=r"""{"result":null}""",
+            starts_with=capture_block_base_url)
+        sb_ids = yield self._portal_client.sb_ids_by_capture_block(capture_block_id)
+        # Verify that empty list returned
+        self.assertTrue(len(sb_ids) == 0,
+                        "Expect no schedule block IDs")
 
     @gen_test
     def test_sensor_names_single_sensor_valid(self):
