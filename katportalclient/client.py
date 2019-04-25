@@ -284,6 +284,7 @@ class KATPortalClient(object):
             'historic_sensor_values': '',
             'program_blocks': '',
             'schedule_blocks': '',
+            'capture_blocks': '',
             'sub_nr': '',
             'subarray': '',
             'target_descriptions': '',
@@ -329,6 +330,7 @@ class KATPortalClient(object):
                 { 'websocket': str,
                   'historic_sensor_values': str,
                   'schedule_blocks': str,
+                  'capture_blocks': str,
                   'sub_nr': str,
                   ... }
 
@@ -338,6 +340,8 @@ class KATPortalClient(object):
                     URL for requesting sensor value history.
                 schedule_blocks: str
                     URL for requesting observation schedule block information.
+                capture_blocks: str
+                    URL for requesting observation capture block information.
                 sub_nr: str
                     Subarray number to access (e.g. '1', '2', '3', or '4').
                 subarray_sensor_values: str
@@ -1087,7 +1091,10 @@ class KATPortalClient(object):
                     'COMPLETED': observation completed naturally (may have been
                                  successful, or failed).
                     'INTERRUPTED': observation was stopped or cancelled by a user or
-                                   the system.
+                                   the system
+                capture_block_id:
+                    Capture block identifier set when capture session initiates.
+                    For example: ``1555494792``.
                 sub_nr: int
                     The number of the subarray the observation is scheduled on.
 
@@ -1104,6 +1111,36 @@ class KATPortalClient(object):
             raise ScheduleBlockNotFoundError(
                 "Invalid schedule block ID: " + id_code)
         raise tornado.gen.Return(schedule_block)
+
+    @tornado.gen.coroutine
+    def sb_ids_by_capture_block(self, capture_block_id):
+        """Return list of observation schedule blocks associated with the given
+        capture block ID.
+
+        Capture block IDs are provided by SDP and link to the science data
+        archive.
+
+        .. note::
+
+            The websocket is not used for this request - it does not need
+            to be connected.
+
+        Parameters
+        ----------
+        capture_block_id: str
+            Capture block identifier. For example: '1556067480'.
+
+        Returns
+        -------
+        list:
+            List of matching schedule block ID strings.  Could be empty.
+
+        """
+        url = self.sitemap['capture_blocks'] + '/sb/' + capture_block_id
+        response = yield self._http_client.fetch(url)
+        response = json.loads(response.body)
+        schedule_block_ids = response['result']
+        raise tornado.gen.Return(schedule_block_ids)
 
     def _extract_sensors_details(self, json_text):
         """Extract and return list of sensor names from a JSON response."""
