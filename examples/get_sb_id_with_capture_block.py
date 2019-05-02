@@ -1,11 +1,8 @@
 #!/usr/bin/env python
-# Copyright 2016 SKA South Africa (http://ska.ac.za/)
+# Copyright 2019 SKA South Africa (http://ska.ac.za/)
 # BSD license - see COPYING for details
 """Simple example demonstrating queries of schedule block IDs using
-the capture block ID.
-
-This example uses HTTP access to katportal, not websocket access.  It uses a
-specific capture block ID when initialising the KATPortalClient.
+the a given valid capture block ID.
 """
 from __future__ import print_function
 
@@ -23,40 +20,33 @@ logger.setLevel(logging.INFO)
 
 @tornado.gen.coroutine
 def main():
-    # Change URL to point to a valid portal node.  Subarray can be 1 to 4.
-    # Note: if on_update_callback is set to None, then we cannot use the
-    #       KATPortalClient.connect() method (i.e. no websocket access).
+    # Change URL to point to a valid portal node.
     portal_client = KATPortalClient('http://{}/api/client'.
                                     format(args.host),
                                     on_update_callback=None, logger=logger)
 
-    # Note: cb_ids is a list that contains capture block IDs, Session assigns
-    # an integer as cb_id on site.
-    cb_ids = ['1556745649']
-    if len(cb_ids) > 0:
-        cb_details = yield portal_client.sb_ids_by_capture_block(cb_ids[0])
-        print("\nSchedule block IDs for Capture block ID {}:\n{}\n".format(cb_ids[0], cb_details))
-    else:
-        print('No SB IDs found!')
-    # ./get_sb_id_with_capture_block.py --host portal.mkat.karoo.kat.ac.za -c 1556745649
-    # Example output:
+    capture_block_ids = args.capture_block_ids
+    for capture_block_id in capture_block_ids:
+        schedule_blocks = yield portal_client.sb_ids_by_capture_block(capture_block_id)
+        print("\nSchedule block ID(s) for the Capture block ID {}:\n{}\n".format(capture_block_id, schedule_blocks))
+        # ./get_sb_id_with_capture_block.py --host portal.mkat.karoo.kat.ac.za 1556745649
+        # Example output:
         # Schedule block IDs for Capture block ID 1556745649:
         # [u'20190501-0001']
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-        description="Download schedule block info for a subarray and print to stdout.")
+        description="Download schedule block ID of a given capture block ID and print to stdout.")
     parser.add_argument(
         '--host',
         default='127.0.0.1',
         help="hostname or IP of the portal server (default: %(default)s).")
     parser.add_argument(
-        '-c', '--capture_block_id',
-        default='1',
-        type=int,
-        help="subarray number (1, 2, 3, or 4) to request schedule for "
-             "(default: %(default)s).")
+        'capture_block_ids',
+        metavar='capture-block-id',
+        nargs='+',
+        help="capture block ID used to request associated schedule ID(s).")
     parser.add_argument(
         '-v', '--verbose',
         dest='verbose', action="store_true",
