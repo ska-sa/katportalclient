@@ -32,7 +32,6 @@ def main():
 
     # Note: cb_ids is a list that contains capture block IDs, Session assigns
     # an integer as cb_id on site.
-    #cb_ids = ['1555494792.25']
     cb_ids = ['1556745649']
     if len(cb_ids) > 0:
         cb_details = yield portal_client.sb_ids_by_capture_block(cb_ids[0])
