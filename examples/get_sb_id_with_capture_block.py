@@ -46,7 +46,7 @@ if __name__ == '__main__':
         'capture_block_ids',
         metavar='capture-block-id',
         nargs='+',
-        help="capture block ID used to request associated schedule ID(s).")
+        help="capture block ID used to request associated schedule block ID(s).")
     parser.add_argument(
         '-v', '--verbose',
         dest='verbose', action="store_true",
