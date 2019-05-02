@@ -2,7 +2,7 @@
 # Copyright 2019 SKA South Africa (http://ska.ac.za/)
 # BSD license - see COPYING for details
 """Simple example demonstrating queries of schedule block IDs using
-the a given valid capture block ID.
+a given valid capture block ID.
 """
 from __future__ import print_function
 
@@ -25,8 +25,7 @@ def main():
                                     format(args.host),
                                     on_update_callback=None, logger=logger)
 
-    capture_block_ids = args.capture_block_ids
-    for capture_block_id in capture_block_ids:
+    for capture_block_id in args.capture_block_ids:
         schedule_blocks = yield portal_client.sb_ids_by_capture_block(capture_block_id)
         print("\nSchedule block ID(s) for the Capture block ID {}:\n{}\n".format(capture_block_id, schedule_blocks))
         # ./get_sb_id_with_capture_block.py --host portal.mkat.karoo.kat.ac.za 1556745649
