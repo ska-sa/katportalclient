@@ -185,11 +185,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
 
         self.websocket_url = 'ws://localhost:%d/test' % self.get_http_port()
 
-        # Mock the synchronous HTTP client, with our sitemap
-        http_sync_client_patcher = mock.patch('tornado.httpclient.HTTPClient')
-        self.addCleanup(http_sync_client_patcher.stop)
-        self.mock_http_sync_client = http_sync_client_patcher.start()
-
+        @gen.coroutine
         def mock_fetch(url):
             sitemap = {'client':
                        {'websocket': self.websocket_url,
@@ -208,13 +204,12 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             body_buffer = buffer_bytes_io(json.dumps(sitemap))
             return HTTPResponse(HTTPRequest(url), 200, buffer=body_buffer)
 
-        self.mock_http_sync_client().fetch.side_effect = mock_fetch
-
-        # Mock the async HTTP client for other HTTP requests
+        # Mock the synchronous HTTP client, with our sitemap
         http_async_client_patcher = mock.patch(
             'tornado.httpclient.AsyncHTTPClient')
         self.addCleanup(http_async_client_patcher.stop)
         self.mock_http_async_client = http_async_client_patcher.start()
+        self.mock_http_async_client().fetch.side_effect = mock_fetch
 
         def on_update_callback(msg, self):
             self.logger.info("Client got update message: '{}'".format(msg))
@@ -786,6 +781,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
     @gen_test
     def test_sensor_value_invalid_results(self):
         """test that we handle the monitor server returning an invalid string"""
+        yield self._portal_client._init_sitemap()   # Before we overwrite the mock fetch
         self.mock_http_async_client().fetch.side_effect = fake_http_response('')
         with self.assertRaises(InvalidResponseError):
             yield self._portal_client.sensor_value("INVALID_SENSOR")
@@ -793,6 +789,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
     @gen_test
     def test_sensor_value_no_results(self):
         """Test that we handle no matches"""
+        yield self._portal_client._init_sitemap()   # Before we overwrite the mock fetch
         self.mock_http_async_client().fetch.side_effect = fake_http_response('[]')
         with self.assertRaises(SensorNotFoundError):
             yield self._portal_client.sensor_value("INVALID_SENSOR")
@@ -809,6 +806,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
                         '"name":"some_other_sample","component":"anc","value":43680.0,'
                         '"value_ts":111.111,"time":222.222}]')
 
+        yield self._portal_client._init_sitemap()   # Before we overwrite the mock fetch
         self.mock_http_async_client().fetch.side_effect = fake_http_response(mon_response)
         result = yield self._portal_client.sensor_value("anc_tfr_m018_l_band_offset")
         expected_result = SensorSample(timestamp=1531302437, value=43680.0,
@@ -835,6 +833,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
                         '"name":"some_other_sample1","component":"anc","value":43680.0,'
                         '"value_ts":111.111,"time":222.222}]')
 
+        yield self._portal_client._init_sitemap()   # Before we overwrite the mock fetch
         self.mock_http_async_client().fetch.side_effect = fake_http_response(mon_response)
         with self.assertRaises(SensorNotFoundError):
             yield self._portal_client.sensor_value("anc_tfr_m018_l_band_offset_average")
@@ -846,6 +845,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
                         '"name":"some_other_sample","component":"anc","value":43680.0,'
                         '"value_ts":111.111,"time":222.222}]')
 
+        yield self._portal_client._init_sitemap()   # Before we overwrite the mock fetch
         self.mock_http_async_client().fetch.side_effect = fake_http_response(mon_response)
         expected_result = SensorSample(timestamp=222.222, value=43680.0, status='nominal')
         res = yield self._portal_client.sensor_value("anc_tfr_m018_l_band_offset_average")
@@ -861,6 +861,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
     @gen_test
     def test_sensor_values_invalid_results(self):
         """test that we handle the monitor server returning an invalid string"""
+        yield self._portal_client._init_sitemap()   # Before we overwrite the mock fetch
         self.mock_http_async_client().fetch.side_effect = fake_http_response('')
         with self.assertRaises(InvalidResponseError):
             yield self._portal_client.sensor_values("INVALID_FILTER")
@@ -868,6 +869,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
     @gen_test
     def test_sensor_values_no_results(self):
         """Test that we handle no matches"""
+        yield self._portal_client._init_sitemap()   # Before we overwrite the mock fetch
         self.mock_http_async_client().fetch.side_effect = fake_http_response('[]')
         with self.assertRaises(SensorNotFoundError):
             yield self._portal_client.sensor_values("INVALID_FILTER")
@@ -884,6 +886,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
                         '"name":"some_other_sample","component":"anc","value":43680.0,'
                         '"value_ts":111.111,"time":222.222}]')
 
+        yield self._portal_client._init_sitemap()   # Before we overwrite the mock fetch
         self.mock_http_async_client().fetch.side_effect = fake_http_response(mon_response)
         result = yield self._portal_client.sensor_values("ARBITRARY_FILTER")
         expected_result = {
@@ -922,6 +925,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
                           '"component":"anc","value":43580.0,'
                           '"value_ts":111.111,"time":221.222}]')
 
+        yield self._portal_client._init_sitemap()   # Before we overwrite the mock fetch
         self.mock_http_async_client().fetch.side_effect = mock_async_fetchers(
             valid_responses=[mon_response_0, mon_response_1],
             invalid_responses=['1error', '2error'],

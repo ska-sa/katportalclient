@@ -193,6 +193,7 @@ class KATPortalClient(object):
         """
         try:
             if self._session_id is not None:
+                yield self._init_sitemap()
                 url = self.sitemap['authorization'] + '/user/logout'
                 response = yield self.authorized_fetch(
                     url=url, auth_token=self._session_id, method='POST', body='{}')
@@ -220,6 +221,7 @@ class KATPortalClient(object):
 
         """
         login_token = create_jwt_login_token(username, password)
+        yield self._init_sitemap()
         url = self.sitemap['authorization'] + '/user/verify/' + role
         response = yield self.authorized_fetch(url=url, auth_token=login_token)
 
@@ -261,13 +263,14 @@ class KATPortalClient(object):
         response = yield self._http_client.fetch(request)
         raise tornado.gen.Return(response)
 
-    @staticmethod
     @tornado.gen.coroutine
-    def _get_sitemap(url):
+    def _get_sitemap(self, url):
         """
         Fetches the sitemap from the specified URL.
 
-        See :meth:`.sitemap` for details, including the return value.
+        See :meth:`.sitemap` for details, including the return value. This
+        function may be run on a worker thread, so it must take care not to
+        touch any members that are not thread-safe.
 
         Parameters
         ----------
@@ -296,7 +299,7 @@ class KATPortalClient(object):
         }
         if (url.lower().startswith('http://') or
                 url.lower().startswith('https://')):
-            http_client = tornado.httpclient.AsyncHTTPClient()
+            http_client = tornado.httpclient.AsyncHTTPClient(force_instance=True)
             try:
                 try:
                     response = yield http_client.fetch(url)
@@ -313,6 +316,18 @@ class KATPortalClient(object):
         else:
             result['websocket'] = url
         return result
+
+    @tornado.gen.coroutine
+    def _init_sitemap(self):
+        """Initializes the sitemap if it is not already initialized.
+
+        This should always be called before accessing :meth:`.sitemap`.
+        See :meth:`.sitemap` for details.
+        """
+
+        if not self._sitemap:
+            self._sitemap = yield self._get_sitemap(self._url)
+            self._logger.debug("Sitemap: %s.", self._sitemap)
 
     @property
     def sitemap(self):
@@ -355,12 +370,19 @@ class KATPortalClient(object):
 
         """
         if not self._sitemap:
+            # Properties can't be asynchronous, so we have to resort to a
+            # separate IOLoop on a helper thread to do the work. Using
+            # Tornado's synchronous HTTPClient works in older Tornado
+            # versions, but fails on newer ones because it's implemented
+            # with IOLoop.run_sync and asyncio doesn't allow a secondary
+            # event loop to be used on the same thread as the primary.
             def worker():
                 io_loop = tornado.ioloop.IOLoop()
                 sitemap = io_loop.run_sync(lambda: self._get_sitemap(self._url))
                 io_loop.close()
                 return sitemap
 
+            self._logger.warning("Fetching sitemap synchronously")
             with concurrent.futures.ThreadPoolExecutor(1) as executor:
                 self._sitemap = executor.submit(worker).result()
         return self._sitemap
@@ -416,6 +438,7 @@ class KATPortalClient(object):
         with (yield self._ws_connecting_lock.acquire()):
             self._disconnect_issued = False
             if not self.is_connected:
+                yield self._init_sitemap()
                 self._logger.debug(
                     "Connecting to websocket %s", self.sitemap['websocket'])
                 try:
@@ -976,6 +999,7 @@ class KATPortalClient(object):
         SubarrayNumberUnknown:
             - If a subarray number could not be determined.
         """
+        yield self._init_sitemap()
         url = self.sitemap['schedule_blocks'] + '/scheduled'
         response = yield self._http_client.fetch(url)
         results = self._extract_schedule_blocks(response.body, self.sub_nr)
@@ -1112,6 +1136,7 @@ class KATPortalClient(object):
         ScheduleBlockNotFoundError:
             If no information was available for the requested schedule block.
         """
+        yield self._init_sitemap()
         url = self.sitemap['schedule_blocks'] + '/' + id_code
         response = yield self._http_client.fetch(url)
         response = json.loads(response.body)
@@ -1145,6 +1170,7 @@ class KATPortalClient(object):
             List of matching schedule block ID strings.  Could be empty.
 
         """
+        yield self._init_sitemap()
         url = self.sitemap['capture_blocks'] + '/sb/' + capture_block_id
         response = yield self._http_client.fetch(url)
         response = json.loads(response.body)
@@ -1198,6 +1224,7 @@ class KATPortalClient(object):
         SensorNotFoundError:
             - If any of the filters were invalid regular expression patterns.
         """
+        yield self._init_sitemap()
         url = self.sitemap['historic_sensor_values'] + '/sensors'
         if isinstance(filters, basestring):
             filters = [filters]
@@ -1262,6 +1289,7 @@ class KATPortalClient(object):
             - If no information was available for the requested sensor name.
             - If the sensor name was not a unique match for a single sensor.
         """
+        yield self._init_sitemap()
         url = self.sitemap['historic_sensor_values'] + '/sensors'
         response = yield self._http_client.fetch("{}?sensors={}".format(url, sensor_name))
         results = self._extract_sensors_details(response.body)
@@ -1313,6 +1341,7 @@ class KATPortalClient(object):
         InvalidResponseError:
             - When the katportal service returns invalid JSON
         """
+        yield self._init_sitemap()
         url = self.sitemap['monitor'] + '/list-sensors/all'
 
         response = yield self._http_client.fetch(
@@ -1386,6 +1415,7 @@ class KATPortalClient(object):
         InvalidResponseError:
             - When the katportal service returns invalid JSON
         """
+        yield self._init_sitemap()
         url = self.sitemap['monitor'] + '/list-sensors/all'
 
         if isinstance(filters, basestring):
@@ -1486,6 +1516,7 @@ class KATPortalClient(object):
             'chunk_size': SAMPLE_HISTORY_CHUNK_SIZE,
             'limit': MAX_SAMPLES_PER_HISTORY_QUERY
         }
+        yield self._init_sitemap()
         url = url_concat(
             self.sitemap['historic_sensor_values'] + '/samples', params)
         self._logger.debug("Sensor history request: %s", url)
@@ -1616,6 +1647,7 @@ class KATPortalClient(object):
             {..}]
 
         """
+        yield self._init_sitemap()
         url = self.sitemap['userlogs'] + '/tags'
         response = yield self._http_client.fetch(url)
         raise tornado.gen.Return(json.loads(response.body))
@@ -1712,6 +1744,7 @@ class KATPortalClient(object):
                 'end_time': '2017-02-07 23:59:59'
              }, {..}]
         """
+        yield self._init_sitemap()
         url = self.sitemap['userlogs'] + '/query?'
         if start_time is None:
             start_time = time.strftime('%Y-%m-%d 00:00:00')
@@ -1773,6 +1806,7 @@ class KATPortalClient(object):
                 'end_time': '2017-02-07 23:59:59'
              }
         """
+        yield self._init_sitemap()
         url = self.sitemap['userlogs']
         new_userlog = {
             'user': self._current_user_id,
@@ -1837,6 +1871,7 @@ class KATPortalClient(object):
                 raise
         else:
             userlog['tag_ids'] = tag_ids
+        yield self._init_sitemap()
         url = '{}/{}'.format(self.sitemap['userlogs'], userlog['id'])
         response = yield self.authorized_fetch(
             url=url, auth_token=self._session_id,
@@ -1886,6 +1921,7 @@ class KATPortalClient(object):
         """
         if sensor is None or len(sensor.strip()) == 0:
             sensor = r'%20'  # use single space for component-only lookup
+        yield self._init_sitemap()
         url = (
             "{base_url}/{sub_nr}/sensor-lookup/{component}/{sensor}/{katcp_format}"
             .format(
