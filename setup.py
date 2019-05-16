@@ -37,7 +37,7 @@ setup(
     use_katversion=True,
     install_requires=[
         "future",
-        "tornado>=4.0, <5.0",
+        "tornado>=4.0",
         "omnijson>=0.1.2",
         "ujson>=1.33, <2.0",
     ],
