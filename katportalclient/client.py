@@ -14,6 +14,7 @@ import hmac
 import logging
 import uuid
 import time
+import concurrent.futures
 
 import omnijson as json
 import tornado.gen
@@ -260,7 +261,9 @@ class KATPortalClient(object):
         response = yield self._http_client.fetch(request)
         raise tornado.gen.Return(response)
 
-    def _get_sitemap(self, url):
+    @staticmethod
+    @tornado.gen.coroutine
+    def _get_sitemap(url):
         """
         Fetches the sitemap from the specified URL.
 
@@ -293,10 +296,10 @@ class KATPortalClient(object):
         }
         if (url.lower().startswith('http://') or
                 url.lower().startswith('https://')):
-            http_client = tornado.httpclient.HTTPClient()
+            http_client = tornado.httpclient.AsyncHTTPClient()
             try:
                 try:
-                    response = http_client.fetch(url)
+                    response = yield http_client.fetch(url)
                     response = json.loads(response.body)
                     result.update(response['client'])
                 except tornado.httpclient.HTTPError:
@@ -352,8 +355,14 @@ class KATPortalClient(object):
 
         """
         if not self._sitemap:
-            self._sitemap = self._get_sitemap(self._url)
-            self._logger.debug("Sitemap: %s.", self._sitemap)
+            def worker():
+                io_loop = tornado.ioloop.IOLoop()
+                sitemap = io_loop.run_sync(lambda: self._get_sitemap(self._url))
+                io_loop.close()
+                return sitemap
+
+            with concurrent.futures.ThreadPoolExecutor(1) as executor:
+                self._sitemap = executor.submit(worker).result()
         return self._sitemap
 
     @property
