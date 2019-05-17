@@ -315,7 +315,7 @@ class KATPortalClient(object):
                 http_client.close()
         else:
             result['websocket'] = url
-        return result
+        raise tornado.gen.Return(result)
 
     @tornado.gen.coroutine
     def _init_sitemap(self):
