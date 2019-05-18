@@ -14,6 +14,7 @@ import hmac
 import logging
 import uuid
 import time
+import concurrent.futures
 
 import omnijson as json
 import tornado.gen
@@ -192,7 +193,7 @@ class KATPortalClient(object):
         """
         try:
             if self._session_id is not None:
-                url = self.sitemap['authorization'] + '/user/logout'
+                url = (yield self.get_sitemap())['authorization'] + '/user/logout'
                 response = yield self.authorized_fetch(
                     url=url, auth_token=self._session_id, method='POST', body='{}')
                 self._logger.info("Logout result: %s", response.body)
@@ -219,7 +220,8 @@ class KATPortalClient(object):
 
         """
         login_token = create_jwt_login_token(username, password)
-        url = self.sitemap['authorization'] + '/user/verify/' + role
+        authorization = (yield self.get_sitemap())['authorization']
+        url = authorization + '/user/verify/' + role
         response = yield self.authorized_fetch(url=url, auth_token=login_token)
 
         try:
@@ -228,7 +230,7 @@ class KATPortalClient(object):
                 self._session_id = response_json.get('session_id')
                 self._current_user_id = response_json.get('user_id')
 
-                login_url = self.sitemap['authorization'] + '/user/login'
+                login_url = authorization + '/user/login'
                 response = yield self.authorized_fetch(
                     url=login_url, auth_token=self._session_id,
                     method='POST', body='')
@@ -260,11 +262,14 @@ class KATPortalClient(object):
         response = yield self._http_client.fetch(request)
         raise tornado.gen.Return(response)
 
+    @tornado.gen.coroutine
     def _get_sitemap(self, url):
         """
         Fetches the sitemap from the specified URL.
 
-        See :meth:`.sitemap` for details, including the return value.
+        See :meth:`.get_sitemap` for details, including the return value. This
+        function may be run on a worker thread, so it must take care not to
+        touch any members that are not thread-safe.
 
         Parameters
         ----------
@@ -293,10 +298,10 @@ class KATPortalClient(object):
         }
         if (url.lower().startswith('http://') or
                 url.lower().startswith('https://')):
-            http_client = tornado.httpclient.HTTPClient()
+            http_client = tornado.httpclient.AsyncHTTPClient(force_instance=True)
             try:
                 try:
-                    response = http_client.fetch(url)
+                    response = yield http_client.fetch(url)
                     response = json.loads(response.body)
                     result.update(response['client'])
                 except tornado.httpclient.HTTPError:
@@ -309,10 +314,49 @@ class KATPortalClient(object):
                 http_client.close()
         else:
             result['websocket'] = url
-        return result
+        raise tornado.gen.Return(result)
+
+    @tornado.gen.coroutine
+    def _init_sitemap(self):
+        """Initializes the sitemap if it is not already initialized.
+
+        See :meth:`.get_sitemap` for details.
+        """
+
+        if not self._sitemap:
+            self._sitemap = yield self._get_sitemap(self._url)
+            self._logger.debug("Sitemap: %s.", self._sitemap)
 
     @property
     def sitemap(self):
+        """
+        Returns the sitemap using the URL specified during instantiation.
+
+        This method is kept for convenience and backwards compatibility, but
+        should not be used in code that runs on a Tornado event loop as it
+        may block the event loop if the sitemap has not yet been retrieved.
+        Use :meth:`.get_sitemap` instead.
+        """
+        if not self._sitemap:
+            # Properties can't be asynchronous, so we have to resort to a
+            # separate IOLoop on a helper thread to do the work. Using
+            # Tornado's synchronous HTTPClient works in older Tornado
+            # versions, but fails on newer ones because it's implemented
+            # with IOLoop.run_sync and asyncio doesn't allow a secondary
+            # event loop to be used on the same thread as the primary.
+            def worker():
+                io_loop = tornado.ioloop.IOLoop()
+                sitemap = io_loop.run_sync(lambda: self._get_sitemap(self._url))
+                io_loop.close()
+                return sitemap
+
+            self._logger.warning("Fetching sitemap synchronously")
+            with concurrent.futures.ThreadPoolExecutor(1) as executor:
+                self._sitemap = executor.submit(worker).result()
+        return self._sitemap
+
+    @tornado.gen.coroutine
+    def get_sitemap(self):
         """
         Returns the sitemap using the URL specified during instantiation.
 
@@ -321,6 +365,10 @@ class KATPortalClient(object):
         The websever is only queried once, the first time the property is
         accessed.  Typically users will not need to access the sitemap
         directly - the class's methods make use of it.
+
+        The sitemap can also be accessed synchronously via the :meth:`.sitemap`
+        property, but that may block the Tornado event loop the first time it
+        used.
 
         Returns
         -------
@@ -351,13 +399,32 @@ class KATPortalClient(object):
                     specified schedule block
 
         """
-        if not self._sitemap:
-            self._sitemap = self._get_sitemap(self._url)
-            self._logger.debug("Sitemap: %s.", self._sitemap)
-        return self._sitemap
+        yield self._init_sitemap()
+        raise tornado.gen.Return(self._sitemap)
+
+    @staticmethod
+    def _parse_sub_nr(sitemap):
+        """Implementation of :meth:`.sub_nr` and :meth:`.get_sub_nr`."""
+        try:
+            sub_nr = int(sitemap['sub_nr'])
+        except ValueError:
+            raise SubarrayNumberUnknown(
+                "Connection URL is not subarray-specific - sitemap sub_nr: '{}'"
+                .format(sitemap['sub_nr']))
+        return sub_nr
 
     @property
     def sub_nr(self):
+        """Returns subarray number, if available.
+
+        This is equivalent to :meth:`.get_sub_nr`, but synchronous. It will
+        block the Tornado event loop if the sitemap has not yet been
+        retrieved, so :meth:`.get_sub_nr` is preferred.
+        """
+        return self._parse_sub_nr(self.sitemap)
+
+    @tornado.gen.coroutine
+    def get_sub_nr(self):
         """Returns subarray number, if available.
 
         This number is based on the URL used to connect to
@@ -373,13 +440,8 @@ class KATPortalClient(object):
         SubarrayNumberUnknown:
             - If the subarray number could not be determined.
         """
-        try:
-            sub_nr = int(self.sitemap['sub_nr'])
-        except ValueError:
-            raise SubarrayNumberUnknown(
-                "Connection URL is not subarray-specific - sitemap sub_nr: '{}'"
-                .format(self.sitemap['sub_nr']))
-        return sub_nr
+        sub_nr = self._parse_sub_nr((yield self.get_sitemap()))
+        raise tornado.gen.Return(sub_nr)
 
     @property
     def is_connected(self):
@@ -406,14 +468,15 @@ class KATPortalClient(object):
         # The lock is used to ensure only a single connection can be made
         with (yield self._ws_connecting_lock.acquire()):
             self._disconnect_issued = False
+            websocket_url = (yield self.get_sitemap())['websocket']
             if not self.is_connected:
                 self._logger.debug(
-                    "Connecting to websocket %s", self.sitemap['websocket'])
+                    "Connecting to websocket %s", websocket_url)
                 try:
                     if self._heart_beat_timer.is_running():
                         self._heart_beat_timer.stop()
                     self._ws = yield websocket_connect(
-                        self.sitemap['websocket'],
+                        websocket_url,
                         on_message_callback=self._websocket_message,
                         connect_timeout=WS_CONNECT_TIMEOUT)
                     if reconnecting:
@@ -423,7 +486,7 @@ class KATPortalClient(object):
                 except Exception:
                     self._logger.exception(
                         'Could not connect websocket to %s',
-                        self.sitemap['websocket'])
+                        websocket_url)
                     if reconnecting:
                         self._logger.info(
                             'Retrying connection in %s seconds...', WS_RECONNECT_INTERVAL)
@@ -967,9 +1030,9 @@ class KATPortalClient(object):
         SubarrayNumberUnknown:
             - If a subarray number could not be determined.
         """
-        url = self.sitemap['schedule_blocks'] + '/scheduled'
+        url = (yield self.get_sitemap())['schedule_blocks'] + '/scheduled'
         response = yield self._http_client.fetch(url)
-        results = self._extract_schedule_blocks(response.body, self.sub_nr)
+        results = self._extract_schedule_blocks(response.body, (yield self.get_sub_nr()))
         raise tornado.gen.Return(results)
 
     @tornado.gen.coroutine
@@ -1103,7 +1166,7 @@ class KATPortalClient(object):
         ScheduleBlockNotFoundError:
             If no information was available for the requested schedule block.
         """
-        url = self.sitemap['schedule_blocks'] + '/' + id_code
+        url = (yield self.get_sitemap())['schedule_blocks'] + '/' + id_code
         response = yield self._http_client.fetch(url)
         response = json.loads(response.body)
         schedule_block = response['result']
@@ -1136,7 +1199,7 @@ class KATPortalClient(object):
             List of matching schedule block ID strings.  Could be empty.
 
         """
-        url = self.sitemap['capture_blocks'] + '/sb/' + capture_block_id
+        url = (yield self.get_sitemap())['capture_blocks'] + '/sb/' + capture_block_id
         response = yield self._http_client.fetch(url)
         response = json.loads(response.body)
         schedule_block_ids = response['result']
@@ -1189,7 +1252,7 @@ class KATPortalClient(object):
         SensorNotFoundError:
             - If any of the filters were invalid regular expression patterns.
         """
-        url = self.sitemap['historic_sensor_values'] + '/sensors'
+        url = (yield self.get_sitemap())['historic_sensor_values'] + '/sensors'
         if isinstance(filters, basestring):
             filters = [filters]
         results = set()
@@ -1253,7 +1316,7 @@ class KATPortalClient(object):
             - If no information was available for the requested sensor name.
             - If the sensor name was not a unique match for a single sensor.
         """
-        url = self.sitemap['historic_sensor_values'] + '/sensors'
+        url = (yield self.get_sitemap())['historic_sensor_values'] + '/sensors'
         response = yield self._http_client.fetch("{}?sensors={}".format(url, sensor_name))
         results = self._extract_sensors_details(response.body)
         if len(results) == 0:
@@ -1304,7 +1367,7 @@ class KATPortalClient(object):
         InvalidResponseError:
             - When the katportal service returns invalid JSON
         """
-        url = self.sitemap['monitor'] + '/list-sensors/all'
+        url = (yield self.get_sitemap())['monitor'] + '/list-sensors/all'
 
         response = yield self._http_client.fetch(
             "{}?reading_only=1&name_filter=^{}$".format(url, sensor_name))
@@ -1377,7 +1440,7 @@ class KATPortalClient(object):
         InvalidResponseError:
             - When the katportal service returns invalid JSON
         """
-        url = self.sitemap['monitor'] + '/list-sensors/all'
+        url = (yield self.get_sitemap())['monitor'] + '/list-sensors/all'
 
         if isinstance(filters, basestring):
             filters = [filters]
@@ -1478,7 +1541,7 @@ class KATPortalClient(object):
             'limit': MAX_SAMPLES_PER_HISTORY_QUERY
         }
         url = url_concat(
-            self.sitemap['historic_sensor_values'] + '/samples', params)
+            (yield self.get_sitemap())['historic_sensor_values'] + '/samples', params)
         self._logger.debug("Sensor history request: %s", url)
         response = yield self._http_client.fetch(url)
         data = json.loads(response.body)
@@ -1607,7 +1670,7 @@ class KATPortalClient(object):
             {..}]
 
         """
-        url = self.sitemap['userlogs'] + '/tags'
+        url = (yield self.get_sitemap())['userlogs'] + '/tags'
         response = yield self._http_client.fetch(url)
         raise tornado.gen.Return(json.loads(response.body))
 
@@ -1703,7 +1766,7 @@ class KATPortalClient(object):
                 'end_time': '2017-02-07 23:59:59'
              }, {..}]
         """
-        url = self.sitemap['userlogs'] + '/query?'
+        url = (yield self.get_sitemap())['userlogs'] + '/query?'
         if start_time is None:
             start_time = time.strftime('%Y-%m-%d 00:00:00')
         if end_time is None:
@@ -1764,7 +1827,7 @@ class KATPortalClient(object):
                 'end_time': '2017-02-07 23:59:59'
              }
         """
-        url = self.sitemap['userlogs']
+        url = (yield self.get_sitemap())['userlogs']
         new_userlog = {
             'user': self._current_user_id,
             'content': content
@@ -1828,7 +1891,7 @@ class KATPortalClient(object):
                 raise
         else:
             userlog['tag_ids'] = tag_ids
-        url = '{}/{}'.format(self.sitemap['userlogs'], userlog['id'])
+        url = '{}/{}'.format((yield self.get_sitemap())['userlogs'], userlog['id'])
         response = yield self.authorized_fetch(
             url=url, auth_token=self._session_id,
             method='POST', body=json.dumps(userlog))
@@ -1880,8 +1943,8 @@ class KATPortalClient(object):
         url = (
             "{base_url}/{sub_nr}/sensor-lookup/{component}/{sensor}/{katcp_format}"
             .format(
-                base_url=self.sitemap['subarray'],
-                sub_nr=self.sub_nr,
+                base_url=(yield self.get_sitemap())['subarray'],
+                sub_nr=(yield self.get_sub_nr()),
                 component=component,
                 sensor=sensor,
                 katcp_format=1 if return_katcp_name else 0))

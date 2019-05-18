@@ -31,6 +31,7 @@ from katportalclient import (
 
 LOGGER_NAME = 'test_portalclient'
 NEW_WEBSOCKET_DELAY = 0.05
+SITEMAP_URL = 'http://dummy.for.sitemap/api/client/3'
 
 
 # Example JSON text for sensor request responses
@@ -185,36 +186,13 @@ class TestKATPortalClient(WebSocketBaseTestCase):
 
         self.websocket_url = 'ws://localhost:%d/test' % self.get_http_port()
 
-        # Mock the synchronous HTTP client, with our sitemap
-        http_sync_client_patcher = mock.patch('tornado.httpclient.HTTPClient')
-        self.addCleanup(http_sync_client_patcher.stop)
-        self.mock_http_sync_client = http_sync_client_patcher.start()
-
-        def mock_fetch(url):
-            sitemap = {'client':
-                       {'websocket': self.websocket_url,
-                        'historic_sensor_values': r"http://0.0.0.0/history",
-                        'schedule_blocks': r"http://0.0.0.0/sb",
-                        'capture_blocks': r"http://0.0.0.0/cb",
-                        'subarray_sensor_values': r"http://0.0.0.0/sensor-list",
-                        'target_descriptions': r"http://0.0.0.0/sources",
-                        'sub_nr': '3',
-                        'authorization': r"http://0.0.0.0/katauth",
-                        'userlogs': r"http://0.0.0.0/katcontrol/userlogs",
-                        'subarray': r"http:/0.0.0.0/katcontrol/subarray",
-                        'monitor': r"http:/0.0.0.0/katmonitor",
-                        }
-                       }
-            body_buffer = buffer_bytes_io(json.dumps(sitemap))
-            return HTTPResponse(HTTPRequest(url), 200, buffer=body_buffer)
-
-        self.mock_http_sync_client().fetch.side_effect = mock_fetch
-
-        # Mock the async HTTP client for other HTTP requests
+        # Mock the asynchronous HTTP client
         http_async_client_patcher = mock.patch(
             'tornado.httpclient.AsyncHTTPClient')
         self.addCleanup(http_async_client_patcher.stop)
         self.mock_http_async_client = http_async_client_patcher.start()
+        # Set up a fetcher that just knows about the sitemap
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher('')
 
         def on_update_callback(msg, self):
             self.logger.info("Client got update message: '{}'".format(msg))
@@ -223,7 +201,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         self.on_update_callback_call_count = 0
         on_msg_callback = partial(on_update_callback, self=self)
         self._portal_client = KATPortalClient(
-            'http://dummy.for.sitemap/api/client/3',
+            SITEMAP_URL,
             on_msg_callback,
             io_loop=self.io_loop)
 
@@ -504,7 +482,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         schedule_block_base_url = self._portal_client.sitemap[
             'schedule_blocks']
 
-        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(
             valid_response=r"""
                 {"result":
                     "[{\"id_code\":\"20160908-0004\",\"owner\":\"CAM\",\"type\":\"OBSERVATION\",\"sub_nr\":1},
@@ -531,7 +509,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         schedule_block_base_url = self._portal_client.sitemap[
             'schedule_blocks']
 
-        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(
             valid_response=r"""
                 {"result":
                     "[{\"id_code\":\"20160908-0004\",\"owner\":\"CAM\",\"type\":\"OBSERVATION\",\"sub_nr\":1},
@@ -554,7 +532,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             'schedule_blocks']
         schedule_block_id = "20160908-0005"
 
-        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(
             valid_response=r"""
                 {"result":
                     {"id_code":"20160908-0005",
@@ -599,7 +577,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             'capture_blocks']
         capture_block_id = "1556092846"
 
-        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(
             valid_response=r"""
                 {"result":["20190424-0009", "20190424-0010"]}""",
             invalid_response=r"""{"result":null}""",
@@ -618,7 +596,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             'capture_blocks']
         capture_block_id = "123456"
 
-        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(
             valid_response=r"""{"result":[]}""",
             invalid_response=r"""{"result":null}""",
             starts_with=capture_block_base_url)
@@ -634,7 +612,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             'historic_sensor_values']
         sensor_name_filter = 'anc_weather_wind_speed'
 
-        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(
             valid_response='[{}]'.format(
                 sensor_json['anc_weather_wind_speed']),
             invalid_response='[]',
@@ -653,7 +631,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             'historic_sensor_values']
         sensor_name_filter = 'anc_w.*_device_status'
 
-        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(
             valid_response='[{}, {}]'.format(sensor_json['anc_wind_device_status'],
                                              sensor_json['anc_weather_device_status']),
             invalid_response='[]',
@@ -674,7 +652,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         sensor_name_filters = [
             'anc_weather_wind_speed', 'anc_weather_wind_speed']
 
-        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(
             valid_response='[{}]'.format(
                 sensor_json['anc_weather_wind_speed']),
             invalid_response='[]',
@@ -692,7 +670,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         history_base_url = self._portal_client.sitemap[
             'historic_sensor_values']
 
-        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(
             valid_response='[]',
             invalid_response='[{}]'.format(
                 sensor_json['anc_weather_wind_speed']),
@@ -708,7 +686,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         history_base_url = self._portal_client.sitemap[
             'historic_sensor_values']
 
-        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(
             valid_response=sensor_json['regex_error'],
             invalid_response='[]',
             starts_with=history_base_url)
@@ -723,7 +701,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             'historic_sensor_values']
         sensor_name = 'anc_weather_wind_speed'
 
-        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(
             valid_response='[{}]'.format(
                 sensor_json['anc_weather_wind_speed']),
             invalid_response='[]',
@@ -756,7 +734,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             'historic_sensor_values']
         sensor_name_filter = 'anc_gust_wind_speed'
 
-        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(
             valid_response='[{}, {}]'.format(sensor_json['anc_gust_wind_speed2'],
                                              sensor_json['anc_gust_wind_speed']),
             invalid_response="[]",
@@ -773,7 +751,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             'historic_sensor_values']
         sensor_name_filter = 'anc_w.*_device_status'
 
-        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(
             valid_response='[{}, {}]'.format(sensor_json['anc_wind_device_status'],
                                              sensor_json['anc_weather_device_status']),
             invalid_response="[]",
@@ -786,14 +764,14 @@ class TestKATPortalClient(WebSocketBaseTestCase):
     @gen_test
     def test_sensor_value_invalid_results(self):
         """test that we handle the monitor server returning an invalid string"""
-        self.mock_http_async_client().fetch.side_effect = fake_http_response('')
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher('')
         with self.assertRaises(InvalidResponseError):
             yield self._portal_client.sensor_value("INVALID_SENSOR")
 
     @gen_test
     def test_sensor_value_no_results(self):
         """Test that we handle no matches"""
-        self.mock_http_async_client().fetch.side_effect = fake_http_response('[]')
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher('[]')
         with self.assertRaises(SensorNotFoundError):
             yield self._portal_client.sensor_value("INVALID_SENSOR")
 
@@ -809,13 +787,13 @@ class TestKATPortalClient(WebSocketBaseTestCase):
                         '"name":"some_other_sample","component":"anc","value":43680.0,'
                         '"value_ts":111.111,"time":222.222}]')
 
-        self.mock_http_async_client().fetch.side_effect = fake_http_response(mon_response)
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(mon_response)
         result = yield self._portal_client.sensor_value("anc_tfr_m018_l_band_offset")
         expected_result = SensorSample(timestamp=1531302437, value=43680.0,
                                        status='nominal')
         assert result == expected_result
 
-        self.mock_http_async_client().fetch.side_effect = fake_http_response(mon_response)
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(mon_response)
         result = yield self._portal_client.sensor_value("anc_tfr_m018_l_band_offset",
                                                         include_value_ts=True)
         expected_result = SensorSampleValueTs(timestamp=1531302437,
@@ -835,7 +813,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
                         '"name":"some_other_sample1","component":"anc","value":43680.0,'
                         '"value_ts":111.111,"time":222.222}]')
 
-        self.mock_http_async_client().fetch.side_effect = fake_http_response(mon_response)
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(mon_response)
         with self.assertRaises(SensorNotFoundError):
             yield self._portal_client.sensor_value("anc_tfr_m018_l_band_offset_average")
 
@@ -846,12 +824,12 @@ class TestKATPortalClient(WebSocketBaseTestCase):
                         '"name":"some_other_sample","component":"anc","value":43680.0,'
                         '"value_ts":111.111,"time":222.222}]')
 
-        self.mock_http_async_client().fetch.side_effect = fake_http_response(mon_response)
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(mon_response)
         expected_result = SensorSample(timestamp=222.222, value=43680.0, status='nominal')
         res = yield self._portal_client.sensor_value("anc_tfr_m018_l_band_offset_average")
         assert res == expected_result
 
-        self.mock_http_async_client().fetch.side_effect = fake_http_response(mon_response)
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(mon_response)
         expected_result = SensorSampleValueTs(timestamp=222.222, value_timestamp=111.111,
                                               value=43680.0, status=u'nominal')
         res = yield self._portal_client.sensor_value("anc_tfr_m018_l_band_offset_average",
@@ -861,14 +839,14 @@ class TestKATPortalClient(WebSocketBaseTestCase):
     @gen_test
     def test_sensor_values_invalid_results(self):
         """test that we handle the monitor server returning an invalid string"""
-        self.mock_http_async_client().fetch.side_effect = fake_http_response('')
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher('')
         with self.assertRaises(InvalidResponseError):
             yield self._portal_client.sensor_values("INVALID_FILTER")
 
     @gen_test
     def test_sensor_values_no_results(self):
         """Test that we handle no matches"""
-        self.mock_http_async_client().fetch.side_effect = fake_http_response('[]')
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher('[]')
         with self.assertRaises(SensorNotFoundError):
             yield self._portal_client.sensor_values("INVALID_FILTER")
 
@@ -884,7 +862,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
                         '"name":"some_other_sample","component":"anc","value":43680.0,'
                         '"value_ts":111.111,"time":222.222}]')
 
-        self.mock_http_async_client().fetch.side_effect = fake_http_response(mon_response)
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(mon_response)
         result = yield self._portal_client.sensor_values("ARBITRARY_FILTER")
         expected_result = {
             "anc_tfr_m018_l_band_offset": SensorSample(timestamp=1531302437,
@@ -895,7 +873,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
                                               status='nominal')}
         assert result == expected_result
 
-        self.mock_http_async_client().fetch.side_effect = fake_http_response(mon_response)
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(mon_response)
         result = yield self._portal_client.sensor_values("ARBITRARY_FILTER",
                                                          include_value_ts=True)
         expected_result = {
@@ -922,7 +900,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
                           '"component":"anc","value":43580.0,'
                           '"value_ts":111.111,"time":221.222}]')
 
-        self.mock_http_async_client().fetch.side_effect = mock_async_fetchers(
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetchers(
             valid_responses=[mon_response_0, mon_response_1],
             invalid_responses=['1error', '2error'],
             containses=["sample_0", "sample_1"]
@@ -949,7 +927,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         publish_messages = [sensor_history_pub_messages_json['init']]
         publish_messages.extend(sensor_history_pub_messages_json[sensor_name])
 
-        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(
             valid_response='{"result":"success"}',
             invalid_response='error',
             starts_with=history_base_url,
@@ -996,7 +974,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         publish_messages = [sensor_history_pub_messages_json['init']]
         publish_messages.extend(sensor_history_pub_messages_json[sensor_name])
 
-        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(
             valid_response='{"result":"success"}',
             invalid_response='error',
             starts_with=history_base_url,
@@ -1028,7 +1006,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         publish_messages.append(
             sensor_history_pub_messages_json[sensor_name][-1])
 
-        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(
             valid_response='{"result":"success"}',
             invalid_response='error',
             starts_with=history_base_url,
@@ -1050,7 +1028,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         publish_messages = [sensor_history_pub_messages_json['init']]
         publish_messages.extend(sensor_history_pub_messages_json[sensor_name])
 
-        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(
             valid_response='{"result":"success"}',
             invalid_response='error',
             starts_with=history_base_url,
@@ -1082,7 +1060,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         #  - 1st call gives sensor list
         #  - 2nd call provides the sample history for sensor 0
         #  - 3rd call provides the sample history for sensor 1
-        self.mock_http_async_client().fetch.side_effect = mock_async_fetchers(
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetchers(
             valid_responses=[
                 '[{}, {}]'.format(sensor_json[sensor_names[0]],
                                   sensor_json[sensor_names[1]]),
@@ -1139,7 +1117,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         # complicated way to define the behaviour for the 2 expected HTTP requests
         #  - 1st call provides the sample history for sensor 0
         #  - 2nd call provides the sample history for sensor 1
-        self.mock_http_async_client().fetch.side_effect = mock_async_fetchers(
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetchers(
             valid_responses=[
                 '{"result":"success"}',
                 '{"result":"success"}'],
@@ -1187,7 +1165,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         sb_id_code_2 = "20160908-0006"
         sb_id_code_3 = "20160908-0007"
 
-        self.mock_http_async_client().fetch.side_effect = mock_async_fetchers(
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetchers(
             valid_responses=[
                 r"""
                 {"result":
@@ -1326,7 +1304,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         """Test userlogs tags listing"""
         base_url = self._portal_client.sitemap['userlogs'] + '/tags'
 
-        self.mock_http_async_client().fetch.side_effect = mock_async_fetchers(
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetchers(
             valid_responses=[r"""[{
                 "activated": "True",
                 "slug": "",
@@ -1548,7 +1526,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         sensor_name_filter = 'device_status'
         expected_sensor_name = 'cbf_3_device_status'
 
-        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(
             valid_response='{"result":"cbf_3_device_status"}',
             invalid_response=['error'],
             starts_with=lookup_base_url,
@@ -1565,7 +1543,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         sensor_name_filter = 'device-status'
         expected_sensor_name = 'cbf_3.device-status'
 
-        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(
             valid_response='{"result":"cbf_3.device-status"}',
             invalid_response=['error'],
             starts_with=lookup_base_url,
@@ -1580,7 +1558,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         lookup_base_url = (self._portal_client.sitemap['subarray'] +
                            '/3/sensor-lookup/anc/device_status/0')
         sensor_name_filter = 'device_status'
-        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(
             valid_response='{"error":"SensorLookupError: Could not lookup the sensor '
                            'on component. Could not determine component."}',
             invalid_response='[]',
@@ -1591,89 +1569,104 @@ class TestKATPortalClient(WebSocketBaseTestCase):
                 'anc', sensor_name_filter, False)
 
 
-def mock_async_fetchers(valid_responses, invalid_responses, starts_withs=None,
-                        ends_withs=None, containses=None, publish_raw_messageses=None,
-                        client_stateses=None):
-    """Allows definition of multiple HTTP async fetchers."""
-    num_calls = len(valid_responses)
-    if starts_withs is None or isinstance(starts_withs, basestring):
-        starts_withs = [starts_withs] * num_calls
-    if ends_withs is None or isinstance(ends_withs, basestring):
-        ends_withs = [ends_withs] * num_calls
-    if containses is None or isinstance(containses, basestring):
-        containses = [containses] * num_calls
-    if publish_raw_messageses is None:
-        publish_raw_messageses = [None] * num_calls
-    if client_stateses is None:
-        client_stateses = [None] * num_calls
-    assert(len(invalid_responses) == num_calls)
-    assert(len(starts_withs) == num_calls)
-    assert(len(ends_withs) == num_calls)
-    assert(len(containses) == num_calls)
-    assert(len(publish_raw_messageses) == num_calls)
-    assert(len(client_stateses) == num_calls)
+    def mock_async_fetchers(self, valid_responses, invalid_responses, starts_withs=None,
+                            ends_withs=None, containses=None, publish_raw_messageses=None,
+                            client_stateses=None):
+        """Allows definition of multiple HTTP async fetchers."""
+        num_calls = len(valid_responses)
+        if starts_withs is None or isinstance(starts_withs, basestring):
+            starts_withs = [starts_withs] * num_calls
+        if ends_withs is None or isinstance(ends_withs, basestring):
+            ends_withs = [ends_withs] * num_calls
+        if containses is None or isinstance(containses, basestring):
+            containses = [containses] * num_calls
+        if publish_raw_messageses is None:
+            publish_raw_messageses = [None] * num_calls
+        if client_stateses is None:
+            client_stateses = [None] * num_calls
+        assert(len(invalid_responses) == num_calls)
+        assert(len(starts_withs) == num_calls)
+        assert(len(ends_withs) == num_calls)
+        assert(len(containses) == num_calls)
+        assert(len(publish_raw_messageses) == num_calls)
+        assert(len(client_stateses) == num_calls)
 
-    mock_fetches = [mock_async_fetcher(v, i, s, e, c, p, cs)
-                    for v, i, s, e, c, p, cs in zip(
-                        valid_responses, invalid_responses,
-                        starts_withs, ends_withs, containses,
-                        publish_raw_messageses, client_stateses)]
-    # flip order so that poping effectively goes from first to last input
-    mock_fetches.reverse()
+        mock_fetches = [self.mock_async_fetcher(v, i, s, e, c, p, cs)
+                        for v, i, s, e, c, p, cs in zip(
+                            valid_responses, invalid_responses,
+                            starts_withs, ends_withs, containses,
+                            publish_raw_messageses, client_stateses)]
+        # flip order so that poping effectively goes from first to last input
+        mock_fetches.reverse()
 
-    def mock_fetch(url):
-        single_fetch = mock_fetches.pop()
-        return single_fetch(url)
+        def mock_fetch(url):
+            if url == SITEMAP_URL:
+                # Don't consume from the list, because it's not the request
+                # we're looking for.
+                single_fetch = mock_fetches[-1]
+            else:
+                single_fetch = mock_fetches.pop()
+            return single_fetch(url)
 
-    return mock_fetch
-
-
-def mock_async_fetcher(valid_response, invalid_response, starts_with=None,
-                       ends_with=None, contains=None, publish_raw_messages=None,
-                       client_states=None):
-    """Returns a mock HTTP async fetch function, depending on the conditions."""
-
-    def mock_fetch(url, method="GET", body=None):
-        start_ok = starts_with is None or url.startswith(starts_with)
-        end_ok = ends_with is None or url.endswith(ends_with)
-        contains_ok = contains is None or contains in url
-
-        if start_ok and end_ok and contains_ok:
-            body_buffer = buffer_bytes_io(valid_response)
-        else:
-            body_buffer = buffer_bytes_io(invalid_response)
-
-        # optionally send raw message from test websocket server
-        if publish_raw_messages and test_websocket:
-            for raw_message in publish_raw_messages:
-                if isinstance(client_states, dict):
-                    # we need to rewrite the namespace, since the client
-                    # generates a random one per request at runtime.
-                    # We have to find the state dict that contains the sensor
-                    # name (in 'contains') to figure out which namespace
-                    # is being used for this sensor (yes, it is hacky)
-                    namespace = None
-                    for key, state in client_states.items():
-                        if contains == state['sensor']:
-                            namespace = key
-                    raw_message = raw_message.replace(
-                        'test_namespace', namespace)
-                test_websocket.write_message(raw_message)
-
-        result = HTTPResponse(HTTPRequest(url), 200, buffer=body_buffer)
-        future = concurrent.Future()
-        future.set_result(result)
-        return future
-
-    return mock_fetch
+        return mock_fetch
 
 
-def fake_http_response(response_string):
-    """Used as a mock side effect response for AsyncHTTPClient.fetch"""
-    result = HTTPResponse(HTTPRequest(''), 200, buffer=buffer_bytes_io(response_string))
-    future = concurrent.Future()
-    future.set_result(result)
-    return [future]
+    def mock_async_fetcher(self, valid_response, invalid_response=None, starts_with=None,
+                           ends_with=None, contains=None, publish_raw_messages=None,
+                           client_states=None):
+        """Returns a mock HTTP async fetch function, depending on the conditions."""
+
+        def mock_fetch(url, method="GET", body=None):
+            if url == SITEMAP_URL:
+                sitemap = {'client':
+                           {'websocket': self.websocket_url,
+                            'historic_sensor_values': r"http://0.0.0.0/history",
+                            'schedule_blocks': r"http://0.0.0.0/sb",
+                            'capture_blocks': r"http://0.0.0.0/cb",
+                            'subarray_sensor_values': r"http://0.0.0.0/sensor-list",
+                            'target_descriptions': r"http://0.0.0.0/sources",
+                            'sub_nr': '3',
+                            'authorization': r"http://0.0.0.0/katauth",
+                            'userlogs': r"http://0.0.0.0/katcontrol/userlogs",
+                            'subarray': r"http:/0.0.0.0/katcontrol/subarray",
+                            'monitor': r"http:/0.0.0.0/katmonitor",
+                            }
+                           }
+                response = json.dumps(sitemap)
+            else:
+                start_ok = starts_with is None or url.startswith(starts_with)
+                end_ok = ends_with is None or url.endswith(ends_with)
+                contains_ok = contains is None or contains in url
+
+                if (start_ok and end_ok and contains_ok) or invalid_response is None:
+                    response = valid_response
+                else:
+                    response = invalid_response
+
+                # optionally send raw message from test websocket server
+                if publish_raw_messages and test_websocket:
+                    for raw_message in publish_raw_messages:
+                        if isinstance(client_states, dict):
+                            # we need to rewrite the namespace, since the client
+                            # generates a random one per request at runtime.
+                            # We have to find the state dict that contains the sensor
+                            # name (in 'contains') to figure out which namespace
+                            # is being used for this sensor (yes, it is hacky)
+                            namespace = None
+                            for key, state in client_states.items():
+                                if contains == state['sensor']:
+                                    namespace = key
+                            raw_message = raw_message.replace(
+                                'test_namespace', namespace)
+                        test_websocket.write_message(raw_message)
+
+            body_buffer = buffer_bytes_io(response)
+            result = HTTPResponse(HTTPRequest(url), 200, buffer=body_buffer)
+            future = concurrent.Future()
+            future.set_result(result)
+            return future
+
+        return mock_fetch
 
 
 def buffer_bytes_io(message):
