@@ -7,6 +7,8 @@ This example gets lists of sensor names in various ways, and gets the
 detailed atttributes of a specific sensor.  It uses HTTP access to katportal,
 not websocket access.
 """
+from __future__ import print_function
+
 import logging
 import argparse
 
@@ -31,7 +33,7 @@ def main():
 
     # Get the names of sensors matching the patterns
     sensor_names = yield portal_client.sensor_names(args.sensors)
-    print "\nMatching sensor names for pattern {}: {}".format(args.sensors, sensor_names)
+    print("\nMatching sensor names for pattern {}: {}".format(args.sensors, sensor_names))
 
     # Get the names of sensors matching a pattern
     # pattern = 'anc_w.*_device_status'
@@ -59,24 +61,24 @@ def main():
 
     # Fetch the details for the sensors found.
     if len(sensor_names) == 0:
-        print "No matching sensors found!"
+        print("No matching sensors found!")
     else:
         for sensor_name in sensor_names:
             sensor_detail = yield portal_client.sensor_detail(sensor_name)
-            print "\nDetail for sensor {}:".format(sensor_name)
-            for key in sensor_detail:
-                print "    {}: {}".format(key, sensor_detail[key])
+            print("\nDetail for sensor {}:".format(sensor_name))
+            for key in sorted(sensor_detail):
+                print("    {}: {}".format(key, sensor_detail[key]))
             # Example output:
             #   Detail for sensor m011_pos_request_base_azim:
-            #       name: m011_pos_request_base_azim
-            #       systype: mkat
             #       component: m011
-            #       site: deva
-            #       katcp_name: m011.pos.request-base-azim
-            #       params: [-195.0, 370.0]
-            #       units: deg
-            #       type: float
             #       description: Requested target azimuth
+            #       katcp_name: m011.pos.request-base-azim
+            #       name: m011_pos_request_base_azim
+            #       params: [-195.0, 370.0]
+            #       site: deva
+            #       systype: mkat
+            #       type: float
+            #       units: deg
 
     # Example: ./get_sensor_info.py --host devx.camlab.kat.ac.za anc_(mean|gust)_wind_speed
     #

@@ -6,11 +6,12 @@ a schedule block id code.
 
 This example uses HTTP access to katportal, not websocket access.
 """
+from __future__ import print_function
+
 import logging
 import argparse
-import time
-import katpoint
 
+import katpoint
 import tornado.gen
 
 from katportalclient import KATPortalClient
@@ -30,7 +31,7 @@ def main():
 
     results = yield portal_client.future_targets(
         '{sb_id_code}'.format(**vars(args)))
-    print results
+    print(results)
 
     # Example output:
     # [
@@ -102,17 +103,17 @@ def main():
         # explanation of the usage and input parameters.
         target = katpoint.Target(body=future_target['target'],
                                  antenna=antenna)
-        print "-" * 80
+        print("-" * 80)
         # Short human-friendly string representation of target object.
-        print "Target: {}".format(target)
+        print("Target: {}".format(target))
         # Complete string representation of target object, sufficient to
         # reconstruct it.
-        print "\tdescription: {}".format(target.description)
+        print("\tdescription: {}".format(target.description))
         # Type of target body, as a string tag.
-        print "\tbody_type: {}".format(target.body_type)
+        print("\tbody_type: {}".format(target.body_type))
         # Calculate target (az, el) coordinates as seen from antenna at
         # time(s).
-        print "\tazel: {}".format(target.azel(timestamp=timestamp_for_calcs))
+        print("\tazel: {}".format(target.azel(timestamp=timestamp_for_calcs)))
         # Calculate target's apparent (ra, dec) coordinates as seen from antenna at time(s).
         # This calculates the *apparent topocentric position* of the target for
         # the epoch-of-date in equatorial coordinates. Take note that this is
@@ -123,19 +124,19 @@ def main():
         # unable to provide this (due to a limitation of pyephem), notably
         # stationary (*azel*) targets, and provide the *astrometric geocentric
         # position* instead.
-        print "\tapparent_radec: {}".format(
-            target.apparent_radec(timestamp=timestamp_for_calcs))
+        print("\tapparent_radec: {}".format(
+            target.apparent_radec(timestamp=timestamp_for_calcs)))
         # Calculate target's astrometric (ra, dec) coordinates as seen from antenna at time(s).
         # This calculates the J2000 *astrometric geocentric position* of the
         # target, in equatorial coordinates. This is its star atlas position for
         # the epoch of J2000.
-        print "\tastrometric_radec: {}".format(
-            target.astrometric_radec(timestamp=timestamp_for_calcs))
+        print("\tastrometric_radec: {}".format(
+            target.astrometric_radec(timestamp=timestamp_for_calcs)))
         # Calculate target's galactic (l, b) coordinates as seen from antenna at time(s).
         # This calculates the galactic coordinates of the target, based on the
         # J2000 *astrometric* equatorial coordinates. This is its position relative
         # to the Galactic reference frame for the epoch of J2000.
-        print "\tgalactic: {}".format(target.galactic(timestamp=timestamp_for_calcs))
+        print("\tgalactic: {}".format(target.galactic(timestamp=timestamp_for_calcs)))
         # Calculate parallactic angle on target as seen from antenna at time(s).
         # This calculates the *parallactic angle*, which is the position angle of
         # the observer's vertical on the sky, measured from north toward east.
@@ -144,8 +145,8 @@ def main():
         # the zenith above the antenna to the target, or the angle between the
         # *hour circle* and *vertical circle* through the target, at the given
         # timestamp(s).
-        print "\tparallactic_angle: {}".format(
-            target.parallactic_angle(timestamp=timestamp_for_calcs))
+        print("\tparallactic_angle: {}".format(
+            target.parallactic_angle(timestamp=timestamp_for_calcs)))
 
     # Example output:
     # --------------------------------------------------------------------------------

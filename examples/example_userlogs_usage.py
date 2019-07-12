@@ -6,6 +6,8 @@
 This example gets lists of tags and userlogs in various ways.
 It uses HTTP access to katportal.
 """
+from __future__ import print_function
+
 import time
 import logging
 import argparse
@@ -34,10 +36,10 @@ def main():
     tags = yield portal_client.userlog_tags()
     userlogs = yield portal_client.userlogs()
 
-    print "There are %s userlog tags." % len(tags)
-    print "=============================="
-    print "Here is a list of userlogs for today:"
-    print userlogs
+    print("There are %s userlog tags." % len(tags))
+    print("==============================")
+    print("Here is a list of userlogs for today:")
+    print(userlogs)
 
     # To create an userlog use the following code
     # To add tags, make an array of tag id's
@@ -54,23 +56,23 @@ def main():
         start_time=start_time,
         end_time=end_time)
 
-    print "=============================="
-    print "Created a userlog! This is the new userlog: "
-    print userlog_created
-    print "=============================="
+    print("==============================")
+    print("Created a userlog! This is the new userlog: ")
+    print(userlog_created)
+    print("==============================")
 
     # To edit an existing userlog, user modify_userlog with the modified userlog
     # Here we are modifying the userlog we created using create_userlog
     userlog_created['content'] = 'This content is edited by katportalclient!'
     userlog_created['end_time'] = userlog_created['start_time']
     result = yield portal_client.modify_userlog(userlog_created)
-    print "=============================="
-    print "Edited userlog! Result: "
-    print result
+    print("==============================")
+    print("Edited userlog! Result: ")
+    print(result)
 
     # Remember to logout when you are done!
-    print "=============================="
-    print "Logging out!"
+    print("==============================")
+    print("Logging out!")
     yield portal_client.logout()
 
 
