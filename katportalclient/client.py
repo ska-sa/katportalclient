@@ -172,7 +172,6 @@ class KATPortalClient(object):
             defaults=dict(connect_timeout=HTTP_CONNECT_TIMEOUT,
                           request_timeout=HTTP_REQUEST_TIMEOUT))
         self._sitemap = None
-        self._sensor_history_states = {}
         self._reference_observer_config = None
         self._disconnect_issued = False
         self._ws_jsonrpc_cache = []
