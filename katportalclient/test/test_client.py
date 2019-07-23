@@ -760,7 +760,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             'historic_sensor_values']
         sensor_name_filter = 'anc_weather_wind_speed'
 
-        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(
             valid_response=('{"data": [%s]}' % sensor_json['anc_weather_wind_speed']),
             invalid_response='[]',
             starts_with=history_base_url,
@@ -778,7 +778,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             'historic_sensor_values']
         sensor_name_filter = 'anc_w.*_device_status'
 
-        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(
             valid_response='{"data":[%s, %s]}' % (sensor_json['anc_wind_device_status'],
                                                   sensor_json['anc_weather_device_status']),
             invalid_response='[]',
@@ -799,7 +799,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         sensor_name_filters = [
             'anc_weather_wind_speed', 'anc_weather_wind_speed']
 
-        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(
             valid_response=('{"data":[%s]}' % sensor_json['anc_weather_wind_speed']),
             invalid_response='[]',
             starts_with=history_base_url,
@@ -846,7 +846,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         history_base_url = self._portal_client.sitemap[
             'historic_sensor_values']
         sensor_name = 'anc_weather_wind_speed'
-        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(
             valid_response=('{"data":[{}]}'.format( sensor_json['anc_weather_wind_speed']),
             invalid_response=sensor_json['invalid_response'],
             starts_with=history_base_url,
@@ -878,7 +878,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             'historic_sensor_values']
         sensor_name_filter = 'anc_gust_wind_speed'
 
-        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(
             valid_response='{"data" : [ {}, {}]}'.format (sensor_json['anc_gust_wind_speed2'],
                                                      sensor_json['anc_gust_wind_speed']),
             invalid_response="[]",
@@ -1095,7 +1095,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         history_base_url = self._portal_client.sitemap[
             'historic_sensor_values']
         sensor_name = 'anc_mean_wind_speed'
-        self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
+        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(
             valid_response=sensor_data3,
             invalid_response='error',
             starts_with=history_base_url,
@@ -1672,26 +1672,26 @@ class TestKATPortalClient(WebSocketBaseTestCase):
                 'anc', sensor_name_filter, False)
 
 
-def mock_async_fetchers(valid_responses, invalid_responses, starts_withs=None,
-                        ends_withs=None, containses=None):
-    """Allows definition of multiple HTTP async fetchers."""
-    num_calls = len(valid_responses)
-    if starts_withs is None or isinstance(starts_withs, basestring):
-        starts_withs = [starts_withs] * num_calls
-    if ends_withs is None or isinstance(ends_withs, basestring):
-        ends_withs = [ends_withs] * num_calls
-    if containses is None or isinstance(containses, basestring):
-        containses = [containses] * num_calls
-    assert(len(invalid_responses) == num_calls)
-    assert(len(starts_withs) == num_calls)
-    assert(len(ends_withs) == num_calls)
-    assert(len(containses) == num_calls)
-    mock_fetches = [self.mock_async_fetcher(v, i, s, e, c)
-                    for v, i, s, e, c in zip(
-                        valid_responses, invalid_responses,
-                        starts_withs, ends_withs, containses)]
-    # flip order so that poping effectively goes from first to last input
-    mock_fetches.reverse()
+    def mock_async_fetchers(valid_responses, invalid_responses, starts_withs=None,
+                            ends_withs=None, containses=None):
+        """Allows definition of multiple HTTP async fetchers."""
+        num_calls = len(valid_responses)
+        if starts_withs is None or isinstance(starts_withs, basestring):
+            starts_withs = [starts_withs] * num_calls
+        if ends_withs is None or isinstance(ends_withs, basestring):
+            ends_withs = [ends_withs] * num_calls
+        if containses is None or isinstance(containses, basestring):
+            containses = [containses] * num_calls
+        assert(len(invalid_responses) == num_calls)
+        assert(len(starts_withs) == num_calls)
+        assert(len(ends_withs) == num_calls)
+        assert(len(containses) == num_calls)
+        mock_fetches = [self.mock_async_fetcher(v, i, s, e, c)
+                        for v, i, s, e, c in zip(
+                            valid_responses, invalid_responses,
+                            starts_withs, ends_withs, containses)]
+        # flip order so that poping effectively goes from first to last input
+        mock_fetches.reverse()
 
         def mock_fetch(url):
             if url == SITEMAP_URL:
@@ -1705,9 +1705,9 @@ def mock_async_fetchers(valid_responses, invalid_responses, starts_withs=None,
         return mock_fetch
 
 
-def mock_async_fetcher(valid_response, invalid_response, starts_with=None,
-                       ends_with=None, contains=None):
-    """Returns a mock HTTP async fetch function, depending on the conditions."""
+    def mock_async_fetcher(valid_response, invalid_response, starts_with=None,
+                           ends_with=None, contains=None):
+        """Returns a mock HTTP async fetch function, depending on the conditions."""
 
         def mock_fetch(url, method="GET", body=None):
             if url == SITEMAP_URL:
