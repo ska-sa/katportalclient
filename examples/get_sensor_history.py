@@ -97,7 +97,6 @@ def main():
             num_samples = len(history)
             print("History for: {} ({} samples)".format(sensor_name, num_samples))
             if num_samples > 0:
-                print("\tindex,timestamp,value,status")
                 for count in range(0, num_samples, args.decimate):
                     item = history[count]
                     if count == 0:
