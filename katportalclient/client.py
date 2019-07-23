@@ -1479,7 +1479,6 @@ class KATPortalClient(object):
         }
 
         url = url_concat(
-            self.sitemap['historic_sensor_values'] + '/query', params)
             (yield self.get_sitemap())['historic_sensor_values'] + '/samples', params)
         self._logger.debug("Sensor history request: %s", url)
         response = yield self._http_client.fetch(url)
