@@ -1062,7 +1062,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
 
     @gen_test
     def test_sensor_history_single_sensor_without_value_time(self):
-        """Test that time ordered data with value_time is received for a
+        """Test that time ordered data without value_time is received for a
         single sensor request.
         """
         history_base_url = self._portal_client.sitemap[
