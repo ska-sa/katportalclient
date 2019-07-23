@@ -1068,8 +1068,6 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         history_base_url = self._portal_client.sitemap[
             'historic_sensor_values']
         sensor_name = 'anc_mean_wind_speed'
-        publish_messages = [sensor_history_pub_messages_json['init']]
-        publish_messages.extend(sensor_history_pub_messages_json[sensor_name])
 
         self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(
             valid_response=sensor_data1,
@@ -1097,9 +1095,6 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         history_base_url = self._portal_client.sitemap[
             'historic_sensor_values']
         sensor_name = 'anc_mean_wind_speed'
-        publish_messages = [sensor_history_pub_messages_json['init']]
-        publish_messages.extend(sensor_history_pub_messages_json[sensor_name])
-
         self.mock_http_async_client().fetch.side_effect = mock_async_fetcher(
             valid_response=sensor_data3,
             invalid_response='error',
@@ -1127,9 +1122,6 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         history_base_url = self._portal_client.sitemap[
             'historic_sensor_values']
         sensor_name = 'anc_mean_wind_speed'
-        publish_messages = [sensor_history_pub_messages_json['init']]
-        publish_messages.extend(sensor_history_pub_messages_json[sensor_name])
-
         self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(
             valid_response=sensor_data3,
             invalid_response='error',
@@ -1153,12 +1145,6 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         history_base_url = self._portal_client.sitemap[
             'historic_sensor_values']
         sensor_name = 'anc_mean_wind_speed'
-        publish_messages = [sensor_history_pub_messages_json['init']]
-        # include first and last synchronisation messages, but no data
-        publish_messages.append(
-            sensor_history_pub_messages_json[sensor_name][0])
-        publish_messages.append(
-            sensor_history_pub_messages_json[sensor_name][-1])
 
         self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(
             valid_response=sensor_data_fail,
@@ -1177,16 +1163,11 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         history_base_url = self._portal_client.sitemap[
             'historic_sensor_values']
         sensor_name = 'anc_mean_wind_speed'
-        publish_messages = [sensor_history_pub_messages_json['init']]
-        publish_messages.extend(sensor_history_pub_messages_json[sensor_name])
-
         self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(
             valid_response='{"result":"success"}',
             invalid_response='error',
             starts_with=history_base_url,
-            contains=sensor_name,
-            publish_raw_messages=publish_messages,
-            client_states=self._portal_client._sensor_history_states)
+            contains=sensor_name)
 
         with self.assertRaises(SensorHistoryRequestError):
             yield self._portal_client.sensor_history(
@@ -1199,15 +1180,6 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             'historic_sensor_values']
         sensor_name_filter = 'anc_.*_wind_speed'
         sensor_names = ['anc_gust_wind_speed', 'anc_mean_wind_speed']
-        publish_messages = [
-            [sensor_history_pub_messages_json['init']],
-            [sensor_history_pub_messages_json['init']]
-        ]
-        publish_messages[0].extend(
-            sensor_history_pub_messages_json[sensor_names[0]])
-        publish_messages[1].extend(
-            sensor_history_pub_messages_json[sensor_names[1]])
-
         # complicated way to define the behaviour for the 3 expected HTTP requests
         #  - 1st call gives sensor list
         #  - 2nd call provides the sample history for sensor 0
@@ -1250,14 +1222,6 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         history_base_url = self._portal_client.sitemap[
             'historic_sensor_values']
         sensor_names = ['anc_mean_wind_speed', 'anc_gust_wind_speed']
-        publish_messages = [
-            [sensor_history_pub_messages_json['init']],
-            [sensor_history_pub_messages_json['init']]
-        ]
-        publish_messages[0].extend(
-            sensor_history_pub_messages_json[sensor_names[0]])
-        publish_messages[1].extend(
-            sensor_history_pub_messages_json[sensor_names[1]])
 
         # complicated way to define the behaviour for the 2 expected HTTP requests
         #  - 1st call provides the sample history for sensor 0
