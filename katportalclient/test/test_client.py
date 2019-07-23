@@ -1758,10 +1758,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             future = concurrent.Future()
             future.set_result(result)
             return future
-        result = HTTPResponse(HTTPRequest(url), 200, buffer=body_buffer)
-        future = concurrent.Future()
-        future.set_result(result)
-        return future
+
 
         return mock_fetch
 
