@@ -1186,8 +1186,8 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         #  - 3rd call provides the sample history for sensor 1
         self.mock_http_async_client().fetch.side_effect = self.mock_async_fetchers(
             valid_responses=[
-                '{"data" : [{}, {}]}'.format (sensor_json[sensor_names[0]],
-                                              sensor_json[sensor_names[1]]),
+                '{"data" : [{}, {}]}'.format(sensor_json[sensor_names[0]],
+                                             sensor_json[sensor_names[1]]),
                 sensor_data1, sensor_data2
             ],
             invalid_responses=['1error', '2error', '3error'],
