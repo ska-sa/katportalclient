@@ -12,11 +12,8 @@ import base64
 import hashlib
 import hmac
 import logging
-import uuid
 import time
 import concurrent.futures
-from urllib import urlencode
-from collections import namedtuple
 
 import omnijson as json
 import tornado.gen
@@ -26,7 +23,6 @@ import tornado.locks
 
 from builtins import bytes, object, str
 from collections import namedtuple
-from datetime import timedelta
 from past.builtins import basestring
 from urllib.parse import urlencode
 
