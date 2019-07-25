@@ -809,7 +809,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             'historic_sensor_values']
         sensor_name = 'anc_weather_wind_speed'
         self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(
-            valid_response=('{"data":[{}]}'.format( sensor_json['anc_weather_wind_speed']),
+            valid_response=('{"data":[{}]}'.format( sensor_json['anc_weather_wind_speed'])),
             invalid_response=sensor_json['invalid_response'],
             starts_with=history_base_url,
             contains=sensor_name)
