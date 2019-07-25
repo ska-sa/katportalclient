@@ -1634,7 +1634,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
                 'anc', sensor_name_filter, False)
 
 
-    def mock_async_fetchers(valid_responses, invalid_responses, starts_withs=None,
+    def mock_async_fetchers(self, valid_responses, invalid_responses, starts_withs=None,
                             ends_withs=None, containses=None):
         """Allows definition of multiple HTTP async fetchers."""
         num_calls = len(valid_responses)
@@ -1667,7 +1667,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         return mock_fetch
 
 
-    def mock_async_fetcher(valid_response, invalid_response, starts_with=None,
+    def mock_async_fetcher(self, valid_response, invalid_response, starts_with=None,
                            ends_with=None, contains=None):
         """Returns a mock HTTP async fetch function, depending on the conditions."""
 
