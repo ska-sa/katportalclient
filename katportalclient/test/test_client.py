@@ -218,44 +218,6 @@ sensor_data_fail = """{
   "data": []
 }"""
 
-# Example redis-pubsub message for sensor history
-sensor_history_pub_messages_json = {
-    "init": """{"result":[],"id":"redis-pubsub-init"}""",
-
-    "anc_mean_wind_speed": [
-        # Initial inform has done:false, and num_samples_to_be_published 0
-        """{"result":{"msg_pattern":"test_namespace:*","msg_channel":"test_namespace:katstore_data","msg_data":{"inform_type":"sample_history","inform_data":{"num_samples_to_be_published":0,"sensor_name":"anc_mean_wind_speed","done":false}}},"id":"redis-pubsub"}""",
-        # Next inform has done:false, and num_samples_to_be_published > 0, if
-        # any data
-        """{"result":{"msg_pattern":"test_namespace:*","msg_channel":"test_namespace:katstore_data","msg_data":{"inform_type":"sample_history","inform_data":{"num_samples_to_be_published":4,"sensor_name":"anc_mean_wind_speed","done":false}}},"id":"redis-pubsub"}""",
-
-        # Multiple data messages (may be out of order)
-        """{"result":{"msg_pattern":"test_namespace:*","msg_channel":"test_namespace:katstore_data","msg_data":[[1476164224429,1476164223101,1476164224429354,"5.07571614843","anc_mean_wind_speed","nominal"],[1476164225534,1476164224102,1476164225534476,"5.07574851017","anc_mean_wind_speed","nominal"]]},"id":"redis-pubsub"}""",
-        """{"result":{"msg_pattern":"test_namespace:*","msg_channel":"test_namespace:katstore_data","msg_data":[[1476164228142,1476164227102,1476164228142342,"5.0883800412","anc_mean_wind_speed","nominal"]]},"id":"redis-pubsub"}""",
-        """{"result":{"msg_pattern":"test_namespace:*","msg_channel":"test_namespace:katstore_data","msg_data":[[1476164226128,1476164225103,1476164226128442,"5.0753700255","anc_mean_wind_speed","nominal"]]},"id":"redis-pubsub"}""",
-
-        # Could get more informs with done:false
-        """{"result":{"msg_pattern":"test_namespace:*","msg_channel":"test_namespace:katstore_data","msg_data":{"inform_type":"sample_history","inform_data":{"num_samples_to_be_published":0,"sensor_name":"anc_mean_wind_speed","done":false}}},"id":"redis-pubsub"}""",
-        # Final inform has done:true and num_samples_to_be_published: 0
-        """{"result":{"msg_pattern":"test_namespace:*","msg_channel":"test_namespace:katstore_data","msg_data":{"inform_type":"sample_history","inform_data":{"num_samples_to_be_published":0,"sensor_name":"anc_mean_wind_speed","done":true}}},"id":"redis-pubsub"}"""
-    ],
-
-    "anc_gust_wind_speed": [
-        # Initial inform has done:false, and num_samples_to_be_published 0
-        """{"result":{"msg_pattern":"test_namespace:*","msg_channel":"test_namespace:katstore_data","msg_data":{"inform_type":"sample_history","inform_data":{"num_samples_to_be_published":0,"sensor_name":"anc_gust_wind_speed","done":false}}},"id":"redis-pubsub"}""",
-        # Next inform has done:false, and num_samples_to_be_published > 0, if
-        # any data
-        """{"result":{"msg_pattern":"test_namespace:*","msg_channel":"test_namespace:katstore_data","msg_data":{"inform_type":"sample_history","inform_data":{"num_samples_to_be_published":3,"sensor_name":"anc_gust_wind_speed","done":false}}},"id":"redis-pubsub"}""",
-
-        # Multiple data messages (may be out of order)
-        """{"result":{"msg_pattern":"test_namespace:*","msg_channel":"test_namespace:katstore_data","msg_data":[[1476164225429,1476164224101,1476164225429354,"6.07571614843","anc_gust_wind_speed","nominal"],[1476164226534,1476164225102,1476164226534476,"6.07574851017","anc_gust_wind_speed","nominal"]]},"id":"redis-pubsub"}""",
-        """{"result":{"msg_pattern":"test_namespace:*","msg_channel":"test_namespace:katstore_data","msg_data":[[1476164229142,1476164228102,1476164229142342,"6.0883800412","anc_gust_wind_speed","nominal"]]},"id":"redis-pubsub"}""",
-
-        # Final inform has done:true and num_samples_to_be_published: 0
-        """{"result":{"msg_pattern":"test_namespace:*","msg_channel":"test_namespace:katstore_data","msg_data":{"inform_type":"sample_history","inform_data":{"num_samples_to_be_published":0,"sensor_name":"anc_gust_wind_speed","done":true}}},"id":"redis-pubsub"}"""
-    ]
-}
-
 # Keep a reference to the last test websocket handler instantiated, so that it
 # can be used in tests that require injecting data from the server side.
 # (yes, it is hacky)
