@@ -975,7 +975,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
 
         self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(mon_response)
         expected_result = SensorSampleValueTime(sample_time=222.222, value_time=111.111,
-                                              value=43680.0, status=u'nominal')
+                                                value=43680.0, status=u'nominal')
         res = yield self._portal_client.sensor_value("anc_tfr_m018_l_band_offset_average",
                                                      include_value_ts=True)
         assert res == expected_result
