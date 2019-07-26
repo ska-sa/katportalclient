@@ -1415,7 +1415,7 @@ class KATPortalClient(object):
                 else:
                     results_to_return[result['name']] = SensorSample(
                         sample_time=result['time'],
-                        value=result['value_ts'],
+                        value=result['value'],
                         status=result['status'])
 
         raise tornado.gen.Return(results_to_return)
