@@ -965,7 +965,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
                         '"value_time":1530713112,"sample_time":1531302437},'
                         '{"status":"nominal",'
                         '"name":"some_other_sample","component":"anc","value":43680.0,'
-                        '"value_time":111.111,"time":222.222}]')
+                        '"value_time":111.111,"sample_time":222.222}]')
 
         self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(mon_response)
         result = yield self._portal_client.sensor_values("ARBITRARY_FILTER")
@@ -1011,10 +1011,10 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             containses=["sample_0", "sample_1"]
             )
 
-        expected_result = {"some_other_sample_0": SensorSample(timestamp=220.222,
+        expected_result = {"some_other_sample_0": SensorSample(sample_time=220.222,
                                                                value=43480.0,
                                                                status='nominal'),
-                           "some_other_sample_1": SensorSample(timestamp=221.222,
+                           "some_other_sample_1": SensorSample(sample_time=221.222,
                                                                value=43580.0,
                                                                status='nominal')}
         res = yield self._portal_client.sensor_values(["some_other_sample_0",
@@ -1045,7 +1045,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         # ensure time order is increasing
         time_sec = 0
         for sample in samples:
-            self.assertGreater(int(sample.sample_time), time_sec)
+            self.assertGreater(float(sample.sample_time), float(time_sec))
             time_sec = sample.sample_time
             # Ensure sample contains sample_time, value, status
             self.assertEqual(len(sample), 3)
@@ -1070,7 +1070,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         # ensure time order is increasing
         time_sec = 0
         for sample in samples:
-            self.assertGreater(sample.sample_time, time_sec)
+            self.assertGreater(float(sample.sample_time), float(time_sec))
             time_sec = sample.sample_time
             # Ensure sample contains sample_time, value_time, value, status
             self.assertEqual(len(sample), 4)
@@ -1097,7 +1097,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         # ensure time order is increasing
         time_sec = 0
         for sample in samples:
-            self.assertGreater(sample[0], time_sec)
+            self.assertGreater(float(sample[0]), float(time_sec))
             time_sec = sample[0]
 
     @gen_test
@@ -1166,15 +1166,15 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         # expect keys to match the 2 sensor names
         self.assertIn(sensor_names[0], list(histories.keys()))
         self.assertIn(sensor_names[1], list(histories.keys()))
-        # expect 3 samples for 1st, and 4 samples for 2nd
-        self.assertTrue(len(histories[sensor_names[0]]) == 3)
-        self.assertTrue(len(histories[sensor_names[1]]) == 4)
+        # expect 4 samples for 1st, and 3 samples for 2nd
+        self.assertTrue(len(histories[sensor_names[0]]) == 4)
+        self.assertTrue(len(histories[sensor_names[1]]) == 3)
 
         # ensure time order is increasing, per sensor
         for sensor in histories:
             time_sec = 0
             for sample in histories[sensor]:
-                self.assertGreater(sample[0], time_sec)
+                self.assertGreater(float(sample[0]), float(time_sec))
                 time_sec = sample[0]
 
     @gen_test
@@ -1219,7 +1219,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         for sensor in histories:
             time_sec = 0
             for sample in histories[sensor]:
-                self.assertGreater(sample[0], time_sec)
+                self.assertGreater(float(sample[0]), float(time_sec))
                 time_sec = sample[0]
 
     @gen_test
