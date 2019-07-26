@@ -962,10 +962,10 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         mon_response = ('[{"status":"nominal",'
                         '"name":"anc_tfr_m018_l_band_offset","component":"anc",'
                         '"value":43680.0,'
-                        '"value_time":1530713112,"sample_time":1531302437},'
+                        '"value_ts":1530713112,"time":1531302437},'
                         '{"status":"nominal",'
                         '"name":"some_other_sample","component":"anc","value":43680.0,'
-                        '"value_time":111.111,"sample_time":222.222}]')
+                        '"value_ts":111.111,"time":222.222}]')
 
         self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(mon_response)
         result = yield self._portal_client.sensor_values("ARBITRARY_FILTER")
@@ -999,11 +999,11 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         mon_response_0 = ('[{"status":"nominal",'
                           '"name":"some_other_sample_0",'
                           '"component":"anc","value":43480.0,'
-                          '"value_time":110.111,"sample_time":220.222}]')
+                          '"value_ts":110.111,"time":220.222}]')
         mon_response_1 = ('[{"status":"nominal",'
                           '"name":"some_other_sample_1",'
                           '"component":"anc","value":43580.0,'
-                          '"value_time":111.111,"sample_time":221.222}]')
+                          '"value_ts":111.111,"time":221.222}]')
 
         self.mock_http_async_client().fetch.side_effect = self.mock_async_fetchers(
             valid_responses=[mon_response_0, mon_response_1],
