@@ -805,11 +805,10 @@ class TestKATPortalClient(WebSocketBaseTestCase):
     @gen_test
     def test_sensor_detail(self):
         """Test sensor's attributes are correctly extracted from JSON text."""
-        history_base_url = self._portal_client.sitemap[
-            'historic_sensor_values']
+        history_base_url = self._portal_client.sitemap['historic_sensor_values']
         sensor_name = 'anc_weather_wind_speed'
         self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(
-            valid_response=('{"data":[%s]}' % (sensor_json['anc_weather_wind_speed'])),
+            valid_response=('{{"data":[{}]}}'.format( sensor_json['anc_weather_wind_speed'])),
             invalid_response=sensor_json['invalid_response'],
             starts_with=history_base_url,
             contains=sensor_name)
@@ -841,7 +840,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         sensor_name_filter = 'anc_gust_wind_speed'
 
         self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(
-            valid_response='{"data" : [{}, {}]}'.format (sensor_json['anc_gust_wind_speed2'],
+            valid_response='{{"data" : [{}, {}]}}'.format (sensor_json['anc_gust_wind_speed2'],
                                                           sensor_json['anc_gust_wind_speed']),
             invalid_response="[]",
             starts_with=history_base_url,
@@ -1148,7 +1147,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         #  - 3rd call provides the sample history for sensor 1
         self.mock_http_async_client().fetch.side_effect = self.mock_async_fetchers(
             valid_responses=[
-                '{"data" : [{}, {}]}'.format(sensor_json[sensor_names[0]],
+                '{{"data" : [{}, {}]}}'.format(sensor_json[sensor_names[0]],
                                              sensor_json[sensor_names[1]]),
                 sensor_data1, sensor_data2
             ],
