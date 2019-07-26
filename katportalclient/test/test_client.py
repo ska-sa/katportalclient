@@ -841,8 +841,8 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         sensor_name_filter = 'anc_gust_wind_speed'
 
         self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(
-            valid_response='{"data" : [ {}, {}]}'.format (sensor_json['anc_gust_wind_speed2'],
-                                                     sensor_json['anc_gust_wind_speed']),
+            valid_response='{"data" : [{}, {}]}'.format (sensor_json['anc_gust_wind_speed2'],
+                                                          sensor_json['anc_gust_wind_speed']),
             invalid_response="[]",
             starts_with=history_base_url,
             contains=sensor_name_filter)
@@ -1046,7 +1046,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         # ensure time order is increasing
         time_sec = 0
         for sample in samples:
-            self.assertGreater(sample.sample_time, time_sec)
+            self.assertGreater(int(sample.sample_time), time_sec)
             time_sec = sample.sample_time
             # Ensure sample contains sample_time, value, status
             self.assertEqual(len(sample), 3)
