@@ -1667,7 +1667,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         return mock_fetch
 
 
-    def mock_async_fetcher(self, valid_response, invalid_response, starts_with=None,
+    def mock_async_fetcher(self, valid_response, invalid_response=None, starts_with=None,
                            ends_with=None, contains=None):
         """Returns a mock HTTP async fetch function, depending on the conditions."""
 
