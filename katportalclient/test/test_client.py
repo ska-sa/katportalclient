@@ -108,46 +108,46 @@ sensor_data1 = """{
   "title": "Sensors Query",
   "data": [
     {
-      "value": "91474",
-      "sample_time": "1523249992.0250809193",
+      "value": 91474,
+      "sample_time": 1523249992.0250809193,
       "status" : "error"
     },
     {
-      "value": "91475",
-      "sample_time": "1523250002.0252408981",
+      "value": 91475,
+      "sample_time": 1523250002.0252408981,
       "status" : "error"
     },
     {
-      "value": "91476",
-      "sample_time": "1523250012.0289709568",
+      "value": 91476,
+      "sample_time": 1523250012.0289709568,
       "status" : "error"
     },
     {
-      "value": "91477",
-      "sample_time": "1523250022.0292000771",
+      "value": 91477,
+      "sample_time": 1523250022.0292000771,
       "status" : "error"
     }
   ]
 }"""
 
 sensor_data2 = """{
-  "url": "/katstore/api/query/?start_time=1523249984&end_time=now&interval=0&sensor=anc_mean_wind_speed&minmax=false&buffer_only=false&additional_fields=false",
-  "sensor_name": "anc_mean_wind_speed",
+  "url": "/katstore/api/query/?start_time=1523249984&end_time=now&interval=0&sensor=anc_gust_wind_speed&minmax=false&buffer_only=false&additional_fields=false",
+  "sensor_name": "anc_gust_wind_speed",
   "title": "Sensors Query",
   "data": [
     {
-      "value": "91475",
-      "sample_time": "1523250002.0252408981",
+      "value": 91475,
+      "sample_time": 1523250002.0252408981,
       "status" : "error"
     },
     {
-      "value": "91476",
-      "sample_time": "1523250012.0289709568",
+      "value": 91476,
+      "sample_time": 1523250012.0289709568,
       "status" : "error"
     },
     {
-      "value": "91477",
-      "sample_time": "1523250022.0292000771",
+      "value": 91477,
+      "sample_time": 1523250022.0292000771,
       "status" : "error"
     }
   ]
@@ -159,21 +159,21 @@ sensor_data3 = """{
   "title": "Sensors Query",
   "data": [
     {
-      "value": "91474",
-      "sample_time": "1523249992.0250809193",
-      "value_time": "1523249991.0250809193",
+      "value": 91474,
+      "sample_time": 1523249992.0250809193,
+      "value_time": 1523249991.0250809193,
       "status" : "error"
     },
     {
-      "value": "91475",
-      "sample_time": "1523250002.0252408981",
-      "value_time": "1523249991.0250809193",
+      "value": 91475,
+      "sample_time": 1523250002.0252408981,
+      "value_time": 1523249991.0250809193,
       "status" : "error"
     },
     {
-      "value": "91477",
-      "sample_time": "1523250022.0292000771",
-      "value_time": "1523249991.0250809193",
+      "value": 91477,
+      "sample_time": 1523250022.0292000771,
+      "value_time": 1523249991.0250809193,
       "status" : "error"
     }
   ]
@@ -186,26 +186,26 @@ sensor_data4 = """{
   "data": [
     {
       "value": "91474",
-      "sample_time": "1523249992.0250809193",
-      "value_time": "1523249991.0250809193",
+      "sample_time": 1523249992.0250809193,
+      "value_time": 1523249991.0250809193,
       "status" : "error"
     },
     {
       "value": "91475",
-      "sample_time": "1523250002.0252408981",
-      "value_time": "1523249991.0250809193",
+      "sample_time": 1523250002.0252408981,
+      "value_time": 1523249991.0250809193,
       "status" : "error"
     },
     {
       "value": "91477",
-      "sample_time": "1523250022.0292000771",
-      "value_time": "1523249991.0250809193",
+      "sample_time": 1523250022.0292000771,
+      "value_time": 1523249991.0250809193,
       "status" : "error"
     },
     {
       "value": "91477",
-      "sample_time": "1523250021.0292000771",
-      "value_time": "1523249990.0250809193",
+      "sample_time": 1523250021.0292000771,
+      "value_time": 1523249990.0250809193,
       "status" : "error"
     }
   ]
@@ -1043,9 +1043,9 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         self.assertTrue(len(samples) == 4)
 
         # ensure time order is increasing
-        time_sec = 0
+        time_sec = 0.0
         for sample in samples:
-            self.assertGreater(float(sample.sample_time), float(time_sec))
+            self.assertGreater(sample.sample_time, time_sec)
             time_sec = sample.sample_time
             # Ensure sample contains sample_time, value, status
             self.assertEqual(len(sample), 3)
@@ -1070,7 +1070,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         # ensure time order is increasing
         time_sec = 0
         for sample in samples:
-            self.assertGreater(float(sample.sample_time), float(time_sec))
+            self.assertGreater(sample.sample_time, time_sec)
             time_sec = sample.sample_time
             # Ensure sample contains sample_time, value_time, value, status
             self.assertEqual(len(sample), 4)
@@ -1097,7 +1097,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         # ensure time order is increasing
         time_sec = 0
         for sample in samples:
-            self.assertGreater(float(sample[0]), float(time_sec))
+            self.assertGreater(sample[0], time_sec)
             time_sec = sample[0]
 
     @gen_test
@@ -1148,8 +1148,8 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         self.mock_http_async_client().fetch.side_effect = self.mock_async_fetchers(
             valid_responses=[
                 '{{"data" : [{}, {}]}}'.format(sensor_json[sensor_names[0]],
-                                             sensor_json[sensor_names[1]]),
-                sensor_data1, sensor_data2
+                                               sensor_json[sensor_names[1]]),
+                sensor_data2, sensor_data1
             ],
             invalid_responses=['1error', '2error', '3error'],
             starts_withs=history_base_url,
@@ -1166,15 +1166,15 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         # expect keys to match the 2 sensor names
         self.assertIn(sensor_names[0], list(histories.keys()))
         self.assertIn(sensor_names[1], list(histories.keys()))
-        # expect 4 samples for 1st, and 3 samples for 2nd
-        self.assertTrue(len(histories[sensor_names[0]]) == 4)
-        self.assertTrue(len(histories[sensor_names[1]]) == 3)
+        # expect 3 samples for 1st, and 4 samples for 2nd
+        self.assertTrue(len(histories[sensor_names[0]]) == 3)
+        self.assertTrue(len(histories[sensor_names[1]]) == 4)
 
         # ensure time order is increasing, per sensor
         for sensor in histories:
             time_sec = 0
             for sample in histories[sensor]:
-                self.assertGreater(float(sample[0]), float(time_sec))
+                self.assertGreater(sample[0], time_sec)
                 time_sec = sample[0]
 
     @gen_test
@@ -1219,7 +1219,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         for sensor in histories:
             time_sec = 0
             for sample in histories[sensor]:
-                self.assertGreater(float(sample[0]), float(time_sec))
+                self.assertGreater(sample[0], time_sec)
                 time_sec = sample[0]
 
     @gen_test
