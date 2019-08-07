@@ -34,7 +34,6 @@ from tornado.websocket import websocket_connect
 from .request import JSONRPCRequest
 
 
-# Limit for sensor history queries, in order to preserve memory on katportal.
 MAX_SAMPLES_PER_HISTORY_QUERY = 1000000
 
 # Websocket connect and reconnect timeouts
