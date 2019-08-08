@@ -1119,22 +1119,6 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         self.assertTrue(len(samples) == 0)
 
     @gen_test
-    def test_sensor_history_exception_on_timeout(self):
-        """Test that exception is raised is download exceeds timeout."""
-        history_base_url = self._portal_client.sitemap[
-            'historic_sensor_values']
-        sensor_name = 'anc_mean_wind_speed'
-        self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(
-            valid_response='{"result":"success"}',
-            invalid_response='error',
-            starts_with=history_base_url,
-            contains=sensor_name)
-
-        with self.assertRaises(SensorHistoryRequestError):
-            yield self._portal_client.sensor_history(
-                sensor_name, start_time_sec=0, end_time_sec=100, timeout_sec=0)
-
-    @gen_test
     def test_sensor_history_multiple_sensors_valid_times(self):
         """Test that time ordered data is received for a multiple sensor request."""
         history_base_url = self._portal_client.sitemap[
