@@ -143,11 +143,6 @@ if __name__ == '__main__':
         default=time.time(),
         help="end time of sample query [sec since UNIX epoch] (default: now).")
     parser.add_argument(
-        '-p', '--interval',
-        type=int,
-        default=0,
-        help="Interval for sampling, this is done server side unlike decimation (default: %(default)s).")
-    parser.add_argument(
         '-d', '--decimate',
         type=int,
         metavar='N',
