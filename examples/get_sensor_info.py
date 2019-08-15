@@ -17,7 +17,7 @@ import tornado.gen
 from katportalclient import KATPortalClient
 
 
-logger = logging.getLogger('katportalclient.example')
+logger = logging.getLogger("katportalclient.example")
 logger.setLevel(logging.INFO)
 
 
@@ -28,12 +28,15 @@ def main():
     # (e.g. schedule blocks), then the number can be omitted, as below.
     # Note: if on_update_callback is set to None, then we cannot use the
     #       KATPortalClient.connect() method (i.e. no websocket access).
-    portal_client = KATPortalClient('http://{}/api/client'.format(args.host),
-                                    on_update_callback=None, logger=logger)
+    portal_client = KATPortalClient(
+        "http://{}/api/client".format(args.host), on_update_callback=None, logger=logger
+    )
 
     # Get the names of sensors matching the patterns
     sensor_names = yield portal_client.sensor_names(args.sensors)
-    print("\nMatching sensor names for pattern {}: {}".format(args.sensors, sensor_names))
+    print(
+        "\nMatching sensor names for pattern {}: {}".format(args.sensors, sensor_names)
+    )
 
     # Get the names of sensors matching a pattern
     # pattern = 'anc_w.*_device_status'
@@ -99,23 +102,29 @@ def main():
     # u'anc_weather_wind_speed']
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Download sensor info and print to stdout.")
+        description="Download sensor info and print to stdout."
+    )
     parser.add_argument(
-        '--host',
-        default='127.0.0.1',
-        help="hostname or IP of the portal server (default: %(default)s).")
+        "--host",
+        default="127.0.0.1",
+        help="hostname or IP of the portal server (default: %(default)s).",
+    )
     parser.add_argument(
-        'sensors',
-        metavar='sensor',
-        nargs='+',
-        help="list of sensor names or filter strings to request data for")
+        "sensors",
+        metavar="sensor",
+        nargs="+",
+        help="list of sensor names or filter strings to request data for",
+    )
     parser.add_argument(
-        '-v', '--verbose',
-        dest='verbose', action="store_true",
+        "-v",
+        "--verbose",
+        dest="verbose",
+        action="store_true",
         default=False,
-        help="provide extremely verbose output.")
+        help="provide extremely verbose output.",
+    )
     args = parser.parse_args()
     if args.verbose:
         logger.setLevel(logging.DEBUG)

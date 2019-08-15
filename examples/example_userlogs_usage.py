@@ -17,7 +17,7 @@ import tornado.gen
 from katportalclient import KATPortalClient
 
 
-logger = logging.getLogger('katportalclient.example')
+logger = logging.getLogger("katportalclient.example")
 logger.setLevel(logging.INFO)
 
 
@@ -28,8 +28,9 @@ def main():
     # (e.g. schedule blocks), then the number can be omitted, as below.
     # Note: if on_update_callback is set to None, then we cannot use the
     #       KATPortalClient.connect() method (i.e. no websocket access).
-    portal_client = KATPortalClient('http://{}/api/client'.format(args.host),
-                                    on_update_callback=None, logger=logger)
+    portal_client = KATPortalClient(
+        "http://{}/api/client".format(args.host), on_update_callback=None, logger=logger
+    )
 
     # Login so that we know which user to create userlogs for!
     yield portal_client.login(username="user@example.com", password="password")
@@ -43,18 +44,19 @@ def main():
 
     # To create an userlog use the following code
     # To add tags, make an array of tag id's
-    userlog_tags_to_add = [tags[0].get('id'), tags[1].get('id')]
+    userlog_tags_to_add = [tags[0].get("id"), tags[1].get("id")]
     userlog_content = "This is where you would put the content of the userlog!"
     # Start time and end times needs to be in this format 'YYYY-MM-DD HH:mm:ss'
     # All times are in UTC
-    start_time = time.strftime('%Y-%m-%d 00:00:00')
-    end_time = time.strftime('%Y-%m-%d 23:59:59')
+    start_time = time.strftime("%Y-%m-%d 00:00:00")
+    end_time = time.strftime("%Y-%m-%d 23:59:59")
 
     userlog_created = yield portal_client.create_userlog(
         content=userlog_content,
         tag_ids=userlog_tags_to_add,
         start_time=start_time,
-        end_time=end_time)
+        end_time=end_time,
+    )
 
     print("==============================")
     print("Created a userlog! This is the new userlog: ")
@@ -63,8 +65,8 @@ def main():
 
     # To edit an existing userlog, user modify_userlog with the modified userlog
     # Here we are modifying the userlog we created using create_userlog
-    userlog_created['content'] = 'This content is edited by katportalclient!'
-    userlog_created['end_time'] = userlog_created['start_time']
+    userlog_created["content"] = "This content is edited by katportalclient!"
+    userlog_created["end_time"] = userlog_created["start_time"]
     result = yield portal_client.modify_userlog(userlog_created)
     print("==============================")
     print("Edited userlog! Result: ")
@@ -76,18 +78,23 @@ def main():
     yield portal_client.logout()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Download userlogs and tags and print to stdout.")
+        description="Download userlogs and tags and print to stdout."
+    )
     parser.add_argument(
-        '--host',
-        default='127.0.0.1',
-        help="hostname or IP of the portal server (default: %(default)s).")
+        "--host",
+        default="127.0.0.1",
+        help="hostname or IP of the portal server (default: %(default)s).",
+    )
     parser.add_argument(
-        '-v', '--verbose',
-        dest='verbose', action="store_true",
+        "-v",
+        "--verbose",
+        dest="verbose",
+        action="store_true",
         default=False,
-        help="provide extremely verbose output.")
+        help="provide extremely verbose output.",
+    )
     args = parser.parse_args()
     if args.verbose:
         logger.setLevel(logging.DEBUG)

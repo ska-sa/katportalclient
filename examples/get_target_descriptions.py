@@ -17,7 +17,7 @@ import tornado.gen
 from katportalclient import KATPortalClient
 
 
-logger = logging.getLogger('katportalclient.example')
+logger = logging.getLogger("katportalclient.example")
 logger.setLevel(logging.INFO)
 
 
@@ -26,11 +26,13 @@ def main():
     # Change URL to point to a valid portal node.  Subarray can be 1 to 4.
     # Note: if on_update_callback is set to None, then we cannot use the
     #       KATPortalClient.connect() method (i.e. no websocket access).
-    portal_client = KATPortalClient('http://{host}/api/client/1'.format(**vars(args)),
-                                    on_update_callback=None, logger=logger)
+    portal_client = KATPortalClient(
+        "http://{host}/api/client/1".format(**vars(args)),
+        on_update_callback=None,
+        logger=logger,
+    )
 
-    results = yield portal_client.future_targets(
-        '{sb_id_code}'.format(**vars(args)))
+    results = yield portal_client.future_targets("{sb_id_code}".format(**vars(args)))
     print(results)
 
     # Example output:
@@ -101,8 +103,7 @@ def main():
 
         # Please see the katpoint.Target class docstring for a detailed
         # explanation of the usage and input parameters.
-        target = katpoint.Target(body=future_target['target'],
-                                 antenna=antenna)
+        target = katpoint.Target(body=future_target["target"], antenna=antenna)
         print("-" * 80)
         # Short human-friendly string representation of target object.
         print("Target: {}".format(target))
@@ -124,14 +125,20 @@ def main():
         # unable to provide this (due to a limitation of pyephem), notably
         # stationary (*azel*) targets, and provide the *astrometric geocentric
         # position* instead.
-        print("\tapparent_radec: {}".format(
-            target.apparent_radec(timestamp=timestamp_for_calcs)))
+        print(
+            "\tapparent_radec: {}".format(
+                target.apparent_radec(timestamp=timestamp_for_calcs)
+            )
+        )
         # Calculate target's astrometric (ra, dec) coordinates as seen from antenna at time(s).
         # This calculates the J2000 *astrometric geocentric position* of the
         # target, in equatorial coordinates. This is its star atlas position for
         # the epoch of J2000.
-        print("\tastrometric_radec: {}".format(
-            target.astrometric_radec(timestamp=timestamp_for_calcs)))
+        print(
+            "\tastrometric_radec: {}".format(
+                target.astrometric_radec(timestamp=timestamp_for_calcs)
+            )
+        )
         # Calculate target's galactic (l, b) coordinates as seen from antenna at time(s).
         # This calculates the galactic coordinates of the target, based on the
         # J2000 *astrometric* equatorial coordinates. This is its position relative
@@ -145,8 +152,11 @@ def main():
         # the zenith above the antenna to the target, or the angle between the
         # *hour circle* and *vertical circle* through the target, at the given
         # timestamp(s).
-        print("\tparallactic_angle: {}".format(
-            target.parallactic_angle(timestamp=timestamp_for_calcs)))
+        print(
+            "\tparallactic_angle: {}".format(
+                target.parallactic_angle(timestamp=timestamp_for_calcs)
+            )
+        )
 
     # Example output:
     # --------------------------------------------------------------------------------
@@ -214,24 +224,31 @@ def main():
     #     parallactic_angle: -0.981741957496
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Gets the target list and target pointing descriptions "
-                    "from katportal catalogues.")
+        "from katportal catalogues."
+    )
     parser.add_argument(
-        '--host',
-        default='127.0.0.1',
-        help="hostname or IP of the portal server (default: %(default)s).")
+        "--host",
+        default="127.0.0.1",
+        help="hostname or IP of the portal server (default: %(default)s).",
+    )
     parser.add_argument(
-        '-s', '--sb-id-code',
+        "-s",
+        "--sb-id-code",
         default=None,
-        dest='sb_id_code',
-        help="The schedule block id code to load the future targets list from")
+        dest="sb_id_code",
+        help="The schedule block id code to load the future targets list from",
+    )
     parser.add_argument(
-        '-v', '--verbose',
-        dest='verbose', action="store_true",
+        "-v",
+        "--verbose",
+        dest="verbose",
+        action="store_true",
         default=False,
-        help="provide extremely verbose output.")
+        help="provide extremely verbose output.",
+    )
     args = parser.parse_args()
     if args.verbose:
         logger.setLevel(logging.DEBUG)

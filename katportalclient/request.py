@@ -21,12 +21,12 @@ class JSONRPCRequest(object):
             List of parameters to be used for the remote procedure call.
     """
 
-    id = ''
-    method = ''
+    id = ""
+    method = ""
     params = None
 
     def __init__(self, method, params):
-        self.jsonrpc = '2.0'
+        self.jsonrpc = "2.0"
         self.id = str(uuid.uuid4().hex[:10])
         self.method = method
         self.params = params
@@ -38,10 +38,8 @@ class JSONRPCRequest(object):
     def __repr__(self):
         """Return a human readable string of the object"""
         return "{_class}: id: {_id}, method: {method}, params: {params}".format(
-            _class=self.__class__,
-            _id=self.id,
-            method=self.method,
-            params=self.params)
+            _class=self.__class__, _id=self.id, method=self.method, params=self.params
+        )
 
     def method_and_params_hash(self):
         """Return a hash for the methods and params attributes for easy comparison"""

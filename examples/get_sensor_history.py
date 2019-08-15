@@ -21,7 +21,7 @@ from datetime import datetime
 from katportalclient import KATPortalClient
 
 
-logger = logging.getLogger('katportalclient.example')
+logger = logging.getLogger("katportalclient.example")
 
 
 @tornado.gen.coroutine
@@ -31,8 +31,11 @@ def main():
     # (e.g. schedule blocks), then the number can be omitted, as below.
     # Note: if on_update_callback is set to None, then we cannot use the
     #       KATPortalClient.connect() and subscribe() methods here.
-    portal_client = KATPortalClient('http://{host}/api/client'.format(**vars(args)),
-                                    on_update_callback=None, logger=logger)
+    portal_client = KATPortalClient(
+        "http://{host}/api/client".format(**vars(args)),
+        on_update_callback=None,
+        logger=logger,
+    )
 
     # Get the names of sensors matching the patterns
     sensor_names = yield portal_client.sensor_names(args.sensors)
@@ -66,12 +69,13 @@ def main():
     if num_sensors == 0:
         print("\nNo matching sensors found - no history to request!")
     else:
-        print ("\nRequesting history for {} sensors, from {} to {}"
-               .format(
-                   num_sensors,
-                   datetime.utcfromtimestamp(
-                       args.start).strftime('%Y-%m-%dT%H:%M:%SZ'),
-                   datetime.utcfromtimestamp(args.end).strftime('%Y-%m-%dT%H:%M:%SZ')))
+        print(
+            "\nRequesting history for {} sensors, from {} to {}".format(
+                num_sensors,
+                datetime.utcfromtimestamp(args.start).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                datetime.utcfromtimestamp(args.end).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            )
+        )
         value_time = args.include_value_time
         if len(sensor_names) == 1:
             # Request history for just a single sensor - result is
@@ -80,17 +84,17 @@ def main():
             #        include_value_time=True
             #    result is then sample_time, value_time, value, status
             history = yield portal_client.sensor_history(
-                sensor_names[0], args.start, args.end,
-                include_value_ts=value_time)
+                sensor_names[0], args.start, args.end, include_value_ts=value_time
+            )
             histories = {sensor_names[0]: history}
         else:
             # Request history for all the sensors - result is sample_time, value, status
             #    If value timestamp is also required, then add the additional argument:
             #        include_value_time=True
             #    result is then sample_time, value_time, value, status
-            histories = yield portal_client.sensors_histories(sensor_names, args.start,
-                                                              args.end,
-                                                              include_value_ts=value_time)
+            histories = yield portal_client.sensors_histories(
+                sensor_names, args.start, args.end, include_value_ts=value_time
+            )
 
         print("Found {} sensors.".format(len(histories)))
         for sensor_name, history in list(histories.items()):
@@ -101,7 +105,7 @@ def main():
                     item = history[count]
                     if count == 0:
                         print("\tindex,{}".format(",".join(item._fields)))
-                    print "\t{},{}".format(count, item.csv())
+                    print("\t{},{}").format(count, item.csv())
 
     # Example: ./get_sensor_history.py -s 1522756324 -e 1522759924 sys_watchdogs_sys
     # Matching sensor names: [u'sys_watchdogs_sys']
@@ -112,56 +116,71 @@ def main():
     # Requesting history for 1 sensors, from 2018-04-03T11:52:08Z to 2018-04-03T12:52:08Z
     # Found 1 sensors.
     # History for: sys_watchdogs_sys (360 samples)
-    #	index,sample_time,value,status
-    #	0,1522756329.5110459328,42108,nominal
-    #	1,1522756339.511122942,42109,nominal
-    #	2,1522756349.5113239288,42110,nominal
-    #	3,1522756359.5115270615,42111,nominal
-    #	4,1522756369.5126268864,42112,nominal
-    #	5,1522756379.5129699707,42113,nominal
-    #	6,1522756389.513215065,42114,nominal
-    #	7,1522756399.514425993,42115,nominal
-    #	8,1522756409.5146770477,42116,nominal
-    #	9,1522756419.5149009228,42117,nominal
+    # 	index,sample_time,value,status
+    # 	0,1522756329.5110459328,42108,nominal
+    # 	1,1522756339.511122942,42109,nominal
+    # 	2,1522756349.5113239288,42110,nominal
+    # 	3,1522756359.5115270615,42111,nominal
+    # 	4,1522756369.5126268864,42112,nominal
+    # 	5,1522756379.5129699707,42113,nominal
+    # 	6,1522756389.513215065,42114,nominal
+    # 	7,1522756399.514425993,42115,nominal
+    # 	8,1522756409.5146770477,42116,nominal
+    # 	9,1522756419.5149009228,42117,nominal
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Downloads sample histories and prints to stdout.")
+        description="Downloads sample histories and prints to stdout."
+    )
     parser.add_argument(
-        '--host',
-        default='127.0.0.1',
-        help="hostname or IP of the portal server (default: %(default)s).")
+        "--host",
+        default="127.0.0.1",
+        help="hostname or IP of the portal server (default: %(default)s).",
+    )
     parser.add_argument(
-        '-s', '--start',
+        "-s",
+        "--start",
         default=time.time() - 3600,
         type=int,
-        help="start time of sample query [sec since UNIX epoch] (default: 1h ago).")
+        help="start time of sample query [sec since UNIX epoch] (default: 1h ago).",
+    )
     parser.add_argument(
-        '-e', '--end',
+        "-e",
+        "--end",
         type=int,
         default=time.time(),
-        help="end time of sample query [sec since UNIX epoch] (default: now).")
+        help="end time of sample query [sec since UNIX epoch] (default: now).",
+    )
     parser.add_argument(
-        '-d', '--decimate',
+        "-d",
+        "--decimate",
         type=int,
-        metavar='N',
+        metavar="N",
         default=1,
-        help="decimation level - only every Nth sample is output (default: %(default)s).")
+        help="decimation level - only every Nth sample is output (default: %(default)s).",
+    )
     parser.add_argument(
-        'sensors',
-        metavar='sensor',
-        nargs='+',
-        help="list of sensor names or filter strings to request data for")
+        "sensors",
+        metavar="sensor",
+        nargs="+",
+        help="list of sensor names or filter strings to request data for",
+    )
     parser.add_argument(
-        '-v', '--verbose',
-        dest='verbose', action="store_true",
+        "-v",
+        "--verbose",
+        dest="verbose",
+        action="store_true",
         default=False,
-        help="provide extremely verbose output.")
+        help="provide extremely verbose output.",
+    )
     parser.add_argument(
-        '-i', '--include-value-time',
-        dest="include_value_time", action="store_false",
-        help="include value timestamp")
+        "-i",
+        "--include-value-time",
+        dest="include_value_time",
+        action="store_false",
+        help="include value timestamp",
+    )
 
     args = parser.parse_args()
     if args.verbose:

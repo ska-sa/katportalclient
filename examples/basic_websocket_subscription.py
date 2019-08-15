@@ -20,7 +20,7 @@ from builtins import str
 from katportalclient import KATPortalClient
 
 
-logger = logging.getLogger('katportalclient.example')
+logger = logging.getLogger("katportalclient.example")
 logger.setLevel(logging.INFO)
 
 
@@ -28,9 +28,9 @@ def on_update_callback(msg_dict):
     """Handler for every JSON message published over the websocket."""
     print("GOT message:")
     for key, value in list(msg_dict.items()):
-        if key == 'msg_data':
-            print('\tmsg_data:')
-            for data_key, data_value in list(msg_dict['msg_data'].items()):
+        if key == "msg_data":
+            print("\tmsg_data:")
+            for data_key, data_value in list(msg_dict["msg_data"].items()):
                 print("\t\t{}: {}".format(data_key, data_value))
         else:
             print("\t{}: {}".format(key, value))
@@ -41,15 +41,16 @@ def main():
     # Change URL to point to a valid portal node.
     # If you are not interested in any subarray specific information
     # (e.g. schedule blocks), then the number can be omitted, as below.
-    portal_client = KATPortalClient('http://{}/api/client'.format(args.host),
-                                    on_update_callback, logger=logger)
+    portal_client = KATPortalClient(
+        "http://{}/api/client".format(args.host), on_update_callback, logger=logger
+    )
 
     # First connect to the websocket, before subscribing.
     yield portal_client.connect()
 
     # Use a namespace with a unique name when subscribing to avoid a
     # clash with existing namespaces.
-    namespace = 'namespace_' + str(uuid.uuid4())
+    namespace = "namespace_" + str(uuid.uuid4())
 
     # Subscribe to the namespace (async call) - no messages will be received yet,
     # as this is a new namespace.
@@ -61,8 +62,8 @@ def main():
     # e.g. any sensor with "mode" in the name.  The response messages will
     # be published to our namespace every 5 seconds.
     result = yield portal_client.set_sampling_strategies(
-        namespace, args.sensors,
-        'period 5.0')
+        namespace, args.sensors, "period 5.0"
+    )
     print("\nSet sampling strategies result: {}.\n".format(result))
 
     # Example:
@@ -102,25 +103,31 @@ def main():
     # Push Ctrl+C to stop.
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Subscribe to websocket and print messages to stdout for "
-                    "matching sensor names.")
+        "matching sensor names."
+    )
     parser.add_argument(
-        '--host',
-        default='127.0.0.1',
-        help="hostname or IP of the portal server (default: %(default)s).")
+        "--host",
+        default="127.0.0.1",
+        help="hostname or IP of the portal server (default: %(default)s).",
+    )
     parser.add_argument(
-        'sensors',
-        metavar='sensor',
-        nargs='+',
+        "sensors",
+        metavar="sensor",
+        nargs="+",
         help="list of sensor names or filter strings to request data for "
-             "(examples: wind_speed azim elev)")
+        "(examples: wind_speed azim elev)",
+    )
     parser.add_argument(
-        '-v', '--verbose',
-        dest='verbose', action="store_true",
+        "-v",
+        "--verbose",
+        dest="verbose",
+        action="store_true",
         default=False,
-        help="provide extremely verbose output.")
+        help="provide extremely verbose output.",
+    )
     args = parser.parse_args()
     if args.verbose:
         logger.setLevel(logging.DEBUG)

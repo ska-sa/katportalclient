@@ -18,7 +18,7 @@ import tornado.gen
 
 from katportalclient import KATPortalClient, SensorLookupError
 
-logger = logging.getLogger('katportalclient.example')
+logger = logging.getLogger("katportalclient.example")
 logger.setLevel(logging.INFO)
 
 
@@ -28,56 +28,65 @@ def main():
     # Note: if on_update_callback is set to None, then we cannot use the
     #       KATPortalClient.connect() method (i.e. no websocket access).
     portal_client = KATPortalClient(
-        'http://{host}/api/client/{sub_nr}'.format(**vars(args)),
+        "http://{host}/api/client/{sub_nr}".format(**vars(args)),
         on_update_callback=None,
-        logger=logger)
+        logger=logger,
+    )
 
     lookup_args = vars(args)
     try:
         name = yield portal_client.sensor_subarray_lookup(
-            component=lookup_args['component'],
-            sensor=lookup_args['sensor'],
-            return_katcp_name=lookup_args['return_katcp_name'])
+            component=lookup_args["component"],
+            sensor=lookup_args["sensor"],
+            return_katcp_name=lookup_args["return_katcp_name"],
+        )
         print("Lookup result: ", name)
     except SensorLookupError as exc:
         print("Lookup failed!", exc)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Returns a full sensor name based on a generic component "
-        "and sensor.")
+        "and sensor."
+    )
     parser.add_argument(
-        '--host',
-        default='127.0.0.1',
-        help="hostname or IP of the portal server (default: %(default)s).")
+        "--host",
+        default="127.0.0.1",
+        help="hostname or IP of the portal server (default: %(default)s).",
+    )
     parser.add_argument(
-        '-n',
-        '--sub-nr',
-        dest='sub_nr',
-        default='1',
-        help="The subarray that the component is assigned to.")
+        "-n",
+        "--sub-nr",
+        dest="sub_nr",
+        default="1",
+        help="The subarray that the component is assigned to.",
+    )
     parser.add_argument(
-        '-c',
-        '--component',
-        dest='component',
-        help="Component containing the sensor to be looked up.")
+        "-c",
+        "--component",
+        dest="component",
+        help="Component containing the sensor to be looked up.",
+    )
     parser.add_argument(
-        '-s', '--sensor', dest='sensor', help="The sensor to be looked up.")
+        "-s", "--sensor", dest="sensor", help="The sensor to be looked up."
+    )
     parser.add_argument(
-        '-k',
-        '--return-katcp-name',
+        "-k",
+        "--return-katcp-name",
         default=False,
-        dest='return_katcp_name',
-        action='store_true',
-        help="Whether to return the katcp name or the Python normalised name.")
+        dest="return_katcp_name",
+        action="store_true",
+        help="Whether to return the katcp name or the Python normalised name.",
+    )
     parser.add_argument(
-        '-v',
-        '--verbose',
-        dest='verbose',
+        "-v",
+        "--verbose",
+        dest="verbose",
         action="store_true",
         default=False,
-        help="provide extremely verbose output.")
+        help="provide extremely verbose output.",
+    )
     args = parser.parse_args()
 
     if args.verbose:

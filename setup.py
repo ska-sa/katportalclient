@@ -12,7 +12,7 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     scripts=[],
-    url='http://ska.ac.za/',
+    url="http://ska.ac.za/",
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
@@ -28,7 +28,7 @@ setup(
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
         "Topic :: Software Development :: Libraries :: Python Modules",
-        "Topic :: Scientific/Engineering :: Astronomy"
+        "Topic :: Scientific/Engineering :: Astronomy",
     ],
     platforms=["OS Independent"],
     keywords="meerkat kat ska",
@@ -49,7 +49,8 @@ setup(
             "sphinx>=1.2.3, <2.0",
             "docutils>=0.12, <1.0",
             "sphinx_rtd_theme>=0.1.5, <1.0",
-            "numpydoc>=0.5, <1.0"]
+            "numpydoc>=0.5, <1.0",
+        ]
     },
     zip_safe=False,
     test_suite="nose.collector",
