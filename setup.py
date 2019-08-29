@@ -2,17 +2,19 @@
 # Copyright (c) 2015-2019, National Research Foundation (Square Kilometre Array)
 # BSD license - see COPYING for details
 
-import os.path
-
+from os import path
 from setuptools import setup, find_packages
 
-here = os.path.dirname(__file__)
-readme = open(os.path.join(here, 'README.md')).read()
-long_description = readme 
+
+this_directory = path.abspath(path.dirname(__file__))
+with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
+    long_description = f.read()
 
 setup(
     name="katportalclient",
     description="A client for katportal.",
+    long_description=long_description,
+    long_description_content_type='text/markdown',
     author="MeerKAT CAM Team",
     author_email="cam@ska.ac.za",
     packages=find_packages(),
