@@ -1,8 +1,16 @@
 #!/usr/bin/env python
-# Copyright 2015 SKA South Africa (http://ska.ac.za/)
+# Copyright (c) 2015-2019, National Research Foundation (Square Kilometre Array)
 # BSD license - see COPYING for details
 
+import os.path
+
 from setuptools import setup, find_packages
+
+here = os.path.dirname(__file__)
+readme = open(os.path.join(here, 'README.md')).read()
+changelog = open(os.path.join(here, 'CHANGELOG')).read()
+long_description = readme + '\n\n' + changelog
+
 
 setup(
     name="katportalclient",
