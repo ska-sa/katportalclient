@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright (c) 2015-2019, National Research Foundation (Square Kilometre Array)
+# Copyright (c) 2015 National Research Foundation (South African Radio Astronomy Observatory)
 # BSD license - see COPYING for details
 
 from os import path
@@ -8,7 +8,10 @@ from setuptools import setup, find_packages
 
 this_directory = path.abspath(path.dirname(__file__))
 with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
-    long_description = f.read()
+    readme = f.read()
+with open(path.join(this_directory, 'CHANGELOG.md'), encoding='utf-8') as f:
+    changelog = f.read()
+long_description = readme + "\n\n#Changelog\n" + changelog
 
 setup(
     name="katportalclient",
@@ -20,7 +23,7 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     scripts=[],
-    url='http://ska.ac.za/',
+    url='https://github.com/ska-sa/katportalclient',
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
