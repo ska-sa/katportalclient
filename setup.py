@@ -8,9 +8,7 @@ from setuptools import setup, find_packages
 
 here = os.path.dirname(__file__)
 readme = open(os.path.join(here, 'README.md')).read()
-changelog = open(os.path.join(here, 'CHANGELOG')).read()
-long_description = readme + '\n\n' + changelog
-
+long_description = readme 
 
 setup(
     name="katportalclient",
