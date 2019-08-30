@@ -1,18 +1,32 @@
 #!/usr/bin/env python
-# Copyright 2015 SKA South Africa (http://ska.ac.za/)
-# BSD license - see COPYING for details
+# Copyright (c) 2015 National Research Foundation (South African Radio Astronomy Observatory)
+# BSD license - see LICENSE for details
 
+from os import path
 from setuptools import setup, find_packages
+
+
+this_directory = path.abspath(path.dirname(__file__))
+files = {'Readme': 'README.md',
+         'Changelog': 'CHANGELOG.md'}
+long_description = ""
+for name, filename in files.items():
+    long_description += "{}\n".format(name)
+    with open(path.join(this_directory, filename)) as f:
+        file_contents = f.read()
+    long_description += file_contents + "\n\n"
 
 setup(
     name="katportalclient",
     description="A client for katportal.",
+    long_description=long_description,
+    long_description_content_type='text/markdown',
     author="MeerKAT CAM Team",
     author_email="cam@ska.ac.za",
     packages=find_packages(),
     include_package_data=True,
     scripts=[],
-    url='http://ska.ac.za/',
+    url='https://github.com/ska-sa/katportalclient',
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",

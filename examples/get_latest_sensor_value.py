@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-# Copyright 2018 SKA South Africa (http://ska.ac.za/)
-# BSD license - see COPYING for details
+# Copyright (c) 2018 National Research Foundation (South African Radio Astronomy Observatory)
+# BSD license - see LICENSE for details
 """Simple example demonstrating retrieving the latest sensor value.
 
 This example gets lists of sensor names, then returns the

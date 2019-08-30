@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-# Copyright 2017 SKA South Africa (http://ska.ac.za/)
-# BSD license - see COPYING for details
+# Copyright (c) 2017 National Research Foundation (South African Radio Astronomy Observatory)
+# BSD license - see LICENSE for details
 """Simple example demonstrating the use of the sensor_subarray_lookup method.
 This method gets the full sensor name based on a generic component and sensor
 name, for a given subarray. This method will return a failed katcp response if
