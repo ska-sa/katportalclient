@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # Copyright (c) 2015 National Research Foundation (South African Radio Astronomy Observatory)
-# BSD license - see COPYING for details
+# BSD license - see LICENSE for details
 
 from os import path
 from setuptools import setup, find_packages
@@ -8,8 +8,7 @@ from setuptools import setup, find_packages
 
 this_directory = path.abspath(path.dirname(__file__))
 files = {'Readme': 'README.md',
-         'Changelog': 'CHANGELOG.md',
-         'Copying': 'COPYING'}
+         'Changelog': 'CHANGELOG.md'}
 long_description = ""
 for name, filename in files.items():
     long_description += "{}\n".format(name)
