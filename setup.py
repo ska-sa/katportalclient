@@ -7,11 +7,15 @@ from setuptools import setup, find_packages
 
 
 this_directory = path.abspath(path.dirname(__file__))
-with open(path.join(this_directory, 'README.md')) as f:
-    readme = f.read()
-with open(path.join(this_directory, 'CHANGELOG.md')) as f:
-    changelog = f.read()
-long_description = readme + "\n\n#Changelog\n" + changelog
+files = {'Readme': 'README.md',
+         'Changelog': 'CHANGELOG.md',
+         'Copying': 'COPYING.md'}
+long_description = ""
+for name, filename in files.items():
+    long_description += "{name}\n".format(name)
+    with open(path.join(this_directory, filename)) as f:
+        file_contents = f.read()
+    long_description += file_contents + "\n\n"
 
 setup(
     name="katportalclient",
