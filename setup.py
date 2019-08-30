@@ -12,7 +12,7 @@ files = {'Readme': 'README.md',
          'Copying': 'COPYING.md'}
 long_description = ""
 for name, filename in files.items():
-    long_description += "{name}\n".format(name)
+    long_description += "{}\n".format(name)
     with open(path.join(this_directory, filename)) as f:
         file_contents = f.read()
     long_description += file_contents + "\n\n"
