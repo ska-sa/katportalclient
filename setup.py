@@ -9,7 +9,7 @@ from setuptools import setup, find_packages
 this_directory = path.abspath(path.dirname(__file__))
 files = {'Readme': 'README.md',
          'Changelog': 'CHANGELOG.md',
-         'Copying': 'COPYING.md'}
+         'Copying': 'COPYING'}
 long_description = ""
 for name, filename in files.items():
     long_description += "{}\n".format(name)
