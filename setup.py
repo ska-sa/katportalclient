@@ -7,9 +7,9 @@ from setuptools import setup, find_packages
 
 
 this_directory = path.abspath(path.dirname(__file__))
-with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
+with open(path.join(this_directory, 'README.md')) as f:
     readme = f.read()
-with open(path.join(this_directory, 'CHANGELOG.md'), encoding='utf-8') as f:
+with open(path.join(this_directory, 'CHANGELOG.md')) as f:
     changelog = f.read()
 long_description = readme + "\n\n#Changelog\n" + changelog
 
