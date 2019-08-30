@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-# Copyright 2019 SKA South Africa (http://ska.ac.za/)
-# BSD license - see COPYING for details
+# Copyright (c) 2019 National Research Foundation (South African Radio Astronomy Observatory)
+# BSD license - see LICENSE for details
 """Simple example demonstrating queries of schedule block IDs using
 a given valid capture block ID.
 """

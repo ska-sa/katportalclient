@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-# Copyright 2016 SKA South Africa (http://ska.ac.za/)
-# BSD license - see COPYING for details
+# Copyright (c) 2016 National Research Foundation (South African Radio Astronomy Observatory)
+# BSD license - see LICENSE for details
 """Simple example demonstrating sensor information queries.
 
 This example gets lists of sensor names in various ways, and gets the

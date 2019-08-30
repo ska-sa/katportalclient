@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-# Copyright 2017 SKA South Africa (http://ska.ac.za/)
-# BSD license - see COPYING for details
+# Copyright (c) 2017 National Research Foundation (South African Radio Astronomy Observatory)
+# BSD license - see LICENSE for details
 """Simple example demonstrating getting future pointing information by supplying
 a schedule block id code.
 

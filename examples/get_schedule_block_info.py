@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-# Copyright 2016 SKA South Africa (http://ska.ac.za/)
-# BSD license - see COPYING for details
+# Copyright (c) 2016 National Research Foundation (South African Radio Astronomy Observatory)
+# BSD license - see LICENSE for details
 """Simple example demonstrating schedule block information queries.
 
 This example uses HTTP access to katportal, not websocket access.  It uses a
