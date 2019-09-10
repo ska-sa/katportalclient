@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-# Copyright 2016 SKA South Africa (http://ska.ac.za/)
-# BSD license - see COPYING for details
+# Copyright (c) 2016 National Research Foundation (South African Radio Astronomy Observatory)
+# BSD license - see LICENSE for details
 """Simple example demonstrating websocket subscription.
 
 This example connects to katportal via a websocket.  It subscribes to
