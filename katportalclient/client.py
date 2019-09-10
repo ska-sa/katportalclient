@@ -1194,7 +1194,8 @@ class KATPortalClient(object):
             filters = [filters]
         results = set()
         for filt in filters:
-            response = yield self._http_client.fetch("{}?sensors={}".format(url, filt))
+            query_url = url_concat(url, {"sensors": filt})
+            response = yield self._http_client.fetch(query_url)
             new_sensors = self._extract_sensors_details(response.body)
             # only add sensors once, to ensure a unique list
             for sensor in new_sensors:
@@ -1393,8 +1394,8 @@ class KATPortalClient(object):
         results_to_return = {}
 
         for filt in filters:
-            response = yield self._http_client.fetch(
-                "{}?reading_only=1&name_filter={}$".format(url, filt))
+            query_url = url_concat(url, {"reading_only": "1", "name_filter": filt})
+            response = yield self._http_client.fetch(query_url)
             try:
                 results = json.loads(response.body)
             except json.JSONError:

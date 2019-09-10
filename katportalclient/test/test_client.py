@@ -8,6 +8,7 @@ standard_library.install_aliases()  # noqa: E402
 import logging
 import io
 import time
+from urllib.parse import quote_plus
 
 import mock
 import omnijson as json
@@ -745,7 +746,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
                                                   sensor_json['anc_weather_device_status']),
             invalid_response='[]',
             starts_with=history_base_url,
-            contains=sensor_name_filter)
+            contains=quote_plus(sensor_name_filter))
 
         sensors = yield self._portal_client.sensor_names(sensor_name_filter)
 
@@ -1138,7 +1139,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
             invalid_responses=['1error', '2error', '3error'],
             starts_withs=history_base_url,
             containses=[
-                sensor_name_filter,
+                quote_plus(sensor_name_filter),
                 sensor_names[0],
                 sensor_names[1]])
 
