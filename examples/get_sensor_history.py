@@ -101,7 +101,7 @@ def main():
                     item = history[count]
                     if count == 0:
                         print("\tindex,{}".format(",".join(item._fields)))
-                    print "\t{},{}".format(count, item.csv())
+                    print("\t{},{}".format(count, item.csv()))
 
     # Example: ./get_sensor_history.py -s 1522756324 -e 1522759924 sys_watchdogs_sys
     # Matching sensor names: [u'sys_watchdogs_sys']
