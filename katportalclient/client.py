@@ -12,7 +12,6 @@ import base64
 import hashlib
 import hmac
 import logging
-import uuid
 import time
 import concurrent.futures
 
@@ -24,7 +23,6 @@ import tornado.locks
 
 from builtins import bytes, object, str
 from collections import namedtuple
-from datetime import timedelta
 from past.builtins import basestring
 from urllib.parse import urlencode
 
@@ -36,15 +34,7 @@ from tornado.websocket import websocket_connect
 from .request import JSONRPCRequest
 
 
-# Limit for sensor history queries, in order to preserve memory on katportal.
 MAX_SAMPLES_PER_HISTORY_QUERY = 1000000
-# Pick a reasonable chunk size for sample downloads.  The samples are
-# published in blocks, so many at a time.
-# 43200 = 12 hour chunks if 1 sample every second
-SAMPLE_HISTORY_CHUNK_SIZE = 43200
-# Request sample times  in milliseconds for better precision
-SAMPLE_HISTORY_REQUEST_TIME_TYPE = 'ms'
-SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC = 1000.0
 
 # Websocket connect and reconnect timeouts
 WS_CONNECT_TIMEOUT = 10
@@ -95,11 +85,11 @@ def create_jwt_login_token(email, password):
     return jwt_auth_token
 
 
-class SensorSample(namedtuple('SensorSample', 'timestamp, value, status')):
+class SensorSample(namedtuple('SensorSample', 'sample_time, value, status')):
     """Class to represent all sensor samples.
 
     Fields:
-        - timestamp:  float
+        - sample_time:  float
             The timestamp (UNIX epoch) the sample was received by CAM.
             timestamp value is reported with at least millisecond precision.
         - value:  str
@@ -113,18 +103,18 @@ class SensorSample(namedtuple('SensorSample', 'timestamp, value, status')):
 
     def csv(self):
         """Returns sample in comma separated values format."""
-        return '{:.6f},{},{}'.format(self.timestamp, self.value, self.status)
+        return '{:.6f},{},{}'.format(self.sample_time, self.value, self.status)
 
 
-class SensorSampleValueTs(namedtuple(
-        'SensorSampleValueTs', 'timestamp, value_timestamp, value, status')):
-    """Class to represent sensor samples, including the value_timestamp.
+class SensorSampleValueTime(namedtuple(
+        'SensorSampleValueTime', 'sample_time, value_time, value, status')):
+    """Class to represent sensor samples, including the value_time.
 
     Fields:
-        - timestamp:  float
+        - sample_time:  float
             The timestamp (UNIX epoch) the sample was received by CAM.
             Timestamp value is reported with at least millisecond precision.
-        - value_timestamp:  float
+        - value_time:  float
             The timestamp (UNIX epoch) the sample was read at the lowest level sensor.
             value_timestamp value is reported with at least millisecond precision.
         - value:  str
@@ -139,7 +129,7 @@ class SensorSampleValueTs(namedtuple(
     def csv(self):
         """Returns sample in comma separated values format."""
         return '{:.6f},{:.6f},{},{}'.format(
-            self.timestamp, self.value_timestamp, self.value, self.status)
+            self.sample_time, self.value_time, self.value, self.status)
 
 
 class KATPortalClient(object):
@@ -177,7 +167,6 @@ class KATPortalClient(object):
             defaults=dict(connect_timeout=HTTP_CONNECT_TIMEOUT,
                           request_timeout=HTTP_REQUEST_TIMEOUT))
         self._sitemap = None
-        self._sensor_history_states = {}
         self._reference_observer_config = None
         self._disconnect_issued = False
         self._ws_jsonrpc_cache = []
@@ -226,7 +215,8 @@ class KATPortalClient(object):
 
         try:
             response_json = json.loads(response.body)
-            if not response_json.get('logged_in', False) or response_json.get('session_id'):
+            if not response_json.get('logged_in',
+                                     False) or response_json.get('session_id'):
                 self._session_id = response_json.get('session_id')
                 self._current_user_id = response_json.get('user_id')
 
@@ -675,54 +665,6 @@ class KATPortalClient(object):
         processed = False
         if msg_id == 'redis-pubsub-init':
             processed = True  # Nothing to do really.
-        elif 'msg_channel' in msg_result:
-            namespace = msg_result['msg_channel'].split(':', 1)[0]
-            if namespace in self._sensor_history_states:
-                state = self._sensor_history_states[namespace]
-                msg_data = msg_result['msg_data']
-                if (isinstance(msg_data, dict) and
-                        'inform_type' in msg_data and
-                        msg_data['inform_type'] == 'sample_history'):
-                    # inform message which provides synchronisation
-                    # information.
-                    inform = msg_data['inform_data']
-                    num_new_samples = inform['num_samples_to_be_published']
-                    state['num_samples_pending'] += num_new_samples
-                    if inform['done']:
-                        state['done_event'].set()
-                elif isinstance(msg_data, list):
-                    num_received = 0
-                    for sample in msg_data:
-                        if len(sample) == 6:
-                            # assume sample data message, extract fields of interest
-                            # (timestamp returned in milliseconds, so scale to seconds)
-                            # example:  [1476164224429L, 1476164223640L,
-                            #            1476164224429354L, u'5.07571614843',
-                            #            u'anc_mean_wind_speed', u'nominal']
-                            if state['include_value_ts']:
-                                # Requesting value_timestamp in addition to
-                                # sample timestamp
-                                sensor_sample = SensorSampleValueTs(
-                                    timestamp=sample[
-                                        0] / SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
-                                    value_timestamp=sample[
-                                        1] / SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
-                                    value=sample[3],
-                                    status=sample[5])
-                            else:
-                                # Only sample timestamp
-                                sensor_sample = SensorSample(
-                                    timestamp=sample[
-                                        0] / SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
-                                    value=sample[3],
-                                    status=sample[5])
-                            state['samples'].append(sensor_sample)
-                            num_received += 1
-                    state['num_samples_pending'] -= num_received
-                else:
-                    self._logger.warn(
-                        'Ignoring unexpected message: %s', msg_result)
-                processed = True
         if not processed:
             if self._on_update:
                 self._io_loop.add_callback(self._on_update, msg_result)
@@ -1214,13 +1156,8 @@ class KATPortalClient(object):
             if 'error' in sensors:
                 raise SensorNotFoundError(
                     "Invalid sensor request: " + sensors['error'])
-        else:
-            for sensor in sensors:
-                sensor_info = {}
-                sensor_info['name'] = sensor[0]
-                sensor_info['component'] = sensor[1]
-                sensor_info.update(sensor[2])
-                results.append(sensor_info)
+            elif 'data' in sensors:
+                results = sensors['data']
         return results
 
     @tornado.gen.coroutine
@@ -1291,7 +1228,7 @@ class KATPortalClient(object):
                   'params': str,
                   'units': str,
                   'type': str,
-                  'resource': str,
+                  'component': str,
                   'katcp_name': str,
                   ... }
 
@@ -1305,8 +1242,8 @@ class KATPortalClient(object):
                      Measurement units for sensor value, e.g. 'm/s'.
                 type: str
                      Sensor type, e.g. 'float', 'discrete', 'boolean'
-                resource: str
-                     Name of resource that provides the sensor.
+                component: str
+                     Name of component that provides the sensor.
                 katcp_name: str
                      Internal KATCP messaging name.
 
@@ -1333,7 +1270,15 @@ class KATPortalClient(object):
                         sensor_name,
                         [result['name'] for result in results[0:5]]))
         else:
-            raise tornado.gen.Return(results[0])
+            attrs = results[0].get('attributes')
+            result = {'name': results[0].get('name'),
+                      'description': attrs.get('description'),
+                      'params': attrs.get('params'),
+                      'katcp_name': attrs.get('katcp_name'),
+                      'units': attrs.get('units'),
+                      'type': attrs.get('type'),
+                      'component': results[0].get('component')}
+            raise tornado.gen.Return(result)
 
     @tornado.gen.coroutine
     def sensor_value(self, sensor_name, include_value_ts=False):
@@ -1357,7 +1302,7 @@ class KATPortalClient(object):
         Returns
         -------
         namedtuple:
-            Instance of :class:`.SensorSampleValueTs` if `include_value_ts` is `True`,
+            Instance of :class:`.SensorSampleValueTime` if `include_value_ts` is `True`,
             otherwise an instance of :class:`.SensorSample`
 
         Raises
@@ -1399,14 +1344,14 @@ class KATPortalClient(object):
             result_to_format = results[0]
 
         if include_value_ts:
-            raise tornado.gen.Return(SensorSampleValueTs(
-                timestamp=result_to_format['time'],
-                value_timestamp=result_to_format['value_ts'],
+            raise tornado.gen.Return(SensorSampleValueTime(
+                sample_time=result_to_format['time'],
+                value_time=result_to_format['value_ts'],
                 value=result_to_format['value'],
                 status=result_to_format['status']))
         else:
             raise tornado.gen.Return(SensorSample(
-                timestamp=result_to_format['time'],
+                sample_time=result_to_format['time'],
                 value=result_to_format['value'],
                 status=result_to_format['status']))
 
@@ -1461,14 +1406,14 @@ class KATPortalClient(object):
 
             for result in results:
                 if include_value_ts:
-                    results_to_return[result['name']] = SensorSampleValueTs(
-                        timestamp=result['time'],
-                        value_timestamp=result['value_ts'],
+                    results_to_return[result['name']] = SensorSampleValueTime(
+                        sample_time=result['time'],
+                        value_time=result['value_ts'],
                         value=result['value'],
                         status=result['status'])
                 else:
                     results_to_return[result['name']] = SensorSample(
-                        timestamp=result['time'],
+                        sample_time=result['time'],
                         value=result['value'],
                         status=result['status'])
 
@@ -1476,7 +1421,7 @@ class KATPortalClient(object):
 
     @tornado.gen.coroutine
     def sensor_history(self, sensor_name, start_time_sec, end_time_sec,
-                       include_value_ts=False, timeout_sec=300):
+                       include_value_ts=False, timeout_sec=0):
         """Return time history of sample measurements for a sensor.
 
         For a list of sensor names, see :meth:`.sensors_list`.
@@ -1491,21 +1436,20 @@ class KATPortalClient(object):
         end_time_sec: float
             End time for sample history query, in seconds since the UNIX epoch.
         include_value_ts: bool
-            Flag to also include value timestamp in addition to time series
-            sample timestamp in the result.
+            Flag to also include value sample_time in addition to time series
+            sample time in the result.
             Default: False.
-        timeout_sec: float
-            Maximum time (in sec) to wait for the history to be retrieved.
-            An exception will be raised if the request times out. (default:300)
+        timeout_sec: int
+            This parameter is no longer support. Here for backwards compatibility
 
         Returns
         -------
         list:
             List of :class:`.SensorSample` namedtuples (one per sample, with fields
-            timestamp, value and status) or, if include_value_ts was set, then
-            list of :class:`.SensorSampleValueTs` namedtuples (one per sample, with fields
-            timestamp, value_timestamp, value and status).
-            See :class:`.SensorSample` and :class:`.SensorSampleValueTs` for details.
+            sample_time, value and status) or, if include_value_time was set, then
+            list of :class:`.SensorSampleValueTime` namedtuples (one per sample, with fields
+            sample_time, value_time, value and status).
+            See :class:`.SensorSample` and :class:`.SensorSampleValueTime` for details.
             If the sensor named never existed, or is otherwise invalid, the
             list will be empty - no exception is raised.
 
@@ -1515,78 +1459,45 @@ class KATPortalClient(object):
             - If there was an error submitting the request.
             - If the request timed out
         """
-        # create new namespace and state variables per query, to allow multiple
-        # request simultaneously
-        state = {
-            'sensor': sensor_name,
-            'done_event': tornado.locks.Event(),
-            'num_samples_pending': 0,
-            'include_value_ts': include_value_ts,
-            'samples': []
-        }
-        namespace = str(uuid.uuid4())
-        self._sensor_history_states[namespace] = state
-        # ensure connected, and subscribed before sending request
-        yield self.connect()
-        yield self.subscribe(namespace, ['*'])
+
+        if timeout_sec != 0:
+            self._logger.warn(
+                "timeout_sec is no longer supported. Default tornado timeout is used")
 
         params = {
             'sensor': sensor_name,
-            'time_type': SAMPLE_HISTORY_REQUEST_TIME_TYPE,
-            'start': start_time_sec * SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
-            'end': end_time_sec * SAMPLE_HISTORY_REQUEST_MULTIPLIER_TO_SEC,
-            'namespace': namespace,
-            'request_in_chunks': 1,
-            'chunk_size': SAMPLE_HISTORY_CHUNK_SIZE,
-            'limit': MAX_SAMPLES_PER_HISTORY_QUERY
+            'start_time': start_time_sec,
+            'end_time': end_time_sec,
+            'limit': MAX_SAMPLES_PER_HISTORY_QUERY,
+            'include_value_time': include_value_ts
         }
+
         url = url_concat(
-            (yield self.get_sitemap())['historic_sensor_values'] + '/samples', params)
+            (yield self.get_sitemap())['historic_sensor_values'] + '/query', params)
         self._logger.debug("Sensor history request: %s", url)
         response = yield self._http_client.fetch(url)
-        data = json.loads(response.body)
-        if isinstance(data, dict) and data['result'] == 'success':
-            download_start_sec = time.time()
-            # Query accepted by portal - data will be returned via websocket, but
-            # we need to wait until it has arrived.  For synchronisation, we wait
-            # for a 'done_event'. This event is updated in
-            # _process_redis_message().
-            try:
-                timeout_delta = timedelta(seconds=timeout_sec)
-                yield state['done_event'].wait(timeout=timeout_delta)
-
-                self._logger.debug('Done in %d seconds, fetched %s samples.' % (
-                    time.time() - download_start_sec,
-                    len(state['samples'])))
-            except tornado.gen.TimeoutError:
-                raise SensorHistoryRequestError(
-                    "Sensor history request timed out")
-
-        else:
+        data_json = json.loads(response.body)
+        if 'data' not in data_json:
             raise SensorHistoryRequestError("Error requesting sensor history: {}"
                                             .format(response.body))
-
-        def sort_by_timestamp(sample):
-            return sample.timestamp
-        # return a sorted copy, as data may have arrived out of order
-        result = sorted(state['samples'], key=sort_by_timestamp)
-
-        if len(result) >= MAX_SAMPLES_PER_HISTORY_QUERY:
-            self._logger.warn(
-                'Maximum sample limit (%d) hit - there may be more data available.',
-                MAX_SAMPLES_PER_HISTORY_QUERY)
-
-        # Free the state variables that were only required for the duration of
-        # the download.  Do not disconnect - there may be websocket activity
-        # initiated by another call.
-        yield self.unsubscribe(namespace, ['*'])
-        del self._sensor_history_states[namespace]
-
+        data = []
+        for item in data_json['data']:
+            if 'value_time' in item:
+                sample = SensorSampleValueTime(item['sample_time'],
+                                               item['value_time'],
+                                               item['value'],
+                                               item['status'])
+            else:
+                sample = SensorSample(item['sample_time'],
+                                      item['value'],
+                                      item['status'])
+            data.append(sample)
+        result = sorted(data, key=_sort_by_sample_time)
         raise tornado.gen.Return(result)
 
     @tornado.gen.coroutine
     def sensors_histories(self, filters, start_time_sec, end_time_sec,
-                          include_value_ts=False, timeout_sec=300):
+                          include_value_ts=False, timeout_sec=0):
         """Return time histories of sample measurements for multiple sensors.
 
         Finds the list of available sensors in the system that match the
@@ -1605,23 +1516,22 @@ class KATPortalClient(object):
         end_time_sec: float
             End time for sample history query, in seconds since the UNIX epoch.
         include_value_ts: bool
-            Flag to also include value timestamp in addition to time series
-            sample timestamp in the result.
+            Flag to also include value sample_time in addition to time series
+            sample sample in the result.
             Default: False.
-        timeout_sec: float
-            Maximum time to wait for all sensors' histories to be retrieved.
-            An exception will be raised if the request times out.
+        timeout_sec: int
+            This parameter is no longer support. Here for backwards compatibility
 
         Returns
         -------
         dict:
             Dictionary of lists.  The keys are the full sensor names.
             The values are lists of :class:`.SensorSample` namedtuples,
-            (one per sample, with fields timestamp, value and status)
-            or, if include_value_ts was set, then
-            list of :class:`.SensorSampleValueTs` namedtuples (one per sample,
-            with fields timestamp, value_timestamp, value and status).
-            See :class:`.SensorSample` and :class:`.SensorSampleValueTs` for details.
+            (one per sample, with fields sample_time, value and status)
+            or, if include_value_time was set, then
+            list of :class:`.SensorSampleValueTime` namedtuples (one per sample,
+            with fields sample_time, value_time, value and status).
+            See :class:`.SensorSample` and :class:`.SensorSampleValueTime` for details.
 
         Raises
         -------
@@ -1631,14 +1541,13 @@ class KATPortalClient(object):
         SensorNotFoundError:
             - If any of the filters were invalid regular expression patterns.
         """
-        request_start_sec = time.time()
+
         sensors = yield self.sensor_names(filters)
         histories = {}
         for sensor in sensors:
-            elapsed_time_sec = time.time() - request_start_sec
-            timeout_left_sec = timeout_sec - elapsed_time_sec
             histories[sensor] = yield self.sensor_history(
-                sensor, start_time_sec, end_time_sec, timeout_left_sec)
+                sensor, start_time_sec, end_time_sec,
+                include_value_ts=include_value_ts, timeout_sec=timeout_sec)
         raise tornado.gen.Return(histories)
 
     @tornado.gen.coroutine
@@ -1983,3 +1892,7 @@ class SensorLookupError(Exception):
 
 class InvalidResponseError(Exception):
     """Raise if server response was invalid."""
+
+
+def _sort_by_sample_time(sample):
+    return float(sample.sample_time)

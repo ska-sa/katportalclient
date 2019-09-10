@@ -72,49 +72,57 @@ def main():
                    datetime.utcfromtimestamp(
                        args.start).strftime('%Y-%m-%dT%H:%M:%SZ'),
                    datetime.utcfromtimestamp(args.end).strftime('%Y-%m-%dT%H:%M:%SZ')))
+        value_time = args.include_value_time
         if len(sensor_names) == 1:
-            # Request history for just a single sensor - result is timestamp, value, status
-            #    If value timestamp is also required, then add the additional argument: include_value_ts=True
-            #    result is then timestmap, value_timestmap, value, status
+            # Request history for just a single sensor - result is
+            # sample_time, value, status
+            #    If value timestamp is also required, then add the additional argument:
+            #        include_value_time=True
+            #    result is then sample_time, value_time, value, status
             history = yield portal_client.sensor_history(
-                sensor_names[0], args.start, args.end, timeout_sec=args.timeout)
+                sensor_names[0], args.start, args.end,
+                include_value_ts=value_time)
             histories = {sensor_names[0]: history}
         else:
-            # Request history for all the sensors - result is timestamp, value, status
-            #    If value timestamp is also required, then add the additional argument: include_value_ts=True
-            #    result is then timestmap, value_timestmap, value, status
-            histories = yield portal_client.sensors_histories(
-                sensor_names, args.start, args.end, timeout_sec=args.timeout)
+            # Request history for all the sensors - result is sample_time, value, status
+            #    If value timestamp is also required, then add the additional argument:
+            #        include_value_time=True
+            #    result is then sample_time, value_time, value, status
+            histories = yield portal_client.sensors_histories(sensor_names, args.start,
+                                                              args.end,
+                                                              include_value_ts=value_time)
 
         print("Found {} sensors.".format(len(histories)))
         for sensor_name, history in list(histories.items()):
             num_samples = len(history)
             print("History for: {} ({} samples)".format(sensor_name, num_samples))
             if num_samples > 0:
-                print("\tindex,timestamp,value,status")
                 for count in range(0, num_samples, args.decimate):
-                    print("\t{},{}".format(count, history[count].csv()))
+                    item = history[count]
+                    if count == 0:
+                        print("\tindex,{}".format(",".join(item._fields)))
+                    print("\t{},{}".format(count, item.csv()))
 
-    # Example: ./get_sensor_history.py -s 1476164224 -e 1476164229 anc_mean_wind_speed
-    #
-    # Matching sensor names: [u'anc_mean_wind_speed']
-    #
-    # Detail for sensor anc_mean_wind_speed:
-    # {'name': u'anc_mean_wind_speed', u'systype': u'mkat', 'component': u'anc',
-    #   u'site': u'deva', u'katcp_name': u'anc.mean_wind_speed', u'params': u'[]',
-    #   u'units': u'', u'type': u'float',
-    #   u'description': u"Mean of  ['wind.wind-speed', 'weather.wind-speed']
-    #                     in (600 * 1.0s) window"}
-    #
-    # Requesting history for 1 sensors, from 2016-10-11T05:37:04Z to 2016-10-11T05:37:09Z
+    # Example: ./get_sensor_history.py -s 1522756324 -e 1522759924 sys_watchdogs_sys
+    # Matching sensor names: [u'sys_watchdogs_sys']
+    # Detail for sensor sys_watchdogs_sys:
+    # attributes: {u'component': u'sys', u'original_name': u'sys.watchdogs.sys', u'params': u'[0, 4294967296]', u'description': u'Count of watchdogs received from component sys on 10.8.67.220:2025', u'type': u'integer'}
+    # component: sys
+    # name: sys_watchdogs_sys
+    # Requesting history for 1 sensors, from 2018-04-03T11:52:08Z to 2018-04-03T12:52:08Z
     # Found 1 sensors.
-    # History for: anc_mean_wind_speed (5 samples)
-    #    index,timestamp,value,status
-    #    0,1476164224.43,5.07571614843,nominal
-    #    1,1476164225.43,5.07574851017,nominal
-    #    2,1476164226.43,5.0753700255,nominal
-    #    3,1476164227.43,5.07593196431,nominal
-    #    4,1476164228.43,5.0758410904,nominal
+    # History for: sys_watchdogs_sys (360 samples)
+    #	index,sample_time,value,status
+    #	0,1522756329.5110459328,42108,nominal
+    #	1,1522756339.511122942,42109,nominal
+    #	2,1522756349.5113239288,42110,nominal
+    #	3,1522756359.5115270615,42111,nominal
+    #	4,1522756369.5126268864,42112,nominal
+    #	5,1522756379.5129699707,42113,nominal
+    #	6,1522756389.513215065,42114,nominal
+    #	7,1522756399.514425993,42115,nominal
+    #	8,1522756409.5146770477,42116,nominal
+    #	9,1522756419.5149009228,42117,nominal
 
 
 if __name__ == '__main__':
@@ -135,11 +143,6 @@ if __name__ == '__main__':
         default=time.time(),
         help="end time of sample query [sec since UNIX epoch] (default: now).")
     parser.add_argument(
-        '-r', '--timeout',
-        type=int,
-        default=60,
-        help="maximum time allowed for query [sec] (default: %(default)s).")
-    parser.add_argument(
         '-d', '--decimate',
         type=int,
         metavar='N',
@@ -155,6 +158,11 @@ if __name__ == '__main__':
         dest='verbose', action="store_true",
         default=False,
         help="provide extremely verbose output.")
+    parser.add_argument(
+        '-i', '--include-value-time',
+        dest="include_value_time", action="store_false",
+        help="include value timestamp")
+
     args = parser.parse_args()
     if args.verbose:
         logger.setLevel(logging.DEBUG)
