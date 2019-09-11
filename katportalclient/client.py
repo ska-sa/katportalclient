@@ -106,6 +106,45 @@ class SensorSample(namedtuple('SensorSample', 'sample_time, value, status')):
         return '{:.6f},{},{}'.format(self.sample_time, self.value, self.status)
 
 
+class SensorInfo(namedtuple('SensorInfo',
+                            'name, '
+                            'description, '
+                            'params, '
+                            'katcp_name, '
+                            'units, '
+                            'type, '
+                            'component')):
+    """Class to represent sensor info.
+
+    Fields:
+        - name:  str
+            The sensor name.
+        - description:  str
+            A human-readable description of the information provided by the sensor
+        - units:  str
+            a human-readable string containing a short form of the units for the
+            sensor value. May be blank if there are no suitable units.
+            Examples:
+            "kg", "packet count", "m/s". Should be suitable for display next to
+            the value in a user interface.
+        - type:  str
+            The name of one of the datatypes defined in section 3 of the KATCP spec.
+        - component: str
+            The name of the component that the sensor belongs too.
+    """
+    def csv(self):
+        """Returns sensor info in comma separated values format.
+        (just adhering to convention of other classes)
+        """
+        return '{},{},{},{},{},{},{}'.format(self.name,
+                                             self.description,
+                                             self.params,
+                                             self.katcp_name,
+                                             self.units,
+                                             self.type,
+                                             self.component)
+
+
 class SensorSampleValueTime(namedtuple(
         'SensorSampleValueTime', 'sample_time, value_time, value, status')):
     """Class to represent sensor samples, including the value_time.
@@ -1263,7 +1302,8 @@ class KATPortalClient(object):
             # check for exact match, before giving up
             for result in results:
                 if result['name'] == sensor_name:
-                    raise tornado.gen.Return(result)
+                    result = dict_to_sensor_info(result)
+                    raise tornado.gen.Return(result._asdict())
             raise SensorNotFoundError(
                 "Multiple sensors ({}) found - specify a single sensor "
                 "name not a pattern like: '{}'.  (Some matches: {})."
@@ -1271,15 +1311,9 @@ class KATPortalClient(object):
                         sensor_name,
                         [result['name'] for result in results[0:5]]))
         else:
-            attrs = results[0].get('attributes')
-            result = {'name': results[0].get('name'),
-                      'description': attrs.get('description'),
-                      'params': attrs.get('params'),
-                      'katcp_name': attrs.get('katcp_name'),
-                      'units': attrs.get('units'),
-                      'type': attrs.get('type'),
-                      'component': results[0].get('component')}
-            raise tornado.gen.Return(result)
+            result = dict_to_sensor_info(results[0])
+            raise tornado.gen.Return(result._asdict())
+
 
     @tornado.gen.coroutine
     def sensor_value(self, sensor_name, include_value_ts=False):
@@ -1897,3 +1931,16 @@ class InvalidResponseError(Exception):
 
 def _sort_by_sample_time(sample):
     return float(sample.sample_time)
+
+
+def dict_to_sensor_info(response_dict):
+    """Converts a response dict to a SensorInfo Object
+    """
+    attrs = response_dict.get('attributes')
+    return SensorInfo(response_dict.get('name'),
+                      attrs.get('description'),
+                      attrs.get('params'),
+                      attrs.get('katcp_name'),
+                      attrs.get('units'),
+                      attrs.get('type'),
+                      response_dict.get('component'))
