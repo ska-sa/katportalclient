@@ -1940,7 +1940,7 @@ def dict_to_sensor_info(response_dict):
     return SensorInfo(response_dict.get('name'),
                       attrs.get('description'),
                       attrs.get('params'),
-                      attrs.get('katcp_name'),
+                      attrs.get('original_name'),
                       attrs.get('units'),
                       attrs.get('type'),
                       response_dict.get('component'))
