@@ -1935,6 +1935,14 @@ def _sort_by_sample_time(sample):
 
 def dict_to_sensor_info(response_dict):
     """Converts a response dict to a SensorInfo Object
+    Parameters
+    ----------
+    response_dict: dict
+        dict containing the response of a single sensor from katstore
+    Returns
+    -------
+    namedtuple:
+        Instance of :class:`.SensorInfo`
     """
     attrs = response_dict.get('attributes')
     return SensorInfo(response_dict.get('name'),
