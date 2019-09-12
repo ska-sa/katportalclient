@@ -120,7 +120,7 @@ class SensorInfo(namedtuple('SensorInfo',
         - name:  str
             The sensor name.
         - description:  str
-            A human-readable description of the information provided by the sensor
+            A human-readable description of the information provided by the sensor.
         - units:  str
             a human-readable string containing a short form of the units for the
             sensor value. May be blank if there are no suitable units.
@@ -1934,15 +1934,16 @@ def _sort_by_sample_time(sample):
 
 
 def dict_to_sensor_info(response_dict):
-    """Converts a response dict to a SensorInfo Object
+    """Converts a response dict to a SensorInfo Object.
+
     Parameters
     ----------
     response_dict: dict
-        dict containing the response of a single sensor from katstore
+        dict containing the response of a single sensor from katstore.
     Returns
     -------
     namedtuple:
-        Instance of :class:`.SensorInfo`
+        Instance of :class:`.SensorInfo.
     """
     attrs = response_dict.get('attributes')
     return SensorInfo(response_dict.get('name'),
