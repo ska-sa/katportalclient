@@ -122,7 +122,7 @@ class SensorInfo(namedtuple('SensorInfo',
         - description:  str
             A human-readable description of the information provided by the sensor.
         - units:  str
-            a human-readable string containing a short form of the units for the
+            A human-readable string containing a short form of the units for the
             sensor value. May be blank if there are no suitable units.
             Examples:
             "kg", "packet count", "m/s". Should be suitable for display next to
