@@ -1,5 +1,6 @@
 12th Sep 2019 (0.2.1)
-* Fix bug where incorrect sensor info returned from `sensor_detail` does not match docs.
+
+* Fixes a bug where incorrect sensor info is returned from `sensor_detail` and does not match the documentation.
 * Added new namedtuple class `SensorInfo`
 
 11th Sep 2019 (0.2.0)
