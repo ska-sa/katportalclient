@@ -1,7 +1,6 @@
-12th Sep 2019 (1.0.0)
+12th Sep 2019 (0.2.1)
 * Fix bug where incorrect sensor info returned from `sensor_detail` does not match docs.
 * Added new namedtuple class `SensorInfo`
-* Follow SemVer
 
 11th Sep 2019 (0.2.0)
  * changes to internal API 
