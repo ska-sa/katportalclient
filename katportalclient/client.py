@@ -1263,6 +1263,14 @@ class KATPortalClient(object):
             # check for exact match, before giving up
             for result in results:
                 if result['name'] == sensor_name:
+                    attrs = result.get('attributes')
+                    result = {'name': result.get('name'),
+                              'description': attrs.get('description'),
+                              'params': attrs.get('params'),
+                              'katcp_name': attrs.get('original_name'),
+                              'units': attrs.get('units'),
+                              'type': attrs.get('type'),
+                              'component': result.get('component')}
                     raise tornado.gen.Return(result)
             raise SensorNotFoundError(
                 "Multiple sensors ({}) found - specify a single sensor "
@@ -1275,7 +1283,7 @@ class KATPortalClient(object):
             result = {'name': results[0].get('name'),
                       'description': attrs.get('description'),
                       'params': attrs.get('params'),
-                      'katcp_name': attrs.get('katcp_name'),
+                      'katcp_name': attrs.get('original_name'),
                       'units': attrs.get('units'),
                       'type': attrs.get('type'),
                       'component': results[0].get('component')}
