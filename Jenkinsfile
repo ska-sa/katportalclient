@@ -9,7 +9,7 @@ pipeline {
     }
 
     stages {
-        stage('Checkout SCM') {
+        stage ('Checkout SCM') {
             steps {
                 checkout([
                     $class: 'GitSCM',
@@ -25,8 +25,9 @@ pipeline {
         stage ('Static analysis') {
             steps {
                 sh "pylint ./${KATPACKAGE} --output-format=parseable --exit-zero > pylint.out"
+                sh "lint_diff.sh -r ${KATPACKAGE}"
             }
-            
+
             post {
                 always {
                     recordIssues(tool: pyLint(pattern: 'pylint.out'))
@@ -34,7 +35,7 @@ pipeline {
             }
         }
 
-        stage('Install & Unit Tests') {
+        stage ('Install & Unit Tests') {
             options {
                 timestamps()
                 timeout(time: 30, unit: 'MINUTES')
@@ -45,14 +46,14 @@ pipeline {
             }
 
             parallel {
-                stage('py27') {
+                stage ('py27') {
                     steps {
                         echo "Running nosetests on Python 2.7"
                         sh 'tox -e py27'
                     }
                 }
 
-                stage('py36') {
+                stage ('py36') {
                     steps {
                         echo "Running nosetests on Python 3.6"
                         sh 'tox -e py36'
@@ -69,7 +70,7 @@ pipeline {
             }
         }
 
-        stage('Build & publish packages') {
+        stage ('Build & publish packages') {
             when {
                 branch 'master'
             }
