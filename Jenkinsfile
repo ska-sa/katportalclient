@@ -42,7 +42,7 @@ pipeline {
             }
 
             environment {
-                test_flags = "--with-xunit --with-xcoverage --cover-package=${KATPACKAGE} --cover-inclusive"
+                test_flags = "${KATPACKAGE}"
             }
 
             parallel {
@@ -64,7 +64,22 @@ pipeline {
             post {
                 always {
                     junit 'nosetests_*.xml'
-                    cobertura coberturaReportFile: 'coverage.xml'
+                    cobertura (
+                        coberturaReportFile: 'coverage_*.xml',
+                        failNoReports: true,
+                        failUnhealthy: true,
+                        failUnstable: true,
+                        autoUpdateHealth: true,
+                        autoUpdateStability: true,
+                        zoomCoverageChart: true,
+                        // Ideally test coverage should be > 80%
+                        /*
+                        lineCoverageTargets: '80, 80, 80',
+                        conditionalCoverageTargets: '80, 80, 80',
+                        classCoverageTargets: '80, 80, 80',
+                        fileCoverageTargets: '80, 80, 80',
+                        */
+                    )
                     archiveArtifacts '*.xml'
                 }
             }

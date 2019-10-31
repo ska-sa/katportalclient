@@ -49,7 +49,7 @@ build
 
 # Testing #
 ###########
-nosetests.xml
+nosetests*.xml
 *.coverage
-cover
+coverage*.xml
 .tox
