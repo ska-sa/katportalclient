@@ -9,7 +9,7 @@ pipeline {
     }
 
     stages {
-        stage('Checkout SCM') {
+        stage ('Checkout SCM') {
             steps {
                 checkout([
                     $class: 'GitSCM',
@@ -25,8 +25,9 @@ pipeline {
         stage ('Static analysis') {
             steps {
                 sh "pylint ./${KATPACKAGE} --output-format=parseable --exit-zero > pylint.out"
+                sh "lint_diff.sh -r ${KATPACKAGE}"
             }
-            
+
             post {
                 always {
                     recordIssues(tool: pyLint(pattern: 'pylint.out'))
@@ -34,25 +35,25 @@ pipeline {
             }
         }
 
-        stage('Install & Unit Tests') {
+        stage ('Install & Unit Tests') {
             options {
                 timestamps()
                 timeout(time: 30, unit: 'MINUTES')
             }
 
             environment {
-                test_flags = "--with-xunit --with-xcoverage --cover-package=${KATPACKAGE} --cover-inclusive"
+                test_flags = "${KATPACKAGE}"
             }
 
             parallel {
-                stage('py27') {
+                stage ('py27') {
                     steps {
                         echo "Running nosetests on Python 2.7"
                         sh 'tox -e py27'
                     }
                 }
 
-                stage('py36') {
+                stage ('py36') {
                     steps {
                         echo "Running nosetests on Python 3.6"
                         sh 'tox -e py36'
@@ -63,13 +64,28 @@ pipeline {
             post {
                 always {
                     junit 'nosetests_*.xml'
-                    cobertura coberturaReportFile: 'coverage.xml'
+                    cobertura (
+                        coberturaReportFile: 'coverage_*.xml',
+                        failNoReports: true,
+                        failUnhealthy: true,
+                        failUnstable: true,
+                        autoUpdateHealth: true,
+                        autoUpdateStability: true,
+                        zoomCoverageChart: true,
+                        // Ideally test coverage should be > 80%
+                        /*
+                        lineCoverageTargets: '80, 80, 80',
+                        conditionalCoverageTargets: '80, 80, 80',
+                        classCoverageTargets: '80, 80, 80',
+                        fileCoverageTargets: '80, 80, 80',
+                        */
+                    )
                     archiveArtifacts '*.xml'
                 }
             }
         }
 
-        stage('Build & publish packages') {
+        stage ('Build & publish packages') {
             when {
                 branch 'master'
             }
