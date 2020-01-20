@@ -1,7 +1,7 @@
 pipeline {
 
     agent {
-        label 'cambuilder'
+        label 'cambase_bionic'
     }
 
     environment {
