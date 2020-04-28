@@ -55,7 +55,7 @@ setup(
         "tornado>=4.0, <7.0; python_version>='3'",
         "tornado>=4.0, <5.0; python_version<'3'",
         "omnijson>=0.1.2",
-        "ujson>=1.33, <2.0",
+        "ujson>=2.0.0",
     ],
     # install extras by running pip install .[doc,<another_extra>]
     extras_require={
