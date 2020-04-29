@@ -12,22 +12,12 @@ files = {'Readme': 'README.md', 'Changelog': 'CHANGELOG.md'}
 
 long_description = ""
 for name, filename in files.items():
-    long_description += "# {}\n\n".format(name)
-    with open(path.join(this_directory, filename)) as f:
-        file_contents = f.read()
-    long_description += file_contents + "\n\n"
-
-long_description = ""
-for name, filename in files.items():
     if name != 'Readme':
         long_description += "# {}\n".format(name)
     with open(path.join(this_directory, filename)) as _f:
         file_contents = _f.read()
     long_description += file_contents + "\n\n"
 
-
-
-print(long_description)
 setup(
     name="katportalclient",
     description="A client for katportal.",
