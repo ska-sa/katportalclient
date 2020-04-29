@@ -59,6 +59,17 @@ pipeline {
                         sh 'tox -e py36'
                     }
                 }
+                stage ('Generate documentation.') {
+                    options {
+                        timestamps()
+                        timeout(time: 30, unit: 'MINUTES')
+                    }
+
+                    steps {
+                        echo "Generating Sphinx documentation."
+                        sh 'tox -e docs'
+                    }
+                }
             }
 
             post {

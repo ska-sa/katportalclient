@@ -7,15 +7,27 @@ from setuptools import setup, find_packages
 
 
 this_directory = path.abspath(path.dirname(__file__))
-files = {'Readme': 'README.md',
-         'Changelog': 'CHANGELOG.md'}
+
+files = {'Readme': 'README.md', 'Changelog': 'CHANGELOG.md'}
+
 long_description = ""
 for name, filename in files.items():
-    long_description += "{}\n\n".format(name)
+    long_description += "# {}\n\n".format(name)
     with open(path.join(this_directory, filename)) as f:
         file_contents = f.read()
     long_description += file_contents + "\n\n"
 
+long_description = ""
+for name, filename in files.items():
+    if name != 'Readme':
+        long_description += "# {}\n".format(name)
+    with open(path.join(this_directory, filename)) as _f:
+        file_contents = _f.read()
+    long_description += file_contents + "\n\n"
+
+
+
+print(long_description)
 setup(
     name="katportalclient",
     description="A client for katportal.",
@@ -57,14 +69,6 @@ setup(
         "omnijson>=0.1.2",
         "ujson>=2.0.0",
     ],
-    # install extras by running pip install .[doc,<another_extra>]
-    extras_require={
-        "doc": [
-            "sphinx>=1.2.3, <2.0",
-            "docutils>=0.12, <1.0",
-            "sphinx_rtd_theme>=0.1.5, <1.0",
-            "numpydoc>=0.5, <1.0"]
-    },
     zip_safe=False,
     test_suite="nose.collector",
 )
