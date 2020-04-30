@@ -1,4 +1,4 @@
-Welcome to katportalclient's documentation
+Welcome to the katportalclient's documentation
 ==========================================
 
 A client for simple access to **katportal**, via websocket and HTTP connections.
@@ -9,25 +9,30 @@ Dependencies
 ------------
 Details can be found in `setup.py` but basically it is only:
 
-- katversion
+- `katversion <https://pypi.org/project/katversion>`_
 - `tornado <http://www.tornadoweb.org>`_ is used as the web framework and for its asynchronous functionality.
 
-**Note:** `setup.py` depends on katversion, so make sure that is installed before
+**Note:** ``setup.py`` depends on ``katversion``, so make sure that is installed before
 installing the package.
 
 Install
 -------
-pip install katportalclient
 
-.. toctree::
-   :maxdepth: 1
-
- katportalclient's documentation <katportalclient.rst>
+``pip install katportalclient``
 
 Example usage
 -------------
 
-See the examples folder for code that demonstrates some usage scenarios.
+See the `examples` folder for code that demonstrates some usage scenarios.
+
+Contents
+--------
+
+.. toctree::
+   :maxdepth: 1
+
+ Core API <katportalclient.rst>
+
 
 Indices and tables
 ------------------
