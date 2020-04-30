@@ -1,6 +1,6 @@
 # Changelog
 
-## [v0.2.2](https://github.com/ska-sa/katportalclient/tree/v0.2.2) (2010-04-30)
+## [v0.2.2](https://github.com/ska-sa/katportalclient/tree/v0.2.2) (2020-04-30)
 
 [Full Changelog](https://github.com/ska-sa/katportalclient/compare/v0.2.1...v0.2.2)
 
