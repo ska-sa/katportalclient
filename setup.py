@@ -14,7 +14,7 @@ long_description = ""
 for name, filename in files.items():
     if name != 'Readme':
         long_description += "# {}\n".format(name)
-    with open(path.join(this_directory, filename)) as _f:
+    with open(path.join(this_directory, filename), encoding='utf8') as _f:
         file_contents = _f.read()
     long_description += file_contents + "\n\n"
 
