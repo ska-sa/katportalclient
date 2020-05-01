@@ -4,7 +4,9 @@
 
 from os import path
 from setuptools import setup, find_packages
+from sys import version_info
 
+PYTHON2 = (2,) <= version_info < (3,)
 
 this_directory = path.abspath(path.dirname(__file__))
 
@@ -14,7 +16,8 @@ long_description = ""
 for name, filename in files.items():
     if name != 'Readme':
         long_description += "# {}\n".format(name)
-    with open(path.join(this_directory, filename)) as _f:
+    open_kwargs = {'encoding': 'utf8'} if not PYTHON2 else {}
+    with open(path.join(this_directory, filename), **open_kwargs) as _f:
         file_contents = _f.read()
     long_description += file_contents + "\n\n"
 
