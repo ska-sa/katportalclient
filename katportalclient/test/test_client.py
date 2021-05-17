@@ -921,7 +921,8 @@ class TestKATPortalClient(WebSocketBaseTestCase):
 
         self.mock_http_async_client().fetch.side_effect = self.mock_async_fetcher(mon_response)
         with self.assertRaises(SensorNotFoundError):
-            yield self._portal_client.sensor_value("tfrmon_tfr_m018_l_band_offset_average")
+            yield self._portal_client.sensor_value(
+                "tfrmon_tfr_m018_l_band_offset_average")
 
     @gen_test
     def test_sensor_value_one_result(self):
