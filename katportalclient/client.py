@@ -15,7 +15,7 @@ import logging
 import time
 import concurrent.futures
 
-import omnijson as json
+import ujson as json
 import tornado.gen
 import tornado.httpclient
 import tornado.ioloop
@@ -296,7 +296,7 @@ class KATPortalClient(object):
                     result.update(response['client'])
                 except tornado.httpclient.HTTPError:
                     self._logger.exception("Failed to get sitemap!")
-                except json.JSONError:
+                except ValueError:
                     self._logger.exception("Failed to parse sitemap!")
                 except KeyError:
                     self._logger.exception("Failed to parse sitemap!")
@@ -1327,7 +1327,7 @@ class KATPortalClient(object):
             "{}?reading_only=1&name_filter=^{}$".format(url, sensor_name))
         try:
             results = json.loads(response.body)
-        except json.JSONError:
+        except ValueError:
             raise InvalidResponseError(
                 "Request to {} did not respond with valid JSON".format(url))
 
@@ -1406,7 +1406,7 @@ class KATPortalClient(object):
             response = yield self._http_client.fetch(query_url)
             try:
                 results = json.loads(response.body)
-            except json.JSONError:
+            except ValueError:
                 raise InvalidResponseError(
                     "Request to {} did not respond with valid JSON".format(url))
 

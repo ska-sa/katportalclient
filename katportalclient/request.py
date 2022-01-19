@@ -4,7 +4,7 @@
 
 import uuid
 
-import omnijson as json
+import ujson as json
 
 from builtins import object, str
 

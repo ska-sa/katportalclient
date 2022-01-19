@@ -11,7 +11,7 @@ import time
 from urllib.parse import quote_plus
 
 import mock
-import omnijson as json
+import ujson as json
 
 from builtins import bytes, zip
 from functools import partial
@@ -1566,7 +1566,7 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         self.assertDictEqual(actual_body_dict, userlog_to_modify)
 
         # Test bad tags attribute
-        with self.assertRaises(json.JSONError):
+        with self.assertRaises(ValueError):
             userlog_to_modify['tags'] = 'random nonsense'
             userlog = yield self._portal_client.modify_userlog(userlog_to_modify)
 
