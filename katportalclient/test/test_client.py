@@ -11,7 +11,7 @@ import time
 from urllib.parse import quote_plus
 
 import mock
-import ujson as json
+import ujson as json  # noqa: E402
 
 from builtins import bytes, zip
 from functools import partial

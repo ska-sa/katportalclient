@@ -15,7 +15,7 @@ import logging
 import time
 import concurrent.futures
 
-import ujson as json
+import ujson as json  # noqa: E402
 import tornado.gen
 import tornado.httpclient
 import tornado.ioloop
