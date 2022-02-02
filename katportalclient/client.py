@@ -1161,7 +1161,7 @@ class KATPortalClient(object):
         return results
 
     @tornado.gen.coroutine
-    def sensor_names(self, filters):
+    def sensor_names(self, filters, component=True):
         """Return list of matching sensor names.
 
         Provides the list of available sensors in the system that match the
@@ -1178,11 +1178,12 @@ class KATPortalClient(object):
         filters: str or list of str
             List of regular expression patterns to match.
             See :meth:`.set_sampling_strategies` for more detail.
-
+        component: bool
+            When set to True components will be returned in results.
         Returns
         -------
         list:
-            List of sensor name strings.
+            List of sensor name strings or list of tuples (sensor, component).
 
         Raises
         -------
@@ -1199,7 +1200,10 @@ class KATPortalClient(object):
             new_sensors = self._extract_sensors_details(response.body)
             # only add sensors once, to ensure a unique list
             for sensor in new_sensors:
-                results.add(sensor['name'])
+                if component:
+                    results.add((sensor['name'], sensor['component']))
+                else:
+                    results.add(sensor['name'])
         raise tornado.gen.Return(sorted(results))
 
     @tornado.gen.coroutine
