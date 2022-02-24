@@ -1161,7 +1161,7 @@ class KATPortalClient(object):
         return results
 
     @tornado.gen.coroutine
-    def sensor_names(self, filters, component=True):
+    def sensor_names(self, filters, component=False):
         """Return list of matching sensor names.
 
         Provides the list of available sensors in the system that match the
