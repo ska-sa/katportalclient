@@ -1290,7 +1290,7 @@ class KATPortalClient(object):
             raise tornado.gen.Return(result)
 
     @tornado.gen.coroutine
-    def sensor_value(self, sensor_name, include_value_ts=False):
+    def sensor_value(self, sensor_name, components=None, include_value_ts=False):
         """Return the latest reading of a sensor.
 
         .. note::
@@ -1304,6 +1304,9 @@ class KATPortalClient(object):
             Exact sensor name. No regular expressions allowed.
             To get a list of sensor names based off regular expressions, see
             :meth:`.sensor_names`.
+        components: list
+            List of component names.
+            Default: None
         include_value_ts: bool
             Flag to also include value timestamp.
             Default: False.
@@ -1321,7 +1324,12 @@ class KATPortalClient(object):
         InvalidResponseError:
             - When the katportal service returns invalid JSON
         """
-        url = (yield self.get_sitemap())['monitor'] + '/list-sensors/all'
+        if isinstance(components, list):
+            components = ",".join(components)
+        else:
+            components = "all"
+
+        url = (yield self.get_sitemap())['monitor'] + '/list-sensors/' + components
 
         response = yield self._http_client.fetch(
             "{}?reading_only=1&name_filter=^{}$".format(url, sensor_name))
@@ -1365,7 +1373,7 @@ class KATPortalClient(object):
                 status=result_to_format['status']))
 
     @tornado.gen.coroutine
-    def sensor_values(self, filters, include_value_ts=False):
+    def sensor_values(self, filters, components=None, include_value_ts=False):
         """Return a list of latest readings of the sensors matching the
         specified pattern.
 
@@ -1378,6 +1386,9 @@ class KATPortalClient(object):
             'observer' sensor reading for all antennas.
 
             See :meth:`.set_sampling_strategies` for more detail.
+        components: list
+            List of component names
+            Default: None
         include_value_ts: bool
             Flag to also include value timestamp.
             Default: False.
@@ -1394,7 +1405,12 @@ class KATPortalClient(object):
         InvalidResponseError:
             - When the katportal service returns invalid JSON
         """
-        url = (yield self.get_sitemap())['monitor'] + '/list-sensors/all'
+        if isinstance(components, list):
+            components = ",".join(components)
+        else:
+            components = "all"
+
+        url = (yield self.get_sitemap())['monitor'] + '/list-sensors/' + components
 
         if isinstance(filters, basestring):
             filters = [filters]
