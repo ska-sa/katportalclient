@@ -60,7 +60,7 @@ setup(
         "tornado>=4.0, <7.0; python_version>='3'",
         "tornado>=4.0, <5.0; python_version<'3'",
         'ujson==2.0.3; python_version<"3"',
-        'ujson==4.3.0; python_version>"3"',
+        'ujson==5.2.0; python_version>"3"',
     ],
     zip_safe=False,
     test_suite="nose.collector",
