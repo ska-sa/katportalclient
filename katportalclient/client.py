@@ -47,6 +47,29 @@ HTTP_REQUEST_TIMEOUT = 60
 
 module_logger = logging.getLogger('kat.katportalclient')
 
+# katportal's list-sensors freshness header (OPS-6012). Its values: "fresh",
+# "legacy" (the source is not stamped: permanent) or "unverified" (transient).
+SENSOR_CACHE_QUALITY_HEADER = 'X-Sensor-Cache-Quality'
+
+
+def _components_path(components, require_fresh):
+    """The list-sensors path segment for ``components``.
+
+    Without ``require_fresh`` this is unchanged: a list is joined and anything
+    else means every component. With it, the components must be named: a
+    non-empty list or tuple of names, or one name as a string.
+    """
+    if not require_fresh:
+        return ",".join(components) if isinstance(components, list) else "all"
+    if isinstance(components, basestring):
+        components = [components]
+    if (not isinstance(components, (list, tuple)) or not components
+            or not all(isinstance(name, basestring) and name for name in components)):
+        raise ValueError(
+            "require_fresh needs named components (a non-empty list, tuple or "
+            "string), not {!r}".format(components))
+    return ",".join(components)
+
 
 def create_jwt_login_token(email, password):
     """Creates a JWT login token. See http://jwt.io for the industry standard
@@ -1290,7 +1313,40 @@ class KATPortalClient(object):
             raise tornado.gen.Return(result)
 
     @tornado.gen.coroutine
-    def sensor_value(self, sensor_name, components=None, include_value_ts=False):
+    def _list_sensors_fetch(self, url, query, require_fresh):
+        """Fetch a list-sensors listing and decode it.
+
+        With `require_fresh` the request opts in, and only an answer katportal
+        labels "fresh" is accepted. Without it, the request and its errors are
+        as they always were.
+        """
+        if require_fresh:
+            query = dict(query, require_fresh="1")
+        try:
+            response = yield self._http_client.fetch(url_concat(url, query))
+        except tornado.httpclient.HTTPError as error:
+            if require_fresh:
+                _raise_list_sensors_error(error)  # returns if not katportal's
+            raise
+        quality = response.headers.get(SENSOR_CACHE_QUALITY_HEADER)
+        if require_fresh and quality != "fresh":
+            # An older katportal ignores require_fresh and sends no header;
+            # any other value means the request lost its query on the way.
+            # Neither is fixed by retrying.
+            raise SensorCacheNotFreshError(
+                "Server answered 200 with sensor-cache quality {!r}, not "
+                "fresh: katportal older than this client, or a proxy dropped "
+                "the query".format(quality), quality=quality, retryable=False)
+        try:
+            results = json.loads(response.body)
+        except ValueError:
+            raise InvalidResponseError(
+                "Request to {} did not respond with valid JSON".format(url))
+        raise tornado.gen.Return(results)
+
+    @tornado.gen.coroutine
+    def sensor_value(self, sensor_name, components=None, include_value_ts=False,
+                     require_fresh=False):
         """Return the latest reading of a sensor.
 
         .. note::
@@ -1310,12 +1366,19 @@ class KATPortalClient(object):
         include_value_ts: bool
             Flag to also include value timestamp.
             Default: False.
+        require_fresh: bool
+            Only accept an answer whose sensor membership the sensor cache
+            vouches for (see :class:`.SensorCacheNotFreshError`). `components`
+            must then name the components: a list, a tuple or one string.
+            Default: False.
 
         Returns
         -------
         namedtuple:
             Instance of :class:`.SensorSampleValueTime` if `include_value_ts` is `True`,
-            otherwise an instance of :class:`.SensorSample`
+            otherwise an instance of :class:`.SensorSample`. From a katportal
+            with sensor-cache freshness (OPS-6012), a sensor that exists but
+            has no reading yet has status "unknown" and value None.
 
         Raises
         -------
@@ -1323,21 +1386,16 @@ class KATPortalClient(object):
             - If no information was available for the requested sensor name.
         InvalidResponseError:
             - When the katportal service returns invalid JSON
+        SensorCacheNotFreshError:
+            - With `require_fresh`, when the cache cannot vouch for the answer.
+        ValueError:
+            - With `require_fresh`, when the components are not named.
         """
-        if isinstance(components, list):
-            components = ",".join(components)
-        else:
-            components = "all"
-
+        components = _components_path(components, require_fresh)
         url = (yield self.get_sitemap())['monitor'] + '/list-sensors/' + components
-
-        response = yield self._http_client.fetch(
-            "{}?reading_only=1&name_filter=^{}$".format(url, sensor_name))
-        try:
-            results = json.loads(response.body)
-        except ValueError:
-            raise InvalidResponseError(
-                "Request to {} did not respond with valid JSON".format(url))
+        results = yield self._list_sensors_fetch(
+            url, {"reading_only": "1", "name_filter": "^{}$".format(sensor_name)},
+            require_fresh)
 
         if len(results) == 0:
             raise SensorNotFoundError("Value for sensor {} not found".format(sensor_name))
@@ -1373,7 +1431,8 @@ class KATPortalClient(object):
                 status=result_to_format['status']))
 
     @tornado.gen.coroutine
-    def sensor_values(self, filters, components=None, include_value_ts=False):
+    def sensor_values(self, filters, components=None, include_value_ts=False,
+                      require_fresh=False):
         """Return a list of latest readings of the sensors matching the
         specified pattern.
 
@@ -1392,11 +1451,20 @@ class KATPortalClient(object):
         include_value_ts: bool
             Flag to also include value timestamp.
             Default: False.
+        require_fresh: bool
+            Only accept answers whose sensor membership the sensor cache
+            vouches for (see :class:`.SensorCacheNotFreshError`). `components`
+            must then name the components: a list, a tuple or one string.
+            Each filter is a separate request, so a separate cut of the cache:
+            prefer one regular expression when the answers must agree.
+            Default: False.
 
         Returns
         -------
         dict:
-            Dict of sensor name strings and their latest readings.
+            Dict of sensor name strings and their latest readings. From a
+            katportal with sensor-cache freshness (OPS-6012), a sensor that
+            exists but has no reading yet has status "unknown" and value None.
 
         Raises
         -------
@@ -1404,12 +1472,12 @@ class KATPortalClient(object):
             - If no information was available for the requested filter.
         InvalidResponseError:
             - When the katportal service returns invalid JSON
+        SensorCacheNotFreshError:
+            - With `require_fresh`, when the cache cannot vouch for an answer.
+        ValueError:
+            - With `require_fresh`, when the components are not named.
         """
-        if isinstance(components, list):
-            components = ",".join(components)
-        else:
-            components = "all"
-
+        components = _components_path(components, require_fresh)
         url = (yield self.get_sitemap())['monitor'] + '/list-sensors/' + components
 
         if isinstance(filters, basestring):
@@ -1418,13 +1486,8 @@ class KATPortalClient(object):
         results_to_return = {}
 
         for filt in filters:
-            query_url = url_concat(url, {"reading_only": "1", "name_filter": filt})
-            response = yield self._http_client.fetch(query_url)
-            try:
-                results = json.loads(response.body)
-            except ValueError:
-                raise InvalidResponseError(
-                    "Request to {} did not respond with valid JSON".format(url))
+            results = yield self._list_sensors_fetch(
+                url, {"reading_only": "1", "name_filter": filt}, require_fresh)
 
             if len(results) == 0:
                 raise SensorNotFoundError("No values for filter {} found".format(filt))
@@ -1917,6 +1980,72 @@ class SensorLookupError(Exception):
 
 class InvalidResponseError(Exception):
     """Raise if server response was invalid."""
+
+
+class SensorCacheNotFreshError(Exception):
+    """Raise if `require_fresh` was asked and the sensor cache cannot vouch.
+
+    Deliberately not a :class:`SensorNotFoundError`: a stale cache is not a
+    missing sensor.
+
+    Attributes
+    ----------
+    qualities: dict or None
+        Each requested component's quality: "fresh", "legacy" (its source is
+        not stamped; permanent until it is) or "unverified" (transient). None
+        when the server does not report freshness at all (katportal older
+        than this client; permanent).
+    quality: str or None
+        The overall quality katportal reported in its header, when it did.
+    retryable: bool
+        Whether retrying can help. By default: true when every component
+        that is not fresh is "unverified", or, without a per-component map,
+        when the header said "unverified". A 200 refused for its header is
+        never retryable: the server did not act on require_fresh at all.
+    """
+
+    def __init__(self, message, qualities=None, quality=None, retryable=None):
+        Exception.__init__(self, message)
+        self.qualities = qualities
+        self.quality = quality
+        if retryable is None:
+            if isinstance(qualities, dict) and qualities:
+                retryable = all(value in ("fresh", "unverified")
+                                for value in qualities.values())
+            else:
+                retryable = qualities is None and quality == "unverified"
+        self.retryable = retryable
+
+
+def _raise_list_sensors_error(error):
+    """Raise what an opted-in list-sensors HTTP error means, if it is
+    katportal's; return otherwise, for the caller to re-raise it as it came.
+
+    katportal's 503 carries its quality header or a JSON quality map, and its
+    400 a JSON error. The same codes without those (from a proxy, say) are not
+    reinterpreted, so "proxy down" never reads as "stale cache" or "bad
+    request".
+    """
+    response = error.response
+    if response is None:  # no response at all: a timeout or a connection error
+        return
+    try:
+        body = json.loads(response.body)
+    except (TypeError, ValueError):
+        body = {}
+    if not isinstance(body, dict):
+        body = {}
+    quality = response.headers.get(SENSOR_CACHE_QUALITY_HEADER)
+    if error.code == 503 and (quality or "quality" in body):
+        qualities = body.get("quality")
+        if not isinstance(qualities, dict):
+            qualities = None
+        raise SensorCacheNotFreshError(
+            "Sensor cache not fresh: {}".format(
+                json.dumps(qualities, sort_keys=True) if qualities else quality),
+            qualities, quality)
+    if error.code == 400 and "error" in body:
+        raise ValueError("katportal refused the request: {}".format(body["error"]))
 
 
 def _sort_by_sample_time(sample):

@@ -18,7 +18,8 @@ from functools import partial
 from past.builtins import basestring
 
 from tornado import concurrent, gen
-from tornado.httpclient import HTTPResponse, HTTPRequest
+from tornado.httpclient import HTTPError, HTTPResponse, HTTPRequest  # noqa: E402
+from tornado.httputil import HTTPHeaders  # noqa: E402
 from tornado.test.websocket_test import WebSocketBaseTestCase, TestWebSocketHandler
 from tornado.testing import gen_test
 from tornado.web import Application
@@ -27,10 +28,11 @@ from katportalclient import (
     KATPortalClient, JSONRPCRequest, ScheduleBlockNotFoundError, InvalidResponseError,
     SensorNotFoundError, SensorLookupError, SensorHistoryRequestError,
     ScheduleBlockTargetsParsingError, create_jwt_login_token, SensorSample,
-    SensorSampleValueTime)
+    SensorSampleValueTime, SensorCacheNotFreshError)
 
 
 LOGGER_NAME = 'test_portalclient'
+SENSOR_CACHE_QUALITY_HEADER = 'X-Sensor-Cache-Quality'
 NEW_WEBSOCKET_DELAY = 0.05
 SITEMAP_URL = 'http://dummy.for.sitemap/api/client/3'
 
@@ -1024,6 +1026,202 @@ class TestKATPortalClient(WebSocketBaseTestCase):
         res = yield self._portal_client.sensor_values(["some_other_sample_0",
                                                        "some_other_sample_1"])
         assert res == expected_result, res
+
+    def listing_fetcher(self, body=None, code=200, quality="fresh", urls=None):
+        """A fetch answering list-sensors as katportal does: the quality header
+        when given, and an error status raised as tornado raises it."""
+        sitemap = self.mock_async_fetcher('')
+        if body is None:
+            body = ('[{"status":"nominal","name":"cbf_1_x","component":"cbf_1",'
+                    '"value":1.5,"value_ts":111.0,"time":222.0}]')
+
+        def fetch(url, method="GET", body_=None):
+            if url == SITEMAP_URL:
+                return sitemap(url)
+            if urls is not None:
+                urls.append(url)
+            headers = HTTPHeaders()
+            if quality is not None:
+                headers[SENSOR_CACHE_QUALITY_HEADER] = quality
+            response = HTTPResponse(HTTPRequest(url), code, headers=headers,
+                                    buffer=buffer_bytes_io(body))
+            future = concurrent.Future()
+            if code >= 300:
+                future.set_exception(HTTPError(code, response=response))
+            else:
+                future.set_result(response)
+            return future
+        return fetch
+
+    @gen_test
+    def test_sensor_value_require_fresh_accepts_a_fresh_answer(self):
+        urls = []
+        self.mock_http_async_client().fetch.side_effect = self.listing_fetcher(urls=urls)
+        result = yield self._portal_client.sensor_value(
+            "cbf_1_x", components=["cbf_1"], require_fresh=True)
+        self.assertEqual(result, SensorSample(sample_time=222.0, value=1.5,
+                                              status="nominal"))
+        self.assertIn("/list-sensors/cbf_1?", urls[0])
+        self.assertIn("require_fresh=1", urls[0])
+
+    @gen_test
+    def test_require_fresh_takes_one_component_as_a_string(self):
+        from builtins import str as newstr  # future's str on py2
+        for component in ("cbf_1", u"cbf_1", newstr("cbf_1"), ("cbf_1",)):
+            urls = []
+            self.mock_http_async_client().fetch.side_effect = self.listing_fetcher(
+                urls=urls)
+            yield self._portal_client.sensor_values(
+                "cbf_1_x", components=component, require_fresh=True)
+            self.assertIn("/list-sensors/cbf_1?", urls[0])
+
+    @gen_test
+    def test_require_fresh_needs_named_components(self):
+        self.mock_http_async_client().fetch.side_effect = self.listing_fetcher()
+        for components in (None, [], "", ("",), 5):
+            with self.assertRaises(ValueError):
+                yield self._portal_client.sensor_value(
+                    "cbf_1_x", components=components, require_fresh=True)
+        self.assertEqual(
+            [c for c in self.mock_http_async_client().fetch.call_args_list
+             if c[0][0] != SITEMAP_URL], [], "refused before any request")
+
+    @gen_test
+    def test_require_fresh_reports_the_qualities(self):
+        for qualities, retryable in (({"cbf_1": "unverified"}, True),
+                                     ({"cbf_1": "legacy"}, False),
+                                     ({"cbf_1": "fresh", "cbf_2": "unverified"}, True)):
+            body = json.dumps({"error": "sensor cache not fresh", "quality": qualities})
+            self.mock_http_async_client().fetch.side_effect = self.listing_fetcher(
+                body=body, code=503, quality="unverified")
+            with self.assertRaises(SensorCacheNotFreshError) as caught:
+                yield self._portal_client.sensor_values(
+                    "cbf_1_x", components=list(qualities), require_fresh=True)
+            self.assertEqual(caught.exception.qualities, qualities)
+            self.assertEqual(caught.exception.retryable, retryable)
+            self.assertNotIsInstance(caught.exception, SensorNotFoundError)
+
+    @gen_test
+    def test_require_fresh_uses_the_header_without_a_readable_map(self):
+        """katportal's header alone still identifies a stale cache, and its
+        value decides whether a retry can help."""
+        for body, quality, retryable in (("", "unverified", True),
+                                         ("[1]", "unverified", True),
+                                         ('{"quality": "x"}', "legacy", False)):
+            self.mock_http_async_client().fetch.side_effect = self.listing_fetcher(
+                body=body, code=503, quality=quality)
+            with self.assertRaises(SensorCacheNotFreshError) as caught:
+                yield self._portal_client.sensor_value(
+                    "cbf_1_x", components=["cbf_1"], require_fresh=True)
+            self.assertIsNone(caught.exception.qualities)
+            self.assertEqual(caught.exception.quality, quality)
+            self.assertEqual(caught.exception.retryable, retryable, body)
+
+    @gen_test
+    def test_require_fresh_reraises_an_error_without_a_response(self):
+        def fetch(url, method="GET", body=None):
+            if url == SITEMAP_URL:
+                return self.listing_fetcher()(url)
+            future = concurrent.Future()
+            future.set_exception(HTTPError(599, "Timeout"))
+            return future
+        self.mock_http_async_client().fetch.side_effect = fetch
+        with self.assertRaises(HTTPError) as caught:
+            yield self._portal_client.sensor_value(
+                "cbf_1_x", components=["cbf_1"], require_fresh=True)
+        self.assertEqual(caught.exception.code, 599)
+
+    @gen_test
+    def test_require_fresh_reraises_a_400_that_is_not_katportals(self):
+        self.mock_http_async_client().fetch.side_effect = self.listing_fetcher(
+            body="<html>Bad Request</html>", code=400, quality=None)
+        with self.assertRaises(HTTPError) as caught:
+            yield self._portal_client.sensor_value(
+                "cbf_1_x", components=["cbf_1"], require_fresh=True)
+        self.assertEqual(caught.exception.code, 400)
+
+    @gen_test
+    def test_an_empty_quality_map_is_not_retryable(self):
+        self.assertFalse(SensorCacheNotFreshError("x", {}).retryable)
+
+    @gen_test
+    def test_require_fresh_reraises_a_503_that_is_not_katportals(self):
+        self.mock_http_async_client().fetch.side_effect = self.listing_fetcher(
+            body="<html>Service Unavailable</html>", code=503, quality=None)
+        with self.assertRaises(HTTPError) as caught:
+            yield self._portal_client.sensor_value(
+                "cbf_1_x", components=["cbf_1"], require_fresh=True)
+        self.assertNotIsInstance(caught.exception, SensorCacheNotFreshError)
+        self.assertEqual(caught.exception.code, 503)
+
+    @gen_test
+    def test_require_fresh_turns_a_400_into_a_value_error(self):
+        self.mock_http_async_client().fetch.side_effect = self.listing_fetcher(
+            body='{"error": "invalid component list"}', code=400, quality="unverified")
+        with self.assertRaises(ValueError) as caught:
+            yield self._portal_client.sensor_value(
+                "cbf_1_x", components=["cbf_1"], require_fresh=True)
+        self.assertIn("invalid component list", str(caught.exception))
+
+    @gen_test
+    def test_require_fresh_reraises_a_500(self):
+        self.mock_http_async_client().fetch.side_effect = self.listing_fetcher(
+            body='{"error": "internal"}', code=500, quality="unverified")
+        with self.assertRaises(HTTPError) as caught:
+            yield self._portal_client.sensor_value(
+                "cbf_1_x", components=["cbf_1"], require_fresh=True)
+        self.assertEqual(caught.exception.code, 500)
+
+    @gen_test
+    def test_require_fresh_refuses_a_server_without_freshness(self):
+        """An older katportal ignores require_fresh and answers 200 with no
+        header: that must not pass as a guarantee."""
+        for quality in (None, "unverified", "legacy"):
+            self.mock_http_async_client().fetch.side_effect = self.listing_fetcher(
+                quality=quality)
+            with self.assertRaises(SensorCacheNotFreshError) as caught:
+                yield self._portal_client.sensor_value(
+                    "cbf_1_x", components=["cbf_1"], require_fresh=True)
+            self.assertIsNone(caught.exception.qualities)
+            self.assertEqual(caught.exception.quality, quality)
+            self.assertFalse(caught.exception.retryable, quality)
+
+    @gen_test
+    def test_without_require_fresh_nothing_changes(self):
+        urls = []
+        self.mock_http_async_client().fetch.side_effect = self.listing_fetcher(
+            quality=None, urls=urls)
+        yield self._portal_client.sensor_value("cbf_1_x", components="cbf_1")
+        self.assertIn("/list-sensors/all?", urls[0])  # as before: only lists name
+        self.assertNotIn("require_fresh", urls[0])
+        self.mock_http_async_client().fetch.side_effect = self.listing_fetcher(
+            body="{}", code=503, quality="unverified")
+        with self.assertRaises(HTTPError):
+            yield self._portal_client.sensor_value("cbf_1_x", components=["cbf_1"])
+
+    @gen_test
+    def test_sensor_value_escapes_the_sensor_name(self):
+        urls = []
+        self.mock_http_async_client().fetch.side_effect = self.listing_fetcher(urls=urls)
+        yield self._portal_client.sensor_value("cbf_1_x", components=["cbf_1"])
+        self.assertIn("name_filter=%5Ecbf_1_x%24", urls[0])
+
+    @gen_test
+    def test_sensor_values_require_fresh_checks_every_filter(self):
+        fresh = self.listing_fetcher()
+        stale = self.listing_fetcher(body='{"quality": {"cbf_1": "unverified"}}',
+                                     code=503, quality="unverified")
+        answers = [fresh, stale]
+
+        def fetch(url, method="GET", body=None):
+            if url == SITEMAP_URL:
+                return fresh(url)
+            return answers.pop(0)(url)
+        self.mock_http_async_client().fetch.side_effect = fetch
+        with self.assertRaises(SensorCacheNotFreshError):
+            yield self._portal_client.sensor_values(
+                ["cbf_1_x", "cbf_1_y"], components=["cbf_1"], require_fresh=True)
+        self.assertEqual(answers, [])
 
     @gen_test
     def test_sensor_history_single_sensor_without_value_time(self):

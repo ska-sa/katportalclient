@@ -7,7 +7,8 @@ from .client import (
     KATPortalClient, ScheduleBlockNotFoundError, SensorNotFoundError,
     SensorHistoryRequestError, ScheduleBlockTargetsParsingError,
     SubarrayNumberUnknown, SensorLookupError, InvalidResponseError,
-    create_jwt_login_token, SensorSample, SensorSampleValueTime)
+    SensorCacheNotFreshError, create_jwt_login_token, SensorSample,
+    SensorSampleValueTime)
 from .request import JSONRPCRequest
 
 # BEGIN VERSION CHECK
